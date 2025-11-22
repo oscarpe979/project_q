@@ -393,7 +393,7 @@ body {
 
 .time-label {
   position: absolute;
-  top: -10px;
+  top: -3px;
   right: 8px;
   font-size: 0.75rem;
   color: var(--text-secondary);
@@ -421,7 +421,7 @@ body {
 
 .grid-line-hour {
   height: 60px;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   width: 100%;
   position: relative;
 }
@@ -436,7 +436,7 @@ body {
 
 .day-column {
   position: relative;
-  border-right: 1px solid var(--border-light);
+  border-right: 1px solid rgba(0, 0, 0, 0.15);
   height: 100%;
 }
 
@@ -451,7 +451,7 @@ body {
   padding: 0.5rem 0.75rem;
   font-size: 0.75rem;
   cursor: grab;
-  transition: all 0.2s ease;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.05);
 }
@@ -459,7 +459,7 @@ body {
 .event-block:hover {
   box-shadow: var(--shadow-lg);
   z-index: 20;
-  transform: scale(1.02);
+  transform: scale(1.005);
 }
 
 .event-block.dragging {
@@ -468,6 +468,8 @@ body {
   transform: scale(1.05);
   z-index: 50;
   cursor: grabbing;
+  transition: none;
+  /* Disable transitions during drag for performance */
 }
 
 .event-title {
@@ -502,6 +504,14 @@ body {
   padding-bottom: 4px;
   opacity: 0;
   transition: opacity 0.2s;
+}
+
+.resize-handle-top {
+  top: 0;
+  bottom: auto;
+  align-items: flex-start;
+  padding-top: 4px;
+  padding-bottom: 0;
 }
 
 .event-block:hover .resize-handle {
