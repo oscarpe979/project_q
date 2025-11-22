@@ -109,7 +109,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
         // Calculate width: full column width divided by overlaps, minus 2px total (1px margin each side)
         const widthCalc = totalOverlaps === 1
             ? 'calc(100% - 2px)'
-            : `calc(${100 / totalOverlaps}% - 2px)`;
+            : `calc(${100 / totalOverlaps} % - 2px)`;
         const leftCalc = totalOverlaps === 1
             ? '1px'
             : `calc(${(100 / totalOverlaps) * overlapIndex}% + 1px)`;
@@ -125,8 +125,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
         return {
             event,
             style: {
-                top: `${top}px`,
-                height: `${height}px`,
+                top: `${top} px`,
+                height: `${height} px`,
                 width: widthCalc,
                 left: leftCalc,
             }
