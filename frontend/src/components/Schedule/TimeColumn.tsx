@@ -1,15 +1,19 @@
 import React from 'react';
 
 export const TimeColumn: React.FC = () => {
-    // Generate time slots (00:00 to 23:00)
-    const hours = Array.from({ length: 24 }, (_, i) => i);
+    // Generate time slots (00:00 to 23:30)
+    const slots = Array.from({ length: 48 }, (_, i) => {
+        const hour = Math.floor(i / 2);
+        const minute = (i % 2) * 30;
+        return { hour, minute };
+    });
 
     return (
-        <div className="w-20 flex-shrink-0 flex flex-col border-r border-[var(--border-light)] bg-[var(--bg-app)] select-none">
-            {hours.map((hour) => (
-                <div key={hour} className="h-20 relative border-b border-[var(--border-light)] last:border-b-0">
-                    <span className="absolute -top-3 right-2 text-xs text-[var(--text-secondary)] font-medium bg-[var(--bg-app)] px-1">
-                        {hour.toString().padStart(2, '0')}:00
+        <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+            {slots.map(({ hour, minute }, index) => (
+                <div key={index} className="time-slot">
+                    <span className="time-label">
+                        {hour.toString().padStart(2, '0')}:{minute.toString().padStart(2, '0')}
                     </span>
                 </div>
             ))}

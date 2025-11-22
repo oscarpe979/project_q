@@ -2,6 +2,7 @@ import React from 'react';
 import { format, addDays, startOfWeek, setMinutes } from 'date-fns';
 import { DndContext, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
+import clsx from 'clsx';
 import { TimeColumn } from './TimeColumn';
 import { DayColumn } from './DayColumn';
 import { EventBlock } from './EventBlock';
@@ -33,8 +34,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
         setEvents((prev) => prev.map((e) => {
             if (e.id === eventId) {
                 // Calculate time shift in minutes
-                // 80px = 60 minutes => 1px = 0.75 minutes
-                const minutesShift = (delta.y / 80) * 60;
+                // 60px = 60 minutes => 1px = 1 minute
+                const minutesShift = delta.y;
 
                 // Snap to nearest 15 minutes
                 const snappedMinutes = Math.round(minutesShift / 15) * 15;
@@ -59,92 +60,101 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
         }));
     };
 
+    // Calculate layout for all events once
+    const allEventsWithLayout = events.map((event) => {
+        // Find overlapping events for this specific event
+        const overlaps = events.filter(other =>
+            other.id !== event.id &&
+            other.start < event.end &&
+            other.end > event.start &&
+            other.start.getDate() === event.start.getDate() && // Ensure same day
+            other.start.getMonth() === event.start.getMonth()
+        );
+
+        const totalOverlaps = overlaps.length + 1;
+        // Find index among overlaps (naive approach, can be improved)
+        const overlapIndex = overlaps.filter(o => o.start.getTime() < event.start.getTime() || (o.start.getTime() === event.start.getTime() && o.id < event.id)).length;
+
+        const widthPercent = 95 / totalOverlaps;
+        const leftPercent = 2.5 + (overlapIndex * widthPercent);
+
+        // Calculate top position based on start time (60px per hour)
+        const startHour = event.start.getHours() + event.start.getMinutes() / 60;
+        const top = startHour * 60;
+
+        return {
+            event,
+            style: {
+                top: `${top}px`,
+                width: `${widthPercent}%`,
+                left: `${leftPercent}%`,
+            }
+        };
+    });
+
     return (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <div className="flex flex-col h-full">
-                {/* Header Row */}
-                <div className="flex border-b border-[var(--border-light)] bg-[var(--bg-panel)] sticky top-0 z-30 backdrop-blur-md">
-                    <div className="w-20 flex-shrink-0 border-r border-[var(--border-light)]"></div>
-                    {days.map((day) => (
-                        <div key={day.toString()} className="flex-1 py-3 text-center border-r border-[var(--border-light)] last:border-r-0">
-                            <div className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
+        <div className="schedule-container">
+            {/* Days Header */}
+            <div className="days-header">
+                <div className="time-spacer"></div>
+                <div className="days-grid">
+                    {days.map((day, i) => (
+                        <div key={i} className="day-header-cell">
+                            <div className={clsx("day-name", i === 0 && "active-text")}>
                                 {format(day, 'EEE')}
                             </div>
-                            <div className="text-lg font-bold text-[var(--text-primary)]">
+                            <div className={clsx("day-number", i === 0 && "active")}>
                                 {format(day, 'd')}
                             </div>
                         </div>
                     ))}
                 </div>
+            </div>
 
-                {/* Grid Body */}
-                <div className="flex flex-1 overflow-y-auto relative">
-                    <TimeColumn />
+            {/* Main Grid */}
+            <div className="grid-body custom-scrollbar">
+                <div className="grid-content">
+                    <div className="time-column">
+                        <TimeColumn />
+                    </div>
 
-                    <div className="flex flex-1 relative">
-                        {/* Background Grid Lines */}
-                        <div className="absolute inset-0 flex pointer-events-none">
-                            {days.map((day) => (
-                                <div key={`bg - ${day.toString()} `} className="flex-1 border-r border-[var(--border-light)] last:border-r-0 h-full"></div>
+                    <div className="events-grid">
+                        {/* Horizontal Grid Lines */}
+                        <div className="grid-lines">
+                            {Array.from({ length: 24 }).map((_, i) => (
+                                <div key={i} className="grid-line-hour">
+                                    {/* 15-minute sub-lines */}
+                                    <div className="grid-line-15" style={{ top: '15px' }}></div>
+                                    <div className="grid-line-15" style={{ top: '30px' }}></div>
+                                    <div className="grid-line-15" style={{ top: '45px' }}></div>
+                                </div>
                             ))}
                         </div>
 
-                        {/* Day Columns with Events */}
-                        {days.map((day) => {
-                            const dayEvents = events.filter(e =>
-                                e.start.getDate() === day.getDate() &&
-                                e.start.getMonth() === day.getMonth()
-                            );
-
-                            // Simple stacking algorithm
-                            // 1. Sort by start time
-                            const sortedEvents = [...dayEvents].sort((a, b) => a.start.getTime() - b.start.getTime());
-
-                            // 2. Calculate overlaps
-                            const eventsWithLayout = sortedEvents.map((event) => {
-                                // Find overlapping events
-                                const overlaps = sortedEvents.filter(other =>
-                                    other.id !== event.id &&
-                                    other.start < event.end &&
-                                    other.end > event.start
-                                );
-
-                                const totalOverlaps = overlaps.length + 1;
-                                // Find index among overlaps (naive approach, can be improved)
-                                const overlapIndex = overlaps.filter(o => o.start.getTime() < event.start.getTime() || (o.start.getTime() === event.start.getTime() && o.id < event.id)).length;
-
-                                const widthPercent = 95 / totalOverlaps;
-                                const leftPercent = 2.5 + (overlapIndex * widthPercent);
-
-                                // Calculate top position based on start time (80px per hour)
-                                const startHour = event.start.getHours() + event.start.getMinutes() / 60;
-                                const top = startHour * 80;
-
-                                return {
-                                    event,
-                                    style: {
-                                        top: `${top}px`,
-                                        width: `${widthPercent}%`,
-                                        left: `${leftPercent}%`,
-                                    }
-                                };
-                            });
-
-                            return (
-                                <DayColumn key={day.toString()} date={day}>
-                                    {eventsWithLayout.map(({ event, style }) => (
-                                        <EventBlock
-                                            key={event.id}
-                                            event={event}
-                                            style={style}
-                                        />
-                                    ))}
+                        <DndContext
+                            sensors={sensors}
+                            onDragEnd={handleDragEnd}
+                        >
+                            {days.map((day) => (
+                                <DayColumn key={day.toISOString()} date={day} id={day.toISOString()}>
+                                    {allEventsWithLayout
+                                        .filter(item =>
+                                            item.event.start >= startOfWeek(day, { weekStartsOn: 1 }) &&
+                                            item.event.start < addDays(day, 1)
+                                        )
+                                        .map(({ event, style }) => (
+                                            <EventBlock
+                                                key={event.id}
+                                                event={event}
+                                                style={style}
+                                            />
+                                        ))}
                                 </DayColumn>
-                            );
-                        })}
+                            ))}
+                        </DndContext>
                     </div>
                 </div>
             </div>
-        </DndContext>
+        </div>
     );
 };

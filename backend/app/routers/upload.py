@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from typing import List
 import shutil
 import os
-from backend.app.services.parser import parse_cd_grid_pdf
+from backend.app.services.parser import parse_venue_schedule_pdf, parse_cd_grid_pdf
 
 router = APIRouter()
 
@@ -18,11 +18,18 @@ async def upload_cd_grid(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, buffer)
             
         if file.filename.endswith('.pdf'):
-            events = parse_cd_grid_pdf(file_path)
+            # Try Venue Schedule Parser first
+            events = parse_venue_schedule_pdf(file_path)
+            if not events:
+                # Fallback to CD Grid Parser
+                events = parse_cd_grid_pdf(file_path)
             return {"events": events}
+            
         elif file.filename.endswith(('.xls', '.xlsx')):
-            from backend.app.services.parser import parse_cd_grid_excel
-            events = parse_cd_grid_excel(file_path)
+            from backend.app.services.parser import parse_venue_schedule_excel
+            # Try Venue Schedule Parser first
+            events = parse_venue_schedule_excel(file_path)
+            # TODO: Implement parse_cd_grid_excel if needed
             return {"events": events}
         else:
             # TODO: Implement Excel parser
