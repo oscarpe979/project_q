@@ -448,7 +448,6 @@ body {
 .event-block {
   position: absolute;
   border-radius: 0.5rem;
-  padding: 0.5rem 0.75rem;
   font-size: 0.75rem;
   cursor: grab;
   transition: box-shadow 0.2s ease, transform 0.2s ease;
@@ -460,6 +459,14 @@ body {
   box-shadow: var(--shadow-lg);
   z-index: 20;
   transform: scale(1.005);
+  filter: brightness(1.1);
+}
+
+.event-block.resizing:hover {
+  filter: none;
+  /* Disable brightness during resize to prevent flashing */
+  transform: none;
+  /* Disable scale during resize to prevent flickering */
 }
 
 .event-block.dragging {
@@ -470,6 +477,22 @@ body {
   cursor: grabbing;
   transition: none;
   /* Disable transitions during drag for performance */
+}
+
+.event-block.resizing {
+  opacity: 0.8;
+  box-shadow: var(--shadow-lg);
+  z-index: 50;
+  cursor: ns-resize;
+  transition: none;
+}
+
+.event-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  padding: 0.5rem 0.75rem;
 }
 
 .event-title {
@@ -501,7 +524,6 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  padding-bottom: 4px;
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -510,7 +532,6 @@ body {
   top: 0;
   bottom: auto;
   align-items: flex-start;
-  padding-top: 4px;
   padding-bottom: 0;
 }
 
@@ -520,8 +541,8 @@ body {
 
 .resize-bar {
   width: 32px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.4);
+  height: 2px;
+  background: rgba(255, 255, 255, 0.6);
   border-radius: 2px;
 }
 

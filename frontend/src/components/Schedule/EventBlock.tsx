@@ -47,19 +47,21 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
     const height = parseFloat(containerStyle.height as string) || 60;
     const top = parseFloat(containerStyle.top as string) || 0;
 
-    // Visual feedback for resizing (preview height change)
+    // Snap all transforms to 15-minute increments (15px = 15 minutes at 60px/hour)
+    const snappedTransformY = transform ? Math.round(transform.y / 15) * 15 : 0;
+    const snappedResizeTransformY = resizeTransform ? Math.round(resizeTransform.y / 15) * 15 : 0;
+    const snappedResizeTopTransformY = resizeTopTransform ? Math.round(resizeTopTransform.y / 15) * 15 : 0;
+
+    // Visual feedback for resizing (preview height change with snapping)
     const currentHeight = isResizing
-        ? Math.max(20, height + (resizeTransform ? resizeTransform.y : 0))
+        ? Math.max(20, height + snappedResizeTransformY)
         : isResizingTop
-            ? Math.max(20, height - (resizeTopTransform ? resizeTopTransform.y : 0))
+            ? Math.max(20, height - snappedResizeTopTransformY)
             : height;
 
     const currentTop = isResizingTop
-        ? top + (resizeTopTransform ? resizeTopTransform.y : 0)
+        ? top + snappedResizeTopTransformY
         : top;
-
-    // Snap transform to 15-minute increments to match final position
-    const snappedTransformY = transform ? Math.round(transform.y / 15) * 15 : 0;
 
     // Calculate visual top position during drag
     const visualTop = isDragging && transform
@@ -120,10 +122,11 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
             className={clsx(
                 "event-block",
                 getEventClass(),
-                (isDragging || isResizing || isResizingTop) && "dragging"
+                isDragging && "dragging",
+                (isResizing || isResizingTop) && "resizing"
             )}
         >
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+            <div className="event-content">
                 {/* Top Resize Handle */}
                 <div
                     ref={setResizeTopRef}
