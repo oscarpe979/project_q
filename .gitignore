@@ -1,0 +1,28 @@
+# Node.js
+node_modules/
+dist/
+.env
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env
+*.so
+
+# FastAPI / Uvicorn
+*.egg-info/
+.coverage
+htmlcov/
+
+# Editor
+.vscode/
+.idea/
+
+# Project specific
+uploads/
+docs
