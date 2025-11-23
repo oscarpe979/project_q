@@ -16,7 +16,7 @@ interface ScheduleGridProps {
 
 const PIXELS_PER_HOUR = 100;
 const START_HOUR = 7;
-const SNAP_MINUTES = 15;
+const SNAP_MINUTES = 5;
 const HOURS_COUNT = 24 - START_HOUR;
 
 export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [] }) => {
@@ -177,10 +177,19 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                         <div className="grid-lines">
                             {Array.from({ length: HOURS_COUNT }).map((_, i) => (
                                 <div key={i} className="grid-line-hour">
-                                    {/* 15-minute sub-lines */}
-                                    <div className="grid-line-15" style={{ top: '25px' }}></div>
-                                    <div className="grid-line-15" style={{ top: '50px' }}></div>
-                                    <div className="grid-line-15" style={{ top: '75px' }}></div>
+                                    {/* 5-minute sub-lines */}
+                                    {Array.from({ length: 11 }).map((_, j) => {
+                                        const minutes = (j + 1) * 5;
+                                        const top = (minutes / 60) * PIXELS_PER_HOUR - 1;
+                                        const is15Min = minutes % 15 === 0;
+                                        return (
+                                            <div
+                                                key={j}
+                                                className={is15Min ? "grid-line-15" : "grid-line-5"}
+                                                style={{ top: `${top}px` }}
+                                            ></div>
+                                        );
+                                    })}
                                 </div>
                             ))}
                         </div>

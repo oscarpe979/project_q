@@ -40,8 +40,8 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
     const height = parseFloat(containerStyle.height as string) || 60;
     const top = parseFloat(containerStyle.top as string) || 0;
 
-    // Snap all transforms to 15-minute increments (25px = 15 minutes at 100px/hour)
-    const SNAP_PIXELS = 25;
+    // Snap all transforms to 5-minute increments (100px/hour / 12 = ~8.33px)
+    const SNAP_PIXELS = 100 / 12;
     const snappedTransformY = transform ? Math.round(transform.y / SNAP_PIXELS) * SNAP_PIXELS : 0;
     const snappedResizeTransformY = resizeTransform ? Math.round(resizeTransform.y / SNAP_PIXELS) * SNAP_PIXELS : 0;
     const snappedResizeTopTransformY = resizeTopTransform ? Math.round(resizeTopTransform.y / SNAP_PIXELS) * SNAP_PIXELS : 0;
@@ -86,7 +86,10 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
 
     // Calculate preview times during drag/resize
     const getPreviewTimes = () => {
-        const pixelsToMinutes = (px: number) => px * (60 / 100);
+        const pixelsToMinutes = (px: number) => {
+            const minutes = px * (60 / 100);
+            return Math.round(minutes / 5) * 5;
+        };
 
         if (isDragging && transform) {
             // Moving the entire event

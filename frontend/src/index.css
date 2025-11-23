@@ -447,9 +447,10 @@ body {
 
 .grid-line-hour {
   height: 100px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  width: 100%;
+  border-bottom: 1px solid var(--border-medium);
+  border-right: 1px solid var(--border-medium);
   position: relative;
+  box-sizing: border-box;
 }
 
 .grid-line-15 {
@@ -457,7 +458,19 @@ body {
   left: 0;
   right: 0;
   height: 1px;
-  background-color: rgba(0, 0, 0, 0.03);
+  background-color: rgba(0, 0, 0, 0.05);
+  /* Lighter for 15 mins */
+  pointer-events: none;
+}
+
+.grid-line-5 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: rgba(0, 0, 0, 0.02);
+  /* Very light for 5 mins */
+  pointer-events: none;
 }
 
 .day-column {
