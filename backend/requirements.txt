@@ -5,3 +5,5 @@ openpyxl
 sqlmodel
 psycopg2-binary
 pdfplumber
+google-generativeai>=0.3.0
+python-dotenv

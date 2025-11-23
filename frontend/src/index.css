@@ -299,6 +299,8 @@ body {
   flex-direction: column;
   background: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(4px);
+  overflow: auto;
+  position: relative;
 }
 
 .days-header {
@@ -306,22 +308,25 @@ body {
   border-bottom: 1px solid var(--border-medium);
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(12px);
-  z-index: 20;
+  z-index: 70;
   position: sticky;
   top: 0;
-  padding-right: 8px;
-  /* Compensate for scrollbar */
+  width: fit-content;
 }
 
 .time-spacer {
   width: 80px;
   flex-shrink: 0;
   border-right: 1px solid var(--border-medium);
-  background: rgba(255, 255, 255, 0.9);
+  background: #f3f4f6;
   display: flex;
   flex-direction: column;
+  position: sticky;
+  left: 0;
+  z-index: 80;
 }
 
+/* ... existing spacer styles ... */
 .spacer-label {
   display: flex;
   align-items: center;
@@ -351,7 +356,8 @@ body {
 }
 
 .days-grid {
-  flex: 1;
+  /* flex: 1; Removed to prevent stretching into empty space */
+  width: fit-content;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
 }
@@ -430,9 +436,10 @@ body {
 
 .grid-body {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+  /* Remove overflow from here */
   position: relative;
+  width: fit-content;
+  min-width: 100%;
 }
 
 .grid-content {
@@ -440,16 +447,17 @@ body {
   height: 1700px;
   /* 17h * 100px */
   position: relative;
+  width: 100%;
 }
 
 .time-column {
   width: 80px;
   flex-shrink: 0;
   border-right: 1px solid var(--border-medium);
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.95);
   position: sticky;
   left: 0;
-  z-index: 10;
+  z-index: 60;
   display: flex;
   flex-direction: column;
 }
@@ -475,7 +483,8 @@ body {
 }
 
 .events-grid {
-  flex: 1;
+  /* flex: 1; Removed to prevent stretching into empty space */
+  width: fit-content;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   background: rgba(255, 255, 255, 0.3);
@@ -521,7 +530,7 @@ body {
 
 .day-column {
   position: relative;
-  border-right: 1px solid rgba(0, 0, 0, 0.15);
+  border-right: 1px solid var(--border-medium);
   height: 100%;
 }
 
@@ -673,6 +682,131 @@ body {
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(107, 114, 128, 0.8);
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  position: relative;
+  background-color: white;
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow-glass);
+  width: 100%;
+  max-width: 28rem;
+  padding: 1.5rem;
+  z-index: 60;
+  animation: modal-in 0.2s ease-out;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.modal-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.modal-close-btn {
+  padding: 0.25rem;
+  border-radius: 9999px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.modal-close-btn:hover {
+  background-color: #f3f4f6;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Drop Zone Styles */
+.drop-zone {
+  border: 2px dashed var(--border-medium);
+  border-radius: 0.75rem;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  cursor: pointer;
+  background-color: transparent;
+}
+
+.drop-zone:hover {
+  border-color: var(--text-secondary);
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+.drop-zone.drag-over {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.drop-zone-icon {
+  height: 3rem;
+  width: 3rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  transition: background-color 0.2s;
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.drop-zone:hover .drop-zone-icon {
+  background-color: #e5e7eb;
+}
+
+.drop-zone.drag-over .drop-zone-icon {
+  background-color: #dbeafe;
+  color: #2563eb;
+}
+
+.drop-zone-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.drop-zone-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 20rem;
 }

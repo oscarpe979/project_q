@@ -18,25 +18,37 @@ async def upload_cd_grid(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, buffer)
             
         if file.filename.endswith('.pdf'):
-            # Try Venue Schedule Parser first
-            events = parse_venue_schedule_pdf(file_path)
-            if not events:
-                # Fallback to CD Grid Parser
-                events = parse_cd_grid_pdf(file_path)
-            return {"events": events}
+            # Use GenAI Parser for CD Grid
+            try:
+                result = parse_cd_grid_pdf(file_path)
+                
+                # Debug Logging
+                print("\n--- GenAI Parser Result ---")
+                print(f"Itinerary Days: {len(result.get('itinerary', []))}")
+                print(f"Events Found: {len(result.get('events', []))}")
+                if result.get('events'):
+                    print(f"Sample Event: {result['events'][0]}")
+                print("---------------------------\n")
+                
+                return result
+            except Exception as e:
+                print(f"GenAI parsing failed: {e}")
+                raise HTTPException(status_code=500, detail=f"Parsing failed: {str(e)}")
             
         elif file.filename.endswith(('.xls', '.xlsx')):
             from backend.app.services.parser import parse_venue_schedule_excel
             # Try Venue Schedule Parser first
             events = parse_venue_schedule_excel(file_path)
-            # TODO: Implement parse_cd_grid_excel if needed
-            return {"events": events}
+            # Return in new format with empty itinerary for now
+            return {"events": events, "itinerary": []}
         else:
-            # TODO: Implement Excel parser
-            return {"message": "Excel parsing not yet implemented", "events": []}
+            return {"message": "Unsupported file type", "events": [], "itinerary": []}
             
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # Cleanup? Maybe keep for debugging for now
-        pass
+        # Optional: Cleanup file
+        if os.path.exists(file_path):
+            os.remove(file_path)

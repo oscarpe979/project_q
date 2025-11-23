@@ -6,15 +6,16 @@ interface FileDropZoneProps {
     onFileSelect: (file: File) => void;
     accept?: string;
     label?: string;
+    isLoading?: boolean;
 }
 
-export const FileDropZone: React.FC<FileDropZoneProps> = ({ onFileSelect, accept, label = "Drop CD Grid or AM Grid here" }) => {
+export const FileDropZone: React.FC<FileDropZoneProps> = ({ onFileSelect, accept, label = "Drop CD Grid or AM Grid here", isLoading = false }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
-        setIsDragOver(true);
-    }, []);
+        if (!isLoading) setIsDragOver(true);
+    }, [isLoading]);
 
     const handleDragLeave = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -25,28 +26,39 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({ onFileSelect, accept
         e.preventDefault();
         setIsDragOver(false);
 
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        if (!isLoading && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             onFileSelect(e.dataTransfer.files[0]);
         }
-    }, [onFileSelect]);
+    }, [onFileSelect, isLoading]);
 
     const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
+        if (!isLoading && e.target.files && e.target.files.length > 0) {
             onFileSelect(e.target.files[0]);
         }
-    }, [onFileSelect]);
+    }, [onFileSelect, isLoading]);
+
+    if (isLoading) {
+        return (
+            <div className="drop-zone" style={{ cursor: 'default', borderColor: 'var(--text-accent)', backgroundColor: 'rgba(37, 99, 235, 0.05)' }}>
+                <div className="drop-zone-icon" style={{ color: 'var(--text-accent)', backgroundColor: 'rgba(37, 99, 235, 0.1)' }}>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-current"></div>
+                </div>
+                <p className="drop-zone-label" style={{ color: 'var(--text-accent)' }}>
+                    Analyzing PDF with Gemini...
+                </p>
+                <p className="drop-zone-hint">
+                    This may take up to a minute.
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={clsx(
-                "border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center transition-all duration-200 cursor-pointer group",
-                isDragOver
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-[var(--border-medium)] hover:border-[var(--text-secondary)] hover:bg-white/50"
-            )}
+            className={clsx("drop-zone", isDragOver && "drag-over")}
         >
             <input
                 type="file"
@@ -54,18 +66,17 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({ onFileSelect, accept
                 id="file-upload"
                 accept={accept}
                 onChange={handleFileInput}
+                style={{ display: 'none' }}
+                disabled={isLoading}
             />
-            <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center w-full h-full">
-                <div className={clsx(
-                    "h-12 w-12 rounded-full flex items-center justify-center mb-4 transition-colors",
-                    isDragOver ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-500 group-hover:bg-gray-200"
-                )}>
+            <label htmlFor="file-upload" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%' }}>
+                <div className="drop-zone-icon">
                     <Upload size={24} />
                 </div>
-                <p className="text-sm font-medium text-[var(--text-primary)] mb-1">
+                <p className="drop-zone-label">
                     {label}
                 </p>
-                <p className="text-xs text-[var(--text-secondary)] text-center max-w-xs">
+                <p className="drop-zone-hint">
                     Supports PDF and Excel files. Drag & drop or click to browse.
                 </p>
             </label>

@@ -9,6 +9,7 @@ import type { Event, ItineraryItem } from './types';
 function App() {
   const [user, setUser] = useState<{ name: string; role: string } | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([
     { day: 1, date: '2025-11-17', location: 'SHANGHAI', time: '7:00 am - 4:30 pm' },
@@ -35,6 +36,7 @@ function App() {
   }
 
   const handleFileSelect = async (file: File) => {
+    setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
 
@@ -47,21 +49,37 @@ function App() {
       if (!response.ok) throw new Error('Upload failed');
 
       const data = await response.json();
+      console.log("Received Data from Backend:", data);
 
       // Transform backend events to frontend format
       const newEvents: Event[] = data.events.map((e: any, index: number) => ({
-        id: `imported-${index}`,
+        id: `imported-${Date.now()}-${index}`,
         title: e.title,
         start: new Date(e.start),
         end: new Date(e.end),
         type: e.type || 'other',
       }));
 
+      // Transform and update itinerary
+      if (data.itinerary && data.itinerary.length > 0) {
+        const newItinerary: ItineraryItem[] = data.itinerary.map((day: any) => ({
+          day: day.day_number,
+          date: day.date,
+          location: day.port,
+          time: day.port_times || ''
+        }));
+        setItinerary(newItinerary);
+      }
+
       setEvents(prev => [...prev, ...newEvents]);
       setIsImportOpen(false);
+
+      alert(`Successfully imported ${newEvents.length} events across ${data.itinerary?.length || 0} days!`);
     } catch (error) {
       console.error('Error uploading file:', error);
-      alert('Failed to upload file');
+      alert('Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -71,10 +89,14 @@ function App() {
 
       <Modal
         isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
+        onClose={() => !isUploading && setIsImportOpen(false)}
         title="Import Schedule Grid"
       >
-        <FileDropZone onFileSelect={handleFileSelect} accept=".pdf,.xlsx,.xls" />
+        <FileDropZone
+          onFileSelect={handleFileSelect}
+          accept=".pdf,.xlsx,.xls"
+          isLoading={isUploading}
+        />
       </Modal>
     </MainLayout>
   );

@@ -148,16 +148,21 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
     }), [events]);
 
     return (
-        <div className="schedule-container">
+        <div className="schedule-container custom-scrollbar">
             {/* Days Header */}
-            <div className="days-header">
+            <div
+                className="days-header"
+            >
                 <div className="time-spacer">
                     <div className="spacer-label spacer-day">DAY</div>
                     <div className="spacer-label spacer-date">DATE</div>
                     <div className="spacer-label spacer-port">PORT</div>
                     <div className="spacer-label spacer-empty"></div>
                 </div>
-                <div className="days-grid">
+                <div
+                    className="days-grid"
+                    style={{ gridTemplateColumns: `repeat(${days.length}, minmax(160px, 250px))` }}
+                >
                     {days.map((day, i) => {
                         const info = itinerary[i];
 
@@ -175,13 +180,18 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
             </div>
 
             {/* Main Grid */}
-            <div className="grid-body custom-scrollbar">
+            <div
+                className="grid-body"
+            >
                 <div className="grid-content">
                     <div className="time-column">
                         <TimeColumn />
                     </div>
 
-                    <div className="events-grid">
+                    <div
+                        className="events-grid"
+                        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(160px, 250px))` }}
+                    >
                         {/* Horizontal Grid Lines */}
                         <div className="grid-lines">
                             {Array.from({ length: HOURS_COUNT }).map((_, i) => (
