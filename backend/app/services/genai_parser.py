@@ -11,7 +11,7 @@ class GenAIParser:
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(GEMINI_MODEL)
     
-    def parse_cd_grid(self, pdf_path: str, target_venue: str = "TWO70") -> Dict[str, Any]:
+    def parse_cd_grid(self, pdf_path: str, target_venue: str = "STUDIO B") -> Dict[str, Any]:
         """
         Parse CD Grid PDF and extract itinerary + events.
         
@@ -42,7 +42,7 @@ class GenAIParser:
     
     def _create_parsing_prompt(self, venue: str) -> str:
         return f"""
-You are parsing a cruise ship CD Grid schedule PDF. Extract the following information:
+You are parsing a cruise ship Grid schedule PDF. Extract the following information:
 
 1. ITINERARY (one entry per day):
    - day_number: Integer (e.g., 1, 2, 3)
@@ -59,12 +59,16 @@ You are parsing a cruise ship CD Grid schedule PDF. Extract the following inform
    - venue: String (always "{venue}")
 
 IMPORTANT RULES:
+- Make sure you only extract events from the "{venue}" column. Avoid extracting events from other columns.
 - For events with multiple showtimes (e.g., "7:30 PM & 9:30 PM"), create SEPARATE events
 - If only start time is given, assume 1-hour duration
 - Extract event title by removing time information from the cell content
+- Times can be given like 'midngiht' or 'noon'.
+- If an ending time says 'late' assume 1am as ending time.
 - Convert all times to 24-hour format
 - Skip empty cells or cells with just "-"
 - Port times can be ranges, single times, or "Depart/Arrive" statements
+- Sometimes in the "Day" column there is an annotation like '1 Hour Forward' or '1 Hour back'. If you see that, ignore it for now.
 
 Return ONLY valid JSON matching the schema. No explanations.
 """
