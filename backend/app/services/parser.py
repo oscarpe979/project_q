@@ -4,11 +4,9 @@ from datetime import datetime
 import re
 from typing import List, Dict, Any
 
-import pdfplumber
-import pandas as pd
-from datetime import datetime
-import re
-from typing import List, Dict, Any
+from .genai_parser import GenAIParser
+from ..config import GEMINI_API_KEY
+
 
 def parse_venue_schedule_pdf(file_path: str) -> List[Dict[str, Any]]:
     events = []
@@ -177,9 +175,6 @@ def parse_venue_schedule_excel(file_path: str) -> List[Dict[str, Any]]:
         return []
         
     return events
-
-from .genai_parser import GenAIParser
-from ..config import GEMINI_API_KEY
 
 def parse_cd_grid_pdf(file_path: str) -> Dict[str, Any]:
     """
