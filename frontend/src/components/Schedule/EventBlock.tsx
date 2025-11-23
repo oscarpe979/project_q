@@ -2,14 +2,7 @@ import React from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import clsx from 'clsx';
 import { format } from 'date-fns';
-
-export interface Event {
-    id: string;
-    title: string;
-    start: Date;
-    end: Date;
-    type: 'show' | 'rehearsal' | 'maintenance' | 'other';
-}
+import type { Event } from '../../types';
 
 interface EventBlockProps {
     event: Event;

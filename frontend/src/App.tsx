@@ -4,8 +4,8 @@ import { ScheduleGrid } from './components/Schedule/ScheduleGrid';
 import { Modal } from './components/UI/Modal';
 import { FileDropZone } from './components/Uploader/FileDropZone';
 import { MockLogin } from './components/Auth/MockLogin';
-import type { Event } from './components/Schedule/EventBlock';
 import { startOfWeek, addDays, setHours, setMinutes } from 'date-fns';
+import type { Event, ItineraryItem } from './types';
 
 function App() {
   const [user, setUser] = useState<{ name: string; role: string } | null>(null);
@@ -20,6 +20,16 @@ function App() {
       end: setHours(setMinutes(addDays(startDate, 0), 45), 15),
       type: 'show',
     },
+  ]);
+
+  const [itinerary, setItinerary] = useState<ItineraryItem[]>([
+    { day: 1, date: '2025-11-17', location: 'SHANGHAI', time: '7:00 am - 4:30 pm' },
+    { day: 2, date: '2025-11-18', location: 'AT SEA', time: '' },
+    { day: 3, date: '2025-11-19', location: 'BUSAN', time: '7:00 am - 7:00 pm' },
+    { day: 4, date: '2025-11-20', location: 'FUKUOKA', time: '7:00 am - 6:00 pm' },
+    { day: 5, date: '2025-11-21', location: 'AT SEA', time: '' },
+    { day: 6, date: '2025-11-22', location: 'NAGASAKI', time: '7:00 am - 5:00 pm' },
+    { day: 7, date: '2025-11-23', location: 'AT SEA', time: '' },
   ]);
 
   if (!user) {
@@ -59,7 +69,7 @@ function App() {
 
   return (
     <MainLayout onImportClick={() => setIsImportOpen(true)} user={user}>
-      <ScheduleGrid events={events} setEvents={setEvents} />
+      <ScheduleGrid events={events} setEvents={setEvents} itinerary={itinerary} />
 
       <Modal
         isOpen={isImportOpen}

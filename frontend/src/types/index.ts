@@ -1,0 +1,14 @@
+export interface Event {
+    id: string;
+    title: string;
+    start: Date;
+    end: Date;
+    type: 'show' | 'rehearsal' | 'maintenance' | 'other';
+}
+
+export interface ItineraryItem {
+    day: number;
+    date: string;
+    location: string;
+    time: string;
+}

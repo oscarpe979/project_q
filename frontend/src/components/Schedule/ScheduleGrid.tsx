@@ -6,16 +6,27 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { TimeColumn } from './TimeColumn';
 import { DayColumn } from './DayColumn';
 import { EventBlock } from './EventBlock';
-import type { Event } from './EventBlock';
+import type { Event, ItineraryItem } from '../../types';
 
 interface ScheduleGridProps {
     events: Event[];
     setEvents: React.Dispatch<React.SetStateAction<Event[]>>;
+    itinerary?: ItineraryItem[];
 }
 
-export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents }) => {
-    const startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
-    const days = Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
+const PIXELS_PER_HOUR = 100;
+const START_HOUR = 7;
+const SNAP_MINUTES = 15;
+const HOURS_COUNT = 24 - START_HOUR;
+
+export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [] }) => {
+    const days = useMemo(() => {
+        if (itinerary.length > 0) {
+            return itinerary.map(item => new Date(item.date));
+        }
+        const startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
+        return Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
+    }, [itinerary]);
 
     const sensors = useSensors(
         useSensor(PointerSensor)
@@ -35,11 +46,10 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
         setEvents((prev) => prev.map((e) => {
             if (e.id === eventId) {
                 // Calculate time shift in minutes
-                // 100px = 60 minutes => 1px = 0.6 minutes
-                const minutesShift = delta.y * (60 / 100);
+                const minutesShift = delta.y * (60 / PIXELS_PER_HOUR);
 
-                // Snap to nearest 15 minutes
-                const snappedMinutes = Math.round(minutesShift / 15) * 15;
+                // Snap to nearest SNAP_MINUTES
+                const snappedMinutes = Math.round(minutesShift / SNAP_MINUTES) * SNAP_MINUTES;
 
                 if (isResizeTop) {
                     // Update Start Time (dragging top edge)
@@ -114,14 +124,13 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
             ? '1px'
             : `calc(${(100 / totalOverlaps) * overlapIndex}% + 1px)`;
 
-        // Calculate top position based on start time (100px per hour)
-        // Start at 7am
+        // Calculate top position based on start time
         const startHour = event.start.getHours() + event.start.getMinutes() / 60;
-        const top = (startHour - 7) * 100;
+        const top = (startHour - START_HOUR) * PIXELS_PER_HOUR;
 
-        // Calculate height based on duration (100px per hour)
+        // Calculate height based on duration
         const durationMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
-        const height = (durationMinutes / 60) * 100;
+        const height = (durationMinutes / 60) * PIXELS_PER_HOUR;
 
         return {
             event,
@@ -141,24 +150,15 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
                 <div className="time-spacer"></div>
                 <div className="days-grid">
                     {days.map((day, i) => {
-                        const itinerary = [
-                            { location: 'SHANGHAI', time: '7:00 am - 4:30 pm' },
-                            { location: 'AT SEA', time: '' },
-                            { location: 'BUSAN', time: '7:00 am - 7:00 pm' },
-                            { location: 'FUKUOKA', time: '7:00 am - 6:00 pm' },
-                            { location: 'AT SEA', time: '' },
-                            { location: 'NAGASAKI', time: '7:00 am - 5:00 pm' },
-                            { location: 'AT SEA', time: '' },
-                        ];
-                        const info = itinerary[i] || { location: 'AT SEA', time: '' };
+                        const info = itinerary[i];
 
                         return (
                             <div key={i} className="day-header-cell">
-                                <div className="header-row-day-number">DAY {i + 1}</div>
+                                <div className="header-row-day-number">DAY {info ? info.day : i + 1}</div>
                                 <div className="header-row-day-name">{format(day, 'EEEE')}</div>
                                 <div className="header-row-date">{format(day, 'd-MMM-yy')}</div>
-                                <div className="header-row-location">{info.location}</div>
-                                <div className="header-row-time">{info.time || '\u00A0'}</div>
+                                <div className="header-row-location">{info ? info.location : 'AT SEA'}</div>
+                                <div className="header-row-time">{info ? info.time : '\u00A0'}</div>
                             </div>
                         );
                     })}
@@ -175,7 +175,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
                     <div className="events-grid">
                         {/* Horizontal Grid Lines */}
                         <div className="grid-lines">
-                            {Array.from({ length: 17 }).map((_, i) => (
+                            {Array.from({ length: HOURS_COUNT }).map((_, i) => (
                                 <div key={i} className="grid-line-hour">
                                     {/* 15-minute sub-lines */}
                                     <div className="grid-line-15" style={{ top: '25px' }}></div>
