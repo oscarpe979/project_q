@@ -309,6 +309,8 @@ body {
   z-index: 20;
   position: sticky;
   top: 0;
+  padding-right: 8px;
+  /* Compensate for scrollbar */
 }
 
 .time-spacer {
@@ -325,36 +327,59 @@ body {
 }
 
 .day-header-cell {
-  padding: 0.75rem;
+  padding: 0;
   text-align: center;
-  border-right: 1px solid var(--border-light);
+  border-right: 1px solid var(--border-medium);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  height: 100%;
+  justify-content: flex-start;
 }
 
-.day-name {
-  font-size: 0.75rem;
+.header-row-day-number {
+  font-size: 1.2rem;
   font-weight: 700;
+  color: var(--text-accent);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 0.25rem;
-  color: var(--text-secondary);
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid var(--border-medium);
 }
 
-.day-number {
-  font-size: 1.25rem;
-  font-weight: 300;
+.header-row-day-name {
+  font-size: .8rem;
+  font-weight: 600;
   color: var(--text-primary);
+  padding: 0.25rem;
+  border-bottom: 1px solid var(--border-medium);
 }
 
-.day-number.active {
-  color: #2563eb;
-  background: #eff6ff;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+.header-row-date {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  padding: 0.25rem;
+  border-bottom: 1px solid var(--border-medium);
+}
+
+.header-row-location {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  padding: 0.25rem;
+  border-bottom: 1px solid var(--border-medium);
+}
+
+.header-row-time {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  min-height: 1.2em;
+  padding: 0.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto;
 }
 
 .grid-body {
@@ -384,17 +409,18 @@ body {
 }
 
 .time-slot {
-  height: 50px;
-  /* 30 minutes */
+  height: 25px;
+  /* 15 minutes */
   position: relative;
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   /* Align with grid lines visually */
 }
 
 .time-label {
   position: absolute;
-  top: -3px;
-  right: 8px;
+  top: 5px;
+  width: 100%;
+  text-align: center;
   font-size: 0.75rem;
   color: var(--text-secondary);
   font-weight: 500;

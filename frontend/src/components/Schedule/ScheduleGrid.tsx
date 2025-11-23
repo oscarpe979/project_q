@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { format, addDays, startOfWeek, setMinutes } from 'date-fns';
 import { DndContext, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
-import clsx from 'clsx';
+
 import { TimeColumn } from './TimeColumn';
 import { DayColumn } from './DayColumn';
 import { EventBlock } from './EventBlock';
@@ -24,10 +24,10 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, delta, over } = event;
         const activeId = String(active.id);
-        const isResize = activeId.endsWith('-resize');
+        const isResizeBottom = activeId.endsWith('-resize-bottom');
         const isResizeTop = activeId.endsWith('-resize-top');
-        const eventId = isResize
-            ? activeId.replace('-resize', '')
+        const eventId = isResizeBottom
+            ? activeId.replace('-resize-bottom', '')
             : isResizeTop
                 ? activeId.replace('-resize-top', '')
                 : activeId;
@@ -48,7 +48,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
                     if (newStart >= e.end) return e;
 
                     return { ...e, start: newStart };
-                } else if (isResize) {
+                } else if (isResizeBottom) {
                     // Update End Time (dragging bottom edge)
                     const newEnd = addDays(setMinutes(e.end, e.end.getMinutes() + snappedMinutes), 0);
                     // Prevent end time before start time
@@ -140,16 +140,28 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
             <div className="days-header">
                 <div className="time-spacer"></div>
                 <div className="days-grid">
-                    {days.map((day, i) => (
-                        <div key={i} className="day-header-cell">
-                            <div className={clsx("day-name", i === 0 && "active-text")}>
-                                {format(day, 'EEE')}
+                    {days.map((day, i) => {
+                        const itinerary = [
+                            { location: 'SHANGHAI', time: '7:00 am - 4:30 pm' },
+                            { location: 'AT SEA', time: '' },
+                            { location: 'BUSAN', time: '7:00 am - 7:00 pm' },
+                            { location: 'FUKUOKA', time: '7:00 am - 6:00 pm' },
+                            { location: 'AT SEA', time: '' },
+                            { location: 'NAGASAKI', time: '7:00 am - 5:00 pm' },
+                            { location: 'AT SEA', time: '' },
+                        ];
+                        const info = itinerary[i] || { location: 'AT SEA', time: '' };
+
+                        return (
+                            <div key={i} className="day-header-cell">
+                                <div className="header-row-day-number">DAY {i + 1}</div>
+                                <div className="header-row-day-name">{format(day, 'EEEE')}</div>
+                                <div className="header-row-date">{format(day, 'd-MMM-yy')}</div>
+                                <div className="header-row-location">{info.location}</div>
+                                <div className="header-row-time">{info.time || '\u00A0'}</div>
                             </div>
-                            <div className={clsx("day-number", i === 0 && "active")}>
-                                {format(day, 'd')}
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 

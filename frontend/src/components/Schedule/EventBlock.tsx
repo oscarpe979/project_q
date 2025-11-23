@@ -27,10 +27,10 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
         listeners: resizeListeners,
         setNodeRef: setResizeRef,
         transform: resizeTransform,
-        isDragging: isResizing
+        isDragging: isResizingBottom
     } = useDraggable({
-        id: `${event.id}-resize`,
-        data: { type: 'resize', event },
+        id: `${event.id}-resize-bottom`,
+        data: { type: 'resize-bottom', event },
     });
 
     const {
@@ -54,7 +54,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
     const snappedResizeTopTransformY = resizeTopTransform ? Math.round(resizeTopTransform.y / SNAP_PIXELS) * SNAP_PIXELS : 0;
 
     // Visual feedback for resizing (preview height change with snapping)
-    const currentHeight = isResizing
+    const currentHeight = isResizingBottom
         ? Math.max(20, height + snappedResizeTransformY)
         : isResizingTop
             ? Math.max(20, height - snappedResizeTopTransformY)
@@ -74,7 +74,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
         height: `${currentHeight}px`,
         left: containerStyle.left,
         width: containerStyle.width,
-        zIndex: isDragging || isResizing || isResizingTop ? 50 : 10,
+        zIndex: isDragging || isResizingBottom || isResizingTop ? 50 : 10,
         // Only apply horizontal transform for cross-day movement
         transform: (isDragging && transform) ? `translate3d(${transform.x}px, 0, 0)` : undefined,
     };
@@ -106,7 +106,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
             const minutesShift = pixelsToMinutes(snappedResizeTopTransformY);
             const previewStart = new Date(event.start.getTime() + minutesShift * 60 * 1000);
             return { start: previewStart, end: event.end };
-        } else if (isResizing && resizeTransform) {
+        } else if (isResizingBottom && resizeTransform) {
             // Resizing from bottom
             const minutesShift = pixelsToMinutes(snappedResizeTransformY);
             const previewEnd = new Date(event.end.getTime() + minutesShift * 60 * 1000);
@@ -127,7 +127,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                 "event-block",
                 getEventClass(),
                 isDragging && "dragging",
-                (isResizing || isResizingTop) && "resizing"
+                (isResizingBottom || isResizingTop) && "resizing"
             )}
         >
             <div className="event-content">
