@@ -22,7 +22,11 @@ const HOURS_COUNT = 24 - START_HOUR;
 export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [] }) => {
     const days = useMemo(() => {
         if (itinerary.length > 0) {
-            return itinerary.map(item => new Date(item.date));
+            return itinerary.map(item => {
+                // Create date at local midnight to avoid timezone issues with UTC parsing
+                const [year, month, day] = item.date.split('-').map(Number);
+                return new Date(year, month - 1, day);
+            });
         }
         const startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
         return Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
