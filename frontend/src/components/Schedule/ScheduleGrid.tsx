@@ -35,8 +35,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
         setEvents((prev) => prev.map((e) => {
             if (e.id === eventId) {
                 // Calculate time shift in minutes
-                // 60px = 60 minutes => 1px = 1 minute
-                const minutesShift = delta.y;
+                // 100px = 60 minutes => 1px = 0.6 minutes
+                const minutesShift = delta.y * (60 / 100);
 
                 // Snap to nearest 15 minutes
                 const snappedMinutes = Math.round(minutesShift / 15) * 15;
@@ -109,24 +109,25 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
         // Calculate width: full column width divided by overlaps, minus 2px total (1px margin each side)
         const widthCalc = totalOverlaps === 1
             ? 'calc(100% - 2px)'
-            : `calc(${100 / totalOverlaps} % - 2px)`;
+            : `calc(${100 / totalOverlaps}% - 2px)`;
         const leftCalc = totalOverlaps === 1
             ? '1px'
             : `calc(${(100 / totalOverlaps) * overlapIndex}% + 1px)`;
 
-        // Calculate top position based on start time (60px per hour)
+        // Calculate top position based on start time (100px per hour)
+        // Start at 7am
         const startHour = event.start.getHours() + event.start.getMinutes() / 60;
-        const top = startHour * 60;
+        const top = (startHour - 7) * 100;
 
-        // Calculate height based on duration (60px per hour)
+        // Calculate height based on duration (100px per hour)
         const durationMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
-        const height = (durationMinutes / 60) * 60;
+        const height = (durationMinutes / 60) * 100;
 
         return {
             event,
             style: {
-                top: `${top} px`,
-                height: `${height} px`,
+                top: `${top}px`,
+                height: `${height}px`,
                 width: widthCalc,
                 left: leftCalc,
             }
@@ -162,12 +163,12 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents })
                     <div className="events-grid">
                         {/* Horizontal Grid Lines */}
                         <div className="grid-lines">
-                            {Array.from({ length: 24 }).map((_, i) => (
+                            {Array.from({ length: 17 }).map((_, i) => (
                                 <div key={i} className="grid-line-hour">
                                     {/* 15-minute sub-lines */}
-                                    <div className="grid-line-15" style={{ top: '15px' }}></div>
-                                    <div className="grid-line-15" style={{ top: '30px' }}></div>
-                                    <div className="grid-line-15" style={{ top: '45px' }}></div>
+                                    <div className="grid-line-15" style={{ top: '25px' }}></div>
+                                    <div className="grid-line-15" style={{ top: '50px' }}></div>
+                                    <div className="grid-line-15" style={{ top: '75px' }}></div>
                                 </div>
                             ))}
                         </div>

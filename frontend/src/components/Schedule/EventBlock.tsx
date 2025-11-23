@@ -47,10 +47,11 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
     const height = parseFloat(containerStyle.height as string) || 60;
     const top = parseFloat(containerStyle.top as string) || 0;
 
-    // Snap all transforms to 15-minute increments (15px = 15 minutes at 60px/hour)
-    const snappedTransformY = transform ? Math.round(transform.y / 15) * 15 : 0;
-    const snappedResizeTransformY = resizeTransform ? Math.round(resizeTransform.y / 15) * 15 : 0;
-    const snappedResizeTopTransformY = resizeTopTransform ? Math.round(resizeTopTransform.y / 15) * 15 : 0;
+    // Snap all transforms to 15-minute increments (25px = 15 minutes at 100px/hour)
+    const SNAP_PIXELS = 25;
+    const snappedTransformY = transform ? Math.round(transform.y / SNAP_PIXELS) * SNAP_PIXELS : 0;
+    const snappedResizeTransformY = resizeTransform ? Math.round(resizeTransform.y / SNAP_PIXELS) * SNAP_PIXELS : 0;
+    const snappedResizeTopTransformY = resizeTopTransform ? Math.round(resizeTopTransform.y / SNAP_PIXELS) * SNAP_PIXELS : 0;
 
     // Visual feedback for resizing (preview height change with snapping)
     const currentHeight = isResizing
@@ -92,19 +93,22 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
 
     // Calculate preview times during drag/resize
     const getPreviewTimes = () => {
+        const pixelsToMinutes = (px: number) => px * (60 / 100);
+
         if (isDragging && transform) {
             // Moving the entire event
-            const previewStart = new Date(event.start.getTime() + snappedTransformY * 60 * 1000);
-            const previewEnd = new Date(event.end.getTime() + snappedTransformY * 60 * 1000);
+            const minutesShift = pixelsToMinutes(snappedTransformY);
+            const previewStart = new Date(event.start.getTime() + minutesShift * 60 * 1000);
+            const previewEnd = new Date(event.end.getTime() + minutesShift * 60 * 1000);
             return { start: previewStart, end: previewEnd };
         } else if (isResizingTop && resizeTopTransform) {
             // Resizing from top
-            const minutesShift = Math.round(resizeTopTransform.y / 15) * 15;
+            const minutesShift = pixelsToMinutes(snappedResizeTopTransformY);
             const previewStart = new Date(event.start.getTime() + minutesShift * 60 * 1000);
             return { start: previewStart, end: event.end };
         } else if (isResizing && resizeTransform) {
             // Resizing from bottom
-            const minutesShift = Math.round(resizeTransform.y / 15) * 15;
+            const minutesShift = pixelsToMinutes(snappedResizeTransformY);
             const previewEnd = new Date(event.end.getTime() + minutesShift * 60 * 1000);
             return { start: event.start, end: previewEnd };
         }

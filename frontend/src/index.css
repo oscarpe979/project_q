@@ -366,8 +366,8 @@ body {
 
 .grid-content {
   display: flex;
-  min-height: 1440px;
-  /* 24h * 60px */
+  height: 1700px;
+  /* 17h * 100px */
   position: relative;
 }
 
@@ -384,7 +384,7 @@ body {
 }
 
 .time-slot {
-  height: 30px;
+  height: 50px;
   /* 30 minutes */
   position: relative;
   border-bottom: 1px solid transparent;
@@ -420,7 +420,7 @@ body {
 }
 
 .grid-line-hour {
-  height: 60px;
+  height: 100px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   width: 100%;
   position: relative;

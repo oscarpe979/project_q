@@ -1,10 +1,11 @@
 import React from 'react';
 
 export const TimeColumn: React.FC = () => {
-    // Generate time slots (00:00 to 23:30)
-    const slots = Array.from({ length: 48 }, (_, i) => {
-        const hour = Math.floor(i / 2);
-        const minute = (i % 2) * 30;
+    // Generate time slots (07:00 to 23:30)
+    const slots = Array.from({ length: 34 }, (_, i) => {
+        const totalMinutes = i * 30;
+        const hour = 7 + Math.floor(totalMinutes / 60);
+        const minute = totalMinutes % 60;
         return { hour, minute };
     });
 

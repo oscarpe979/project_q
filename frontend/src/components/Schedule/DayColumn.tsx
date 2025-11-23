@@ -23,7 +23,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({ date, id, children }) => {
             )}
         >
             {/* Hour Dividers (Visual only, matches TimeColumn) */}
-            {Array.from({ length: 24 }).map((_, i) => (
+            {Array.from({ length: 17 }).map((_, i) => (
                 <div key={i} className="grid-line-hour" style={{ borderBottom: 'none', borderRight: 'none' }}></div>
             ))}
 
