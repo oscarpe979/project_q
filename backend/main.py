@@ -2,7 +2,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.routers import upload
 
-app = FastAPI(title="Royal Caribbean Scheduler API")
+from contextlib import asynccontextmanager
+from backend.app.database import create_db_and_tables
+from backend.app import models # Import models to register them with SQLModel
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_db_and_tables()
+    yield
+
+app = FastAPI(title="Royal Caribbean Scheduler API", lifespan=lifespan)
 
 # Configure CORS
 app.add_middleware(
