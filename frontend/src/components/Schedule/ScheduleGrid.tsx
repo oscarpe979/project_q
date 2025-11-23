@@ -147,7 +147,12 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
         <div className="schedule-container">
             {/* Days Header */}
             <div className="days-header">
-                <div className="time-spacer"></div>
+                <div className="time-spacer">
+                    <div className="spacer-label spacer-day">DAY</div>
+                    <div className="spacer-label spacer-date">DATE</div>
+                    <div className="spacer-label spacer-port">PORT</div>
+                    <div className="spacer-label spacer-empty"></div>
+                </div>
                 <div className="days-grid">
                     {days.map((day, i) => {
                         const info = itinerary[i];
