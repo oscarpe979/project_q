@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { MainLayout } from './components/Layout/MainLayout';
 import { ScheduleGrid } from './components/Schedule/ScheduleGrid';
 import { Modal } from './components/UI/Modal';
 import { FileDropZone } from './components/Uploader/FileDropZone';
 import { Login } from './components/Auth/Login';
+import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import { authService } from './services/authService';
 import type { Event, ItineraryItem } from './types';
 
 function App() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<{ name: string; role: string } | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -49,14 +52,11 @@ function App() {
   const handleLogout = () => {
     authService.logout();
     setUser(null);
+    navigate('/login');
   };
 
   if (isCheckingAuth) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading...</div>;
-  }
-
-  if (!user) {
-    return <Login onLogin={setUser} />;
   }
 
   const handleFileSelect = async (file: File) => {
@@ -79,6 +79,7 @@ function App() {
       if (response.status === 401) {
         authService.removeToken();
         setUser(null);
+        navigate('/login');
         throw new Error('Session expired. Please login again.');
       }
 
@@ -120,21 +121,33 @@ function App() {
   };
 
   return (
-    <MainLayout onImportClick={() => setIsImportOpen(true)} onLogout={handleLogout} user={user}>
-      <ScheduleGrid events={events} setEvents={setEvents} itinerary={itinerary} />
+    <Routes>
+      <Route path="/login" element={
+        user ? <Navigate to="/schedule" replace /> : <Login onLogin={setUser} />
+      } />
 
-      <Modal
-        isOpen={isImportOpen}
-        onClose={() => !isUploading && setIsImportOpen(false)}
-        title="Import Schedule Grid"
-      >
-        <FileDropZone
-          onFileSelect={handleFileSelect}
-          accept=".pdf,.xlsx,.xls"
-          isLoading={isUploading}
-        />
-      </Modal>
-    </MainLayout>
+      <Route path="/schedule" element={
+        <ProtectedRoute user={user}>
+          <MainLayout onImportClick={() => setIsImportOpen(true)} onLogout={handleLogout} user={user}>
+            <ScheduleGrid events={events} setEvents={setEvents} itinerary={itinerary} />
+
+            <Modal
+              isOpen={isImportOpen}
+              onClose={() => !isUploading && setIsImportOpen(false)}
+              title="Import Schedule Grid"
+            >
+              <FileDropZone
+                onFileSelect={handleFileSelect}
+                accept=".pdf,.xlsx,.xls"
+                isLoading={isUploading}
+              />
+            </Modal>
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/" element={<Navigate to="/schedule" replace />} />
+    </Routes>
   );
 }
 

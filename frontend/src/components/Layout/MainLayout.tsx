@@ -6,7 +6,7 @@ interface MainLayoutProps {
     children: React.ReactNode;
     onImportClick?: () => void;
     onLogout?: () => void;
-    user?: { name: string; role: string };
+    user?: { name: string; role: string } | null;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick, onLogout, user }) => {

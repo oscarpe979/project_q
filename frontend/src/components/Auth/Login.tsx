@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import './Login.css';
 
@@ -7,6 +8,7 @@ interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
+    const navigate = useNavigate();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -50,6 +52,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
             const userData = await userResponse.json();
             onLogin({ name: userData.full_name, role: userData.role });
+
+            // Redirect to schedule
+            navigate('/schedule');
 
         } catch (err: any) {
             setError(err.message || 'An error occurred during login');
