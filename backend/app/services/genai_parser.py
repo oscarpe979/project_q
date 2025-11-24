@@ -11,7 +11,7 @@ class GenAIParser:
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model_name)
     
-    def parse_cd_grid(self, pdf_path: str, target_venue: str = "STUDIO B") -> Dict[str, Any]:
+    def parse_cd_grid(self, pdf_path: str, target_venue: str) -> Dict[str, Any]:
         """
         Parse CD Grid PDF and extract itinerary + events.
         
@@ -59,7 +59,9 @@ You are parsing a cruise ship Grid schedule PDF. Extract the following informati
    - venue: String (always "{venue}")
 
 IMPORTANT GENERAL RULES:
-- Make sure you only extract events from the "{venue}" column. Avoid extracting events from other columns.
+- **CRITICAL**: You must ONLY extract events from the column explicitly labeled "{venue}".
+- **CRITICAL**: If the column "{venue}" DOES NOT EXIST in the PDF, return an empty list `[]` for events. Do NOT try to guess or extract from other columns.
+- Do NOT extract events from "Royal Theater", "Two70", "Music Hall", "AquaTheater", "Studio B", "Star Lounge", "Boleros", "Pool Deck", "Solarium", "Royal Esplanade", "Promenade", or any other column unless the target venue matches exactly.
 - For events with multiple showtimes (e.g., "7:30 PM & 9:30 PM"), create SEPARATE events
 - If only start time is given, return null for end_time. DO NOT GUESS OR CALCULATE END TIMES.
 - Extract event title by removing time information from the cell content

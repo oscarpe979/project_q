@@ -11,18 +11,27 @@ class VenueCapability(SQLModel, table=True):
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    email: str = Field(unique=True, index=True)
+    username: str = Field(unique=True, index=True)
     password_hash: str
-    full_name: str
-    role: str = "scheduler"
+    full_name: str  # Position title (e.g., "Studio B Production Manager")
+    role: str  # Job codes: "admin", "spro", "prod", "view_only"
+    ship_id: Optional[int] = Field(default=None, foreign_key="ship.id")
+    venue_id: Optional[int] = Field(default=None, foreign_key="venue.id")
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.now)
+    
+    ship: Optional["Ship"] = Relationship(back_populates="users")
+    venue: Optional["Venue"] = Relationship(back_populates="users")
 
 class Ship(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     code: str = Field(unique=True, index=True)
+    ship_class: str  # e.g., "Oasis", "Quantum", "Freedom", "Voyager"
     
     venues: List["Venue"] = Relationship(back_populates="ship")
     voyages: List["Voyage"] = Relationship(back_populates="ship")
+    users: List["User"] = Relationship(back_populates="ship")
 
 class Venue(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -33,6 +42,7 @@ class Venue(SQLModel, table=True):
     ship: Ship = Relationship(back_populates="venues")
     capabilities: List["EventType"] = Relationship(back_populates="venues", link_model=VenueCapability)
     schedule_items: List["ScheduleItem"] = Relationship(back_populates="venue")
+    users: List["User"] = Relationship(back_populates="venue")
 
 class EventType(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

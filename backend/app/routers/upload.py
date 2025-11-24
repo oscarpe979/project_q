@@ -1,20 +1,32 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from typing import List
 import shutil
 import os
 import tempfile
+from sqlmodel import Session
 from ..services.parser import parse_venue_schedule_excel
 from ..services.genai_parser import GenAIParser
 from ..dependencies import get_genai_parser
-from fastapi import Depends
+from ..database import get_session
+from ..models import User, Venue
+from .auth import get_current_user
 
 router = APIRouter()
 
 @router.post("/upload/cd-grid")
 async def upload_cd_grid(
     file: UploadFile = File(...),
-    parser: GenAIParser = Depends(get_genai_parser)
+    parser: GenAIParser = Depends(get_genai_parser),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
 ):
+    # Determine target venue from user
+    target_venue = "STUDIO B" # Fallback
+    if current_user.venue_id:
+        venue = session.get(Venue, current_user.venue_id)
+        if venue:
+            target_venue = venue.name
+
     # Create a temporary file with the same extension as the uploaded file
     suffix = os.path.splitext(file.filename)[1]
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
@@ -25,7 +37,7 @@ async def upload_cd_grid(
         if file.filename.endswith('.pdf'):
             # Use GenAI Parser for CD Grid
             try:
-                result = parser.parse_cd_grid(file_path)
+                result = parser.parse_cd_grid(file_path, target_venue=target_venue)
                 return result
             except Exception as e:
                 print(f"GenAI parsing failed: {e}")

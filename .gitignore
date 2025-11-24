@@ -26,3 +26,8 @@ htmlcov/
 # Project specific
 uploads/
 docs
+
+# Database
+*.db
+*.sqlite
+scheduler.db

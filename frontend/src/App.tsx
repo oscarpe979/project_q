@@ -3,7 +3,8 @@ import { MainLayout } from './components/Layout/MainLayout';
 import { ScheduleGrid } from './components/Schedule/ScheduleGrid';
 import { Modal } from './components/UI/Modal';
 import { FileDropZone } from './components/Uploader/FileDropZone';
-import { MockLogin } from './components/Auth/MockLogin';
+import { Login } from './components/Auth/Login';
+import { authService } from './services/authService';
 import type { Event, ItineraryItem } from './types';
 
 function App() {
@@ -32,7 +33,7 @@ function App() {
   ]);
 
   if (!user) {
-    return <MockLogin onLogin={setUser} />;
+    return <Login onLogin={setUser} />;
   }
 
   const handleFileSelect = async (file: File) => {
@@ -41,10 +42,22 @@ function App() {
     formData.append('file', file);
 
     try {
+      const headers = authService.getAuthHeaders();
+      // headers is HeadersInit, but fetch expects HeadersInit. 
+      // We need to cast or construct properly if it's a simple object.
+      // authService returns { Authorization: ... } which is valid.
+
       const response = await fetch('http://localhost:8000/api/upload/cd-grid', {
         method: 'POST',
+        headers: headers,
         body: formData,
       });
+
+      if (response.status === 401) {
+        authService.removeToken();
+        setUser(null);
+        throw new Error('Session expired. Please login again.');
+      }
 
       if (!response.ok) throw new Error('Upload failed');
 

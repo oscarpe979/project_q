@@ -1,9 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.routers import upload
+from backend.app.routers import upload, auth
 
 from contextlib import asynccontextmanager
-from backend.app.database import create_db_and_tables
 from backend.app.database import create_db_and_tables
 from backend.app import models # Import models to register them with SQLModel
 from backend.app.config import settings
@@ -24,6 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router, prefix="/api/auth")
 app.include_router(upload.router, prefix="/api")
 
 @app.get("/")
