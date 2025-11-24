@@ -226,6 +226,26 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+.logout-btn {
+  height: 32px;
+  width: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logout-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fecaca;
+}
+
 /* Header */
 .top-header {
   height: 80px;
@@ -712,13 +732,13 @@ body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
   background-color: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .modal-content {
@@ -729,7 +749,7 @@ body {
   width: 100%;
   max-width: 28rem;
   padding: 1.5rem;
-  z-index: 60;
+  z-index: 110;
   animation: modal-in 0.2s ease-out;
 }
 

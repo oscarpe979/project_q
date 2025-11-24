@@ -4,7 +4,7 @@ import { User, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import './Login.css';
 
 interface LoginProps {
-    onLogin: (user: { name: string; role: string }) => void;
+    onLogin: (user: { name: string; role: string; username: string }) => void;
 }
 
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
@@ -51,7 +51,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             }
 
             const userData = await userResponse.json();
-            onLogin({ name: userData.full_name, role: userData.role });
+            onLogin({ name: userData.full_name, role: userData.role, username: userData.username });
 
             // Redirect to schedule
             navigate('/schedule');

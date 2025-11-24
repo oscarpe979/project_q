@@ -1,7 +1,7 @@
 import { Navigate } from 'react-router-dom';
 
 interface ProtectedRouteProps {
-    user: { name: string; role: string } | null;
+    user: { name: string; role: string; username: string } | null;
     children: React.ReactNode;
 }
 

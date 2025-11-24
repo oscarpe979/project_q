@@ -11,7 +11,7 @@ import type { Event, ItineraryItem } from './types';
 
 function App() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; role: string; username: string } | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);

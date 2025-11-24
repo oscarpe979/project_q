@@ -6,7 +6,7 @@ interface MainLayoutProps {
     children: React.ReactNode;
     onImportClick?: () => void;
     onLogout?: () => void;
-    user?: { name: string; role: string } | null;
+    user?: { name: string; role: string; username: string } | null;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick, onLogout, user }) => {
@@ -41,18 +41,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick,
                 <div className="user-profile">
                     <div className="user-card">
                         <div className="user-avatar">
-                            {user?.name.charAt(0) || 'U'}
+                            {user?.username ? user.username.split('_')[0].toUpperCase() : (user?.name.charAt(0) || 'U')}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: '0.875rem', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'User'}</p>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{user?.role || 'Staff'}</p>
+                            <p style={{ fontSize: '0.875rem', fontWeight: 'bold', lineHeight: '1.2' }}>{user?.name || 'User'}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Role: {user?.role?.toUpperCase() || 'STAFF'}</p>
                         </div>
                         <button
                             onClick={onLogout}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
+                            className="logout-btn"
                             title="Logout"
                         >
-                            <LogOut size={18} style={{ color: 'var(--text-tertiary)' }} />
+                            <LogOut size={16} />
                         </button>
                     </div>
                 </div>
