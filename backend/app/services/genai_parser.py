@@ -1,5 +1,5 @@
 import google.generativeai as genai
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import json
 from datetime import datetime, timedelta
 
@@ -54,19 +54,18 @@ You are parsing a cruise ship Grid schedule PDF. Extract the following informati
 2. EVENTS (from the "{venue}" column only):
    - title: String (event name, excluding time information)
    - start_time: String in HH:MM format (24-hour)
-   - end_time: String in HH:MM format (24-hour)
+   - end_time: String in HH:MM format (24-hour) or null if not specified
    - date: String in YYYY-MM-DD format (match to itinerary date)
    - venue: String (always "{venue}")
 
 IMPORTANT GENERAL RULES:
 - Make sure you only extract events from the "{venue}" column. Avoid extracting events from other columns.
 - For events with multiple showtimes (e.g., "7:30 PM & 9:30 PM"), create SEPARATE events
-- If only start time is given, assume 1-hour duration. Be aware of the end dates when an event starts between 23:00 and 23:59.
+- If only start time is given, return null for end_time. DO NOT GUESS OR CALCULATE END TIMES.
 - Extract event title by removing time information from the cell content
 - Times can be given like 'midngiht' or 'noon'.
 - Start times are always earlier than end times. If the start time is later than the end time, you have to assume that the end time is the next day.
 - If an event starts before midnight (for example 23:00) and ends after midnight (for example 00:30) that means that the date of the start event is the current day and the end time is the next day.
-- If an event starts between 23:00 and 23:59 and has no ending time, you have to assume the event is 1 hour and the end date is the next day.
 - If an ending time says 'late' assume 2am as ending time.
 - If an event makes reference to 'Doors open' or 'Doors open at' ignore that time and look for the next time information for the event start time.
 - Convert all times to 24-hour format
@@ -109,7 +108,7 @@ Return ONLY valid JSON matching the schema. No explanations.
                             "date": {"type": "string"},
                             "venue": {"type": "string"}
                         },
-                        "required": ["title", "start_time", "end_time", "date", "venue"]
+                        "required": ["title", "start_time", "date", "venue"]
                     }
                 }
             },
@@ -118,34 +117,110 @@ Return ONLY valid JSON matching the schema. No explanations.
     
     def _validate_and_transform(self, result: Dict) -> Dict[str, Any]:
         """Validate and transform to API format."""
-        # Transform events to include full datetime
-        events = []
-        for event in result.get("events", []):
-            try:
-                # Combine date and time
-                date_str = event["date"]
-                start_dt = datetime.fromisoformat(f"{date_str}T{event['start_time']}:00")
-                end_dt = datetime.fromisoformat(f"{date_str}T{event['end_time']}:00")
-                
-                # Handle overnight events (end time is next day)
-                if end_dt < start_dt:
-                    end_dt += timedelta(days=1)
-                
-                events.append({
-                    "title": event["title"],
-                    "start": start_dt.isoformat(),
-                    "end": end_dt.isoformat(),
-                    "type": self._classify_event(event["title"]),
-                    "venue": event["venue"]
-                })
-            except (ValueError, KeyError) as e:
-                # Log and skip malformed events
-                print(f"Skipping malformed event: {event}, error: {e}")
-                continue
+        raw_events = result.get("events", [])
+        parsed_events = []
+
+        # 1. Parse raw events into intermediate objects
+        for event in raw_events:
+            parsed = self._parse_single_event(event)
+            if parsed:
+                parsed_events.append(parsed)
+
+        # 2. Sort by start time to handle sequential logic
+        parsed_events.sort(key=lambda x: x['start_dt'])
+
+        # 3. Resolve end times (smart duration)
+        final_events = self._resolve_event_durations(parsed_events)
+
+        # 4. Format for API response
+        formatted_events = [self._format_event_for_api(e) for e in final_events]
         
         return {
             "itinerary": result.get("itinerary", []),
-            "events": events
+            "events": formatted_events
+        }
+
+    def _parse_single_event(self, event: Dict) -> Optional[Dict]:
+        """Parse a single raw event into an intermediate structure."""
+        try:
+            date_str = event["date"]
+            start_dt = datetime.fromisoformat(f"{date_str}T{event['start_time']}:00")
+            
+            # Normalize end_time: convert string "null" to None
+            end_time_raw = event.get("end_time")
+            end_time_str = None if (end_time_raw is None or end_time_raw == "null" or end_time_raw == "") else end_time_raw
+            
+            return {
+                "title": event["title"],
+                "start_dt": start_dt,
+                "end_time_str": end_time_str,
+                "venue": event["venue"],
+                "raw_date": date_str
+            }
+        except (ValueError, KeyError) as e:
+            print(f"Skipping malformed event: {event}, error: {e}")
+            return None
+
+    def _resolve_event_durations(self, events: List[Dict]) -> List[Dict]:
+        """Resolve end times, handling missing durations and overlaps."""
+        resolved_events = []
+        
+        for i, event in enumerate(events):
+            start_dt = event['start_dt']
+            end_dt = None
+            
+            # Case 1: End time is explicitly provided
+            if event['end_time_str']:
+                try:
+                    # Construct end datetime
+                    # We assume it's on the same day initially
+                    end_dt = datetime.fromisoformat(f"{event['raw_date']}T{event['end_time_str']}:00")
+                    
+                    # Handle overnight events (end time < start time)
+                    if end_dt < start_dt:
+                        end_dt += timedelta(days=1)
+                    
+                    # Force Smart Duration: If ANY event overlaps with the next event, shorten it.
+                    # This handles cases where LLM hallucinates durations (e.g. 2 hours) or defaults to 1 hour.
+                    # We assume events in the same venue column do not overlap.
+                    if i + 1 < len(events):
+                        next_event = events[i + 1]
+                        if next_event['start_dt'] < end_dt:
+                            end_dt = next_event['start_dt']
+
+                except ValueError:
+                    # Fallback if parsing fails
+                    end_dt = start_dt + timedelta(hours=1)
+            
+            # Case 2: End time is missing (Smart Duration Logic)
+            else:
+                default_end = start_dt + timedelta(hours=1)
+                
+                # Check next event for overlap
+                if i + 1 < len(events):
+                    next_event = events[i + 1]
+                    # If next event starts before our default end, cut short
+                    if next_event['start_dt'] < default_end:
+                        end_dt = next_event['start_dt']
+                    else:
+                        end_dt = default_end
+                else:
+                    end_dt = default_end
+            
+            # Update event with calculated end_dt
+            event['end_dt'] = end_dt
+            resolved_events.append(event)
+            
+        return resolved_events
+
+    def _format_event_for_api(self, event: Dict) -> Dict:
+        """Format the resolved event for the API response."""
+        return {
+            "title": event["title"],
+            "start": event["start_dt"].isoformat(),
+            "end": event["end_dt"].isoformat(),
+            "type": self._classify_event(event["title"]),
+            "venue": event["venue"]
         }
     
     def _classify_event(self, title: str) -> str:
