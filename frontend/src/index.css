@@ -450,8 +450,7 @@ body {
 
 .grid-content {
   display: flex;
-  height: 1700px;
-  /* 17h * 100px */
+  /* height is set dynamically in component */
   position: relative;
   width: 100%;
 }

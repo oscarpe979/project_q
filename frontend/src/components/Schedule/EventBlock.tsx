@@ -7,9 +7,10 @@ import type { Event } from '../../types';
 interface EventBlockProps {
     event: Event;
     style: React.CSSProperties;
+    isLate?: boolean;
 }
 
-export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerStyle }) => {
+export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerStyle, isLate }) => {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: event.id,
         data: { type: 'event', event },
@@ -143,7 +144,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                 </div>
                 {!isSmallDuration && (
                     <div className="event-time">
-                        {format(displayStart, 'h:mm a')} - {format(displayEnd, 'h:mm a')}
+                        {format(displayStart, 'h:mm a')} - {isLate ? 'Late' : format(displayEnd, 'h:mm a')}
                     </div>
                 )}
 

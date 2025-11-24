@@ -25,8 +25,8 @@ function App() {
     {
       id: '1',
       title: 'Oceanaria',
-      start: new Date(2025, 10, 17, 14, 0), // Nov 17, 2025 at 2:00 PM
-      end: new Date(2025, 10, 17, 15, 45),   // Nov 17, 2025 at 3:45 PM
+      start: new Date(2025, 10, 18, 0, 0), // Nov 17, 2025 at 2:00 PM
+      end: new Date(2025, 10, 18, 1, 0),   // Nov 17, 2025 at 3:45 PM
       type: 'show',
     },
   ]);
