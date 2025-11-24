@@ -74,7 +74,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick,
                 </header>
 
                 {/* Scrollable Content */}
-                <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                <div style={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
                     {children}
                 </div>
             </main>

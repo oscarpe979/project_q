@@ -294,25 +294,38 @@ body {
 
 /* Schedule Grid */
 .schedule-container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e8eaed 100%);
-  backdrop-filter: blur(4px);
-  overflow: auto;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
-  padding: 16px;
+  padding: 0 16px 16px 16px;
   gap: 0;
+}
+
+/* Mask for the top gap */
+.schedule-container::before {
+  content: "";
+  display: block;
+  position: sticky;
+  top: 0;
+  height: 16px;
+  background: var(--bg-app);
+  z-index: 75;
+  /* Above days-header (70) */
+  /* Pull header up so it sticks below mask? No, we want header to start AFTER mask */
+  /* Actually, if we want header to stick at 16px, we just set top: 16px on header */
+  width: 100%;
 }
 
 .days-header {
   display: flex;
   border-bottom: 1px solid var(--border-medium);
-  background: white;
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(12px);
   z-index: 70;
   position: sticky;
-  top: 0;
+  top: 16px;
+  /* Stick below the 16px mask */
   width: fit-content;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border-radius: 8px 8px 0 0;
@@ -591,7 +604,9 @@ body {
   flex-direction: column;
   height: 100%;
   position: relative;
-  padding: 0.5rem 0.75rem;
+  padding: 0.25rem 0.5rem;
+  justify-content: center;
+  align-items: center;
 }
 
 .event-title {
@@ -601,16 +616,21 @@ body {
   text-overflow: ellipsis;
   font-size: 13px;
   line-height: 1.2;
+  text-align: center;
+  width: 100%;
 }
 
 .event-time {
   font-size: 10px;
   font-weight: 500;
   opacity: 0.9;
-  margin-top: 2px;
+  margin-bottom: 2px;
+  /* Changed from margin-top since it's now first */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: center;
+  width: 100%;
 }
 
 .resize-handle {

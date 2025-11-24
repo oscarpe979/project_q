@@ -111,6 +111,16 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
         }));
     };
 
+    // Helper to get the "Visual Day" for an event (grouping late night events with previous day)
+    const getVisualDay = (date: Date) => {
+        const d = new Date(date);
+        if (d.getHours() < 4) {
+            d.setDate(d.getDate() - 1);
+        }
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+    };
+
     // Calculate layout for all events once (memoized for performance)
     const allEventsWithLayout = useMemo(() => events.map((event) => {
         // Find overlapping events for this specific event
@@ -118,11 +128,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
             other.id !== event.id &&
             other.start < event.end &&
             other.end > event.start &&
-            // Check overlap considering the visual day (starts at 07:00, ends at 01:00 next day)
-            // We can simplify by checking if they are effectively on the same "visual day"
-            // For now, simple date check is okay but might need refinement for late night overlaps
-            other.start.getDate() === event.start.getDate() &&
-            other.start.getMonth() === event.start.getMonth()
+            // Check overlap considering the visual day
+            getVisualDay(other.start) === getVisualDay(event.start)
         );
 
         const totalOverlaps = overlaps.length + 1;

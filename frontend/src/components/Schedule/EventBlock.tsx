@@ -139,14 +139,14 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                     <div className="resize-bar"></div>
                 </div>
 
-                <div className="event-title">
-                    {event.title}
-                </div>
                 {!isSmallDuration && (
                     <div className="event-time">
                         {format(displayStart, 'h:mm a')} - {isLate ? 'Late' : format(displayEnd, 'h:mm a')}
                     </div>
                 )}
+                <div className="event-title">
+                    {event.title}
+                </div>
 
                 {/* Bottom Resize Handle */}
                 <div
