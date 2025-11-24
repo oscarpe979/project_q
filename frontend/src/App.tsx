@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MainLayout } from './components/Layout/MainLayout';
 import { ScheduleGrid } from './components/Schedule/ScheduleGrid';
 import { Modal } from './components/UI/Modal';
@@ -11,6 +11,7 @@ function App() {
   const [user, setUser] = useState<{ name: string; role: string } | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([
     { day: 1, date: '2025-11-17', location: 'SHANGHAI', time: '7:00 am - 4:30 pm' },
@@ -31,6 +32,28 @@ function App() {
       type: 'show',
     },
   ]);
+
+  // Session restoration on app load
+  useEffect(() => {
+    const restoreSession = async () => {
+      const userData = await authService.validateToken();
+      if (userData) {
+        setUser(userData);
+      }
+      setIsCheckingAuth(false);
+    };
+
+    restoreSession();
+  }, []);
+
+  const handleLogout = () => {
+    authService.logout();
+    setUser(null);
+  };
+
+  if (isCheckingAuth) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading...</div>;
+  }
 
   if (!user) {
     return <Login onLogin={setUser} />;
@@ -97,7 +120,7 @@ function App() {
   };
 
   return (
-    <MainLayout onImportClick={() => setIsImportOpen(true)} user={user}>
+    <MainLayout onImportClick={() => setIsImportOpen(true)} onLogout={handleLogout} user={user}>
       <ScheduleGrid events={events} setEvents={setEvents} itinerary={itinerary} />
 
       <Modal

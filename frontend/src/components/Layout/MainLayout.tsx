@@ -5,10 +5,11 @@ import clsx from 'clsx';
 interface MainLayoutProps {
     children: React.ReactNode;
     onImportClick?: () => void;
+    onLogout?: () => void;
     user?: { name: string; role: string };
 }
 
-export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick, user }) => {
+export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick, onLogout, user }) => {
     return (
         <div className="app-container">
             {/* Sidebar */}
@@ -46,7 +47,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick,
                             <p style={{ fontSize: '0.875rem', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'User'}</p>
                             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{user?.role || 'Staff'}</p>
                         </div>
-                        <LogOut size={18} style={{ color: 'var(--text-tertiary)' }} />
+                        <button
+                            onClick={onLogout}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
+                            title="Logout"
+                        >
+                            <LogOut size={18} style={{ color: 'var(--text-tertiary)' }} />
+                        </button>
                     </div>
                 </div>
             </aside>
