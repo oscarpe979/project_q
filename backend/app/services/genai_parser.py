@@ -1,7 +1,7 @@
 import google.generativeai as genai
 from typing import Dict, Any, List
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 class GenAIParser:
@@ -124,6 +124,10 @@ Return ONLY valid JSON matching the schema. No explanations.
                 date_str = event["date"]
                 start_dt = datetime.fromisoformat(f"{date_str}T{event['start_time']}:00")
                 end_dt = datetime.fromisoformat(f"{date_str}T{event['end_time']}:00")
+                
+                # Handle overnight events (end time is next day)
+                if end_dt < start_dt:
+                    end_dt += timedelta(days=1)
                 
                 events.append({
                     "title": event["title"],
