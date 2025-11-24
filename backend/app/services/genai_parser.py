@@ -58,7 +58,7 @@ You are parsing a cruise ship Grid schedule PDF. Extract the following informati
    - date: String in YYYY-MM-DD format (match to itinerary date)
    - venue: String (always "{venue}")
 
-IMPORTANT RULES:
+IMPORTANT GENERAL RULES:
 - Make sure you only extract events from the "{venue}" column. Avoid extracting events from other columns.
 - For events with multiple showtimes (e.g., "7:30 PM & 9:30 PM"), create SEPARATE events
 - If only start time is given, assume 1-hour duration. Be aware of the end dates when an event starts between 23:00 and 23:59.
@@ -67,12 +67,14 @@ IMPORTANT RULES:
 - Start times are always earlier than end times. If the start time is later than the end time, you have to assume that the end time is the next day.
 - If an event starts before midnight (for example 23:00) and ends after midnight (for example 00:30) that means that the date of the start event is the current day and the end time is the next day.
 - If an event starts between 23:00 and 23:59 and has no ending time, you have to assume the event is 1 hour and the end date is the next day.
-- If an ending time says 'late' assume 1am as ending time.
+- If an ending time says 'late' assume 2am as ending time.
 - If an event makes reference to 'Doors open' or 'Doors open at' ignore that time and look for the next time information for the event start time.
 - Convert all times to 24-hour format
 - Skip empty cells or cells with just "-"
 - Port times can be ranges, single times, or "Depart/Arrive" statements
 - Sometimes in the "Day" column there is an annotation like '1 Hour Forward' or '1 Hour back'. If you see that, ignore it for now.
+- 'Perfect Day' as a port means the island of Coco Cay.
+
 
 Return ONLY valid JSON matching the schema. No explanations.
 """
