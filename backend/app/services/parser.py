@@ -5,7 +5,7 @@ import re
 from typing import List, Dict, Any
 
 from .genai_parser import GenAIParser
-from ..config import GEMINI_API_KEY
+from ..config import settings
 
 
 def parse_venue_schedule_pdf(file_path: str) -> List[Dict[str, Any]]:
@@ -189,8 +189,8 @@ def parse_cd_grid_pdf(file_path: str) -> Dict[str, Any]:
             "events": List[Dict]
         }
     """
-    if GEMINI_API_KEY:
-        parser = GenAIParser(GEMINI_API_KEY)
+    if settings.GEMINI_API_KEY:
+        parser = GenAIParser(settings.GEMINI_API_KEY)
         return parser.parse_cd_grid(file_path)
     else:
         raise ValueError("GEMINI_API_KEY not configured. Please set it in your .env file.")

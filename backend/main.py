@@ -4,7 +4,9 @@ from backend.app.routers import upload
 
 from contextlib import asynccontextmanager
 from backend.app.database import create_db_and_tables
+from backend.app.database import create_db_and_tables
 from backend.app import models # Import models to register them with SQLModel
+from backend.app.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,7 +18,7 @@ app = FastAPI(title="Royal Caribbean Scheduler API", lifespan=lifespan)
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], # Frontend URL
+    allow_origins=settings.BACKEND_CORS_ORIGINS, # Frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

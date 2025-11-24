@@ -2,14 +2,14 @@ import google.generativeai as genai
 from typing import Dict, Any, List
 import json
 from datetime import datetime
-from ..config import GEMINI_MODEL
+
 
 class GenAIParser:
     """Parse CD Grid PDFs using Google Gemini."""
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(GEMINI_MODEL)
+        self.model = genai.GenerativeModel(model_name)
     
     def parse_cd_grid(self, pdf_path: str, target_venue: str = "STUDIO B") -> Dict[str, Any]:
         """
