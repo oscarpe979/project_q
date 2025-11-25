@@ -42,7 +42,7 @@ class GenAIParser:
     
     def _create_parsing_prompt(self, venue: str) -> str:
         return f"""
-You are parsing a cruise ship Grid schedule PDF. Extract the following information:
+You are parsing a cruise ship Grid schedule PDF. Your task is to extract the itinerary and events for a specific venue.
 
 1. ITINERARY (one entry per day):
    - day_number: Integer (e.g., 1, 2, 3)
@@ -58,26 +58,31 @@ You are parsing a cruise ship Grid schedule PDF. Extract the following informati
    - date: String in YYYY-MM-DD format (match to itinerary date)
    - venue: String (always "{venue}")
 
-IMPORTANT GENERAL RULES:
-- **CRITICAL**: You must ONLY extract events from the column explicitly labeled "{venue}".
-- **CRITICAL**: If the column "{venue}" DOES NOT EXIST in the PDF, return an empty list `[]` for events. Do NOT try to guess or extract from other columns.
-- Do NOT extract events from "Royal Theater", "Two70", "Music Hall", "AquaTheater", "Studio B", "Star Lounge", "Boleros", "Pool Deck", "Solarium", "Royal Esplanade", "Promenade", or any other column unless the target venue matches exactly.
-- For events with multiple showtimes (e.g., "7:30 PM & 9:30 PM"), create SEPARATE events
-- If only start time is given, return null for end_time. DO NOT GUESS OR CALCULATE END TIMES.
-- Extract event title by removing time information from the cell content
-- Times can be given like 'midngiht' or 'noon'.
-- Start times are always earlier than end times. If the start time is later than the end time, you have to assume that the end time is the next day.
-- If an event starts before midnight (for example 23:00) and ends after midnight (for example 00:30) that means that the date of the start event is the current day and the end time is the next day.
-- If an ending time says 'late' assume 2am as ending time.
-- If an event makes reference to 'Doors open' or 'Doors open at' ignore that time and look for the next time information for the event start time.
-- Convert all times to 24-hour format
-- Skip empty cells or cells with just "-"
-- Port times can be ranges, single times, or "Depart/Arrive" statements
-- Sometimes in the "Day" column there is an annotation like '1 Hour Forward' or '1 Hour back'. If you see that, ignore it for now.
-- 'Perfect Day' as a port means the island of Coco Cay.
+IMPORTANT RULES FOR ACCURACY:
+- **ROW ALIGNMENT**: The schedule is a grid. The "Date" and "Day" columns define the rows. You MUST align events in the "{venue}" column with the corresponding "Date" row.
+- **GRID LINES**: Respect the horizontal black lines separating the days. Do NOT merge text across these lines. An event listed in the "Day 2" row MUST be extracted with the "Day 2" date.
+- **COLUMN CONSTRAINTS**: Extract events ONLY from the column labeled "{venue}". Do NOT look at other columns.
+- **ORDER**: Maintain the vertical order of events within a cell.
 
+TIME PARSING RULES:
+- **Midnight**: If the text says "Midnight", set `start_time` to "00:00".
+- **Late**: If an end time is "Late", record it as "03:00" (3 AM).
+- **Overnight**: If an event starts before midnight (e.g., 23:00) and ends after (e.g., 00:30), the start date is the current day.
+- **24-Hour Format**: Convert all times to HH:MM 24-hour format.
+- **Noon**: Convert "Noon" to "12:00".
 
-Return ONLY valid JSON matching the schema. No explanations.
+GENERAL RULES:
+- **Date Assignment**: Always use the date corresponding to the row where the event text is physically located.
+- If the column "{venue}" DOES NOT EXIST, return an empty list `[]`.
+- Ignore "Doors open" times; use the show start time.
+- Skip empty cells or cells with just "-".
+- 'Perfect Day' = 'Coco Cay'.
+
+GENERAL EVENT NAMES RULES:
+- 'BOTS' =  'Battle of The Sexes'.
+- 'RED' = 'RED: Nightclub Experience'.
+
+Return ONLY valid JSON matching the schema.
 """
     
     def _get_response_schema(self) -> Dict:
@@ -146,7 +151,15 @@ Return ONLY valid JSON matching the schema. No explanations.
         """Parse a single raw event into an intermediate structure."""
         try:
             date_str = event["date"]
-            start_dt = datetime.fromisoformat(f"{date_str}T{event['start_time']}:00")
+            start_time_str = event['start_time']
+            start_dt = datetime.fromisoformat(f"{date_str}T{start_time_str}:00")
+            
+            # Smart Date Shift:
+            # If an event is in the grid row for Day X, but the time is 00:00 - 03:59,
+            # it implies it's a late-night event belonging to Day X's night (which is technically Day X+1).
+            # So we shift the date forward by 1 day.
+            if start_dt.hour < 4:
+                start_dt += timedelta(days=1)
             
             # Normalize end_time: convert string "null" to None
             end_time_raw = event.get("end_time")

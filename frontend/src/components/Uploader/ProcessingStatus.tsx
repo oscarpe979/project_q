@@ -10,7 +10,7 @@ interface ProcessingStatusProps {
 }
 
 const STEPS = [
-    { id: 1, label: 'Encrypting data for private processing...', duration: 2000 },
+    { id: 1, label: 'Encrypting data for secure processing...', duration: 2000 },
     { id: 2, label: 'Gemini AI analyzing schedule structure...', duration: 35000 },
     { id: 3, label: 'Extracting events and itinerary...', duration: 15000 },
     { id: 4, label: 'Formatting data for grid view...', duration: 3000 },
