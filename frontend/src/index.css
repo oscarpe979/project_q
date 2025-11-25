@@ -622,7 +622,7 @@ body {
   background-color: rgba(239, 246, 255, 0.5);
 }
 
-/* Event Block */
+/* Event Block - Core Styles */
 .event-block {
   position: absolute;
   border-radius: 0.5rem;
@@ -640,13 +640,6 @@ body {
   filter: brightness(1.1);
 }
 
-.event-block.resizing:hover {
-  filter: none;
-  /* Disable brightness during resize to prevent flashing */
-  transform: none;
-  /* Disable scale during resize to prevent flickering */
-}
-
 .event-block.dragging {
   opacity: 0.8;
   box-shadow: var(--shadow-lg);
@@ -654,7 +647,6 @@ body {
   z-index: 50;
   cursor: grabbing;
   transition: none;
-  /* Disable transitions during drag for performance */
 }
 
 .event-block.resizing {
@@ -665,6 +657,12 @@ body {
   transition: none;
 }
 
+.event-block.resizing:hover {
+  filter: none;
+  transform: none;
+}
+
+/* Event Content Layout */
 .event-content {
   display: flex;
   flex-direction: column;
@@ -679,7 +677,6 @@ body {
   font-weight: 700;
   white-space: normal;
   overflow: hidden;
-  /* text-overflow: ellipsis; Removed to allow wrapping */
   font-size: 13px;
   line-height: 1.2;
   text-align: center;
@@ -688,11 +685,10 @@ body {
 }
 
 .event-time {
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 700;
   opacity: 0.9;
   margin-bottom: 2px;
-  /* Changed from margin-top since it's now first */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -700,18 +696,62 @@ body {
   width: 100%;
 }
 
+/* Compact View Logic */
+.event-block.is-compact .event-content {
+  padding: 0 4px;
+  /* Minimal padding for compact view */
+}
+
+.event-block.is-compact .event-content-full {
+  display: none;
+}
+
+.event-block.is-compact .event-content-compact {
+  display: block;
+  width: 100%;
+}
+
+.event-block:not(.is-compact) .event-content-full {
+  display: block;
+  width: 100%;
+}
+
+.event-block:not(.is-compact) .event-content-compact {
+  display: none;
+}
+
+.event-content-compact {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.event-time-compact {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Resize Handles */
 .resize-handle {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 12px;
+  height: 8px;
   cursor: ns-resize;
   display: flex;
   justify-content: center;
   align-items: flex-end;
   opacity: 0;
   transition: opacity 0.2s;
+  z-index: 20;
+}
+
+.event-block.dragging .resize-handle {
+  display: none;
 }
 
 .resize-handle-top {

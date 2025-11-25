@@ -10,6 +10,10 @@ interface EventBlockProps {
     isLate?: boolean;
 }
 
+const PIXELS_PER_HOUR = 100;
+const SNAP_MINUTES = 5;
+const MIN_HEIGHT = 25; // Minimum 15 minutes
+
 export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerStyle, isLate }) => {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: event.id,
@@ -41,21 +45,21 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
     const height = parseFloat(containerStyle.height as string) || 60;
     const top = parseFloat(containerStyle.top as string) || 0;
 
-    // Snap all transforms to 5-minute increments (100px/hour / 12 = ~8.33px)
-    const SNAP_PIXELS = 100 / 12;
+    // Snap calculations
+    const SNAP_PIXELS = PIXELS_PER_HOUR / (60 / SNAP_MINUTES);
     const snappedTransformY = transform ? Math.round(transform.y / SNAP_PIXELS) * SNAP_PIXELS : 0;
     const snappedResizeTransformY = resizeTransform ? Math.round(resizeTransform.y / SNAP_PIXELS) * SNAP_PIXELS : 0;
     const snappedResizeTopTransformY = resizeTopTransform ? Math.round(resizeTopTransform.y / SNAP_PIXELS) * SNAP_PIXELS : 0;
 
     // Visual feedback for resizing (preview height change with snapping)
     const currentHeight = isResizingBottom
-        ? Math.max(20, height + snappedResizeTransformY)
+        ? Math.max(MIN_HEIGHT, height + snappedResizeTransformY)
         : isResizingTop
-            ? Math.max(20, height - snappedResizeTopTransformY)
+            ? Math.max(MIN_HEIGHT, height - snappedResizeTopTransformY)
             : height;
 
     const currentTop = isResizingTop
-        ? top + snappedResizeTopTransformY
+        ? top + (height - currentHeight)
         : top;
 
     // Calculate visual top position during drag
@@ -69,7 +73,6 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
         left: containerStyle.left,
         width: containerStyle.width,
         zIndex: isDragging || isResizingBottom || isResizingTop ? 50 : 10,
-        // Only apply horizontal transform for cross-day movement
         transform: (isDragging && transform) ? `translate3d(${transform.x}px, 0, 0)` : undefined,
     };
 
@@ -83,30 +86,30 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
         }
     };
 
-    const isSmallDuration = currentHeight < 40;
+    const isSmallDuration = currentHeight < 50;
 
     // Calculate preview times during drag/resize
     const getPreviewTimes = () => {
-        const pixelsToMinutes = (px: number) => {
-            const minutes = px * (60 / 100);
-            return Math.round(minutes / 5) * 5;
-        };
+        // Calculate duration in minutes based on the CLAMPED visual height
+        const durationMinutes = Math.round((currentHeight / PIXELS_PER_HOUR) * 60);
 
         if (isDragging && transform) {
             // Moving the entire event
+            const pixelsToMinutes = (px: number) => {
+                const minutes = px * (60 / PIXELS_PER_HOUR);
+                return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
+            };
             const minutesShift = pixelsToMinutes(snappedTransformY);
             const previewStart = new Date(event.start.getTime() + minutesShift * 60 * 1000);
             const previewEnd = new Date(event.end.getTime() + minutesShift * 60 * 1000);
             return { start: previewStart, end: previewEnd };
-        } else if (isResizingTop && resizeTopTransform) {
-            // Resizing from top
-            const minutesShift = pixelsToMinutes(snappedResizeTopTransformY);
-            const previewStart = new Date(event.start.getTime() + minutesShift * 60 * 1000);
+        } else if (isResizingTop) {
+            // Resizing from top: End is fixed, Start is derived from duration
+            const previewStart = new Date(event.end.getTime() - durationMinutes * 60 * 1000);
             return { start: previewStart, end: event.end };
-        } else if (isResizingBottom && resizeTransform) {
-            // Resizing from bottom
-            const minutesShift = pixelsToMinutes(snappedResizeTransformY);
-            const previewEnd = new Date(event.end.getTime() + minutesShift * 60 * 1000);
+        } else if (isResizingBottom) {
+            // Resizing from bottom: Start is fixed, End is derived from duration
+            const previewEnd = new Date(event.start.getTime() + durationMinutes * 60 * 1000);
             return { start: event.start, end: previewEnd };
         }
         return { start: event.start, end: event.end };
@@ -123,41 +126,48 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
             className={clsx(
                 "event-block",
                 getEventClass(),
+                isSmallDuration && "is-compact",
                 isDragging && "dragging",
                 (isResizingBottom || isResizingTop) && "resizing"
             )}
         >
-            <div className="event-content">
-                {/* Top Resize Handle */}
-                <div
-                    ref={setResizeTopRef}
-                    {...resizeTopListeners}
-                    {...resizeTopAttrs}
-                    className="resize-handle resize-handle-top"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div className="resize-bar"></div>
-                </div>
+            {/* Top Resize Handle */}
+            <div
+                ref={setResizeTopRef}
+                {...resizeTopListeners}
+                {...resizeTopAttrs}
+                className="resize-handle resize-handle-top"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="resize-bar"></div>
+            </div>
 
-                {!isSmallDuration && (
+            <div className="event-content">
+                {/* Full View (2 lines) */}
+                <div className="event-content-full">
                     <div className="event-time">
                         {format(displayStart, 'h:mm a')} - {isLate ? 'Late' : format(displayEnd, 'h:mm a')}
                     </div>
-                )}
-                <div className="event-title">
-                    {event.title}
+                    <div className="event-title">
+                        {event.title}
+                    </div>
                 </div>
 
-                {/* Bottom Resize Handle */}
-                <div
-                    ref={setResizeRef}
-                    {...resizeListeners}
-                    {...resizeAttrs}
-                    className="resize-handle"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div className="resize-bar"></div>
+                {/* Compact View (1 line) */}
+                <div className="event-content-compact">
+                    <span className="event-time-compact">{format(displayStart, 'h:mm a')}</span> - {event.title}
                 </div>
+            </div>
+
+            {/* Bottom Resize Handle */}
+            <div
+                ref={setResizeRef}
+                {...resizeListeners}
+                {...resizeAttrs}
+                className="resize-handle"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="resize-bar"></div>
             </div>
         </div>
     );

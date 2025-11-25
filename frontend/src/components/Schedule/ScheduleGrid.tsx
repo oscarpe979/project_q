@@ -57,16 +57,30 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
 
                 if (isResizeTop) {
                     // Update Start Time (dragging top edge)
-                    const newStart = addDays(setMinutes(e.start, e.start.getMinutes() + snappedMinutes), 0);
-                    // Prevent start time after end time
+                    let newStart = addDays(setMinutes(e.start, e.start.getMinutes() + snappedMinutes), 0);
+
+                    // Check for inversion (dragged past end time)
                     if (newStart >= e.end) return e;
+
+                    // Enforce minimum 15 minute duration by clamping
+                    const durationMinutes = (e.end.getTime() - newStart.getTime()) / (1000 * 60);
+                    if (durationMinutes < 15) {
+                        newStart = new Date(e.end.getTime() - 15 * 60 * 1000);
+                    }
 
                     return { ...e, start: newStart };
                 } else if (isResizeBottom) {
                     // Update End Time (dragging bottom edge)
-                    const newEnd = addDays(setMinutes(e.end, e.end.getMinutes() + snappedMinutes), 0);
-                    // Prevent end time before start time
+                    let newEnd = addDays(setMinutes(e.end, e.end.getMinutes() + snappedMinutes), 0);
+
+                    // Check for inversion (dragged past start time)
                     if (newEnd <= e.start) return e;
+
+                    // Enforce minimum 15 minute duration by clamping
+                    const durationMinutes = (newEnd.getTime() - e.start.getTime()) / (1000 * 60);
+                    if (durationMinutes < 15) {
+                        newEnd = new Date(e.start.getTime() + 15 * 60 * 1000);
+                    }
 
                     return { ...e, end: newEnd };
                 } else {
