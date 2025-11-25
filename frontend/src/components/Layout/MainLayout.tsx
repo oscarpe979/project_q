@@ -10,6 +10,28 @@ interface MainLayoutProps {
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick, onLogout, user }) => {
+    // Extract ship and venue from username (e.g., wn_studiob)
+    const getHeaderInfo = () => {
+        if (!user?.username) return { ship: '', venue: 'Venue Schedule' };
+
+        const parts = user.username.split('_');
+        const shipCode = parts[0]?.toUpperCase() || '';
+        const venueCode = parts[1]?.toLowerCase() || '';
+
+        const venueMap: Record<string, string> = {
+            'studiob': 'Studio B',
+            'theater': 'Royal Theater',
+            'two70': 'Two70°',
+            'aquatheater': 'AquaTheater',
+            'music': 'Music Hall'
+        };
+
+        const venueName = venueMap[venueCode] || 'Venue';
+        return { ship: shipCode, venue: venueName };
+    };
+
+    const { ship, venue } = getHeaderInfo();
+
     return (
         <div className="app-container">
             {/* Sidebar */}
@@ -63,7 +85,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick,
                 {/* Header */}
                 <header className="top-header glass-header">
                     <div>
-                        <h2 className="header-title">Two70° Schedule</h2>
+                        <h2 className="header-title">
+                            {ship ? `${ship} ${venue} Schedule` : venue}
+                        </h2>
                         <p className="header-meta">
                             <span className="status-dot"></span>
                             Live Draft • Last saved just now
@@ -81,7 +105,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick,
                 </header>
 
                 {/* Scrollable Content */}
-                <div style={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+                <div className="workspace-card">
                     {children}
                 </div>
             </main>
