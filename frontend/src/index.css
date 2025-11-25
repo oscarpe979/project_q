@@ -393,7 +393,7 @@ body {
   width: 80px;
   flex-shrink: 0;
   border-right: 1px solid var(--border-medium);
-  background: #f3f4f6;
+  background: white;
   display: flex;
   flex-direction: column;
   position: sticky;
@@ -406,9 +406,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: #5f6368;
+  /* Google Gray */
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   border-bottom: 1px solid var(--border-medium);
   box-sizing: border-box;
 }
@@ -450,12 +453,14 @@ body {
 
 .header-row-day-number {
   height: 38px;
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: var(--text-accent);
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a73e8;
+  /* Google Blue */
+  background: transparent;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 0.5rem 0.25rem;
+  padding: 0 0.25rem;
   border-bottom: 1px solid var(--border-medium);
   display: flex;
   align-items: center;
@@ -464,11 +469,13 @@ body {
 
 .header-row-day-name {
   height: 24px;
-  font-size: .8rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #5f6368;
+  /* Google Gray */
   padding: 0;
   border-bottom: 1px solid var(--border-medium);
+  letter-spacing: 0.05em;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -488,9 +495,10 @@ body {
 
 .header-row-location {
   height: 25px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #202124;
+  /* Google Black */
   text-transform: uppercase;
   padding: 0;
   border-bottom: 1px solid var(--border-medium);
@@ -669,13 +677,14 @@ body {
 
 .event-title {
   font-weight: 700;
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  /* text-overflow: ellipsis; Removed to allow wrapping */
   font-size: 13px;
   line-height: 1.2;
   text-align: center;
   width: 100%;
+  word-break: break-word;
 }
 
 .event-time {

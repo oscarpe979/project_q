@@ -86,7 +86,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick,
                 <header className="top-header glass-header">
                     <div>
                         <h2 className="header-title">
-                            {ship ? `${ship} ${venue} Schedule` : venue}
+                            {ship ? `${ship} ${venue} - Venue Schedule` : venue}
                         </h2>
                         <p className="header-meta">
                             <span className="status-dot"></span>
