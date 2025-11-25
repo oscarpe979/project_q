@@ -44,15 +44,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick,
                             {user?.username ? user.username.split('_')[0].toUpperCase() : (user?.name.charAt(0) || 'U')}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: '0.875rem', fontWeight: 'bold', lineHeight: '1.2' }}>{user?.name || 'User'}</p>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Role: {user?.role?.toUpperCase() || 'STAFF'}</p>
+                            <p style={{ fontSize: '0.875rem', fontWeight: 'bold', lineHeight: '1.2', margin: 0 }}>{user?.name || 'User'}</p>
+                            <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0px', marginBottom: 0 }}>Role: {user?.role?.toUpperCase() || 'STAFF'}</p>
                         </div>
                         <button
                             onClick={onLogout}
                             className="logout-btn"
                             title="Logout"
                         >
-                            <LogOut size={16} />
+                            <LogOut size={20} />
                         </button>
                     </div>
                 </div>

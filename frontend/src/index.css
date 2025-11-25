@@ -202,10 +202,12 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 0.75rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 0.75rem;
-  cursor: pointer;
+  cursor: default;
   transition: all 0.2s;
+  min-height: 60px;
+  max-height: 70px;
 }
 
 .user-card:hover {
@@ -213,8 +215,8 @@ body {
 }
 
 .user-avatar {
-  height: 40px;
-  width: 40px;
+  height: 52px;
+  width: 52px;
   border-radius: 50%;
   background: linear-gradient(to top right, #3b82f6, #a855f7);
   display: flex;
@@ -227,8 +229,8 @@ body {
 }
 
 .logout-btn {
-  height: 32px;
-  width: 32px;
+  height: 38px;
+  width: 38px;
   border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
@@ -237,13 +239,20 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .logout-btn:hover {
-  background: #fee2e2;
+  background: rgba(255, 255, 255, 0.5);
   color: #ef4444;
-  border-color: #fecaca;
+  border-color: rgba(239, 68, 68, 0.1);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1);
+  backdrop-filter: blur(4px);
+  transform: translateY(-1px);
+}
+
+.logout-btn:active {
+  transform: translateY(0);
 }
 
 /* Header */
