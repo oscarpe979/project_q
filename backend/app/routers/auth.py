@@ -32,6 +32,7 @@ class UserResponse(BaseModel):
     ship_id: Optional[int]
     venue_id: Optional[int]
     is_active: bool
+    venue_name: Optional[str] = None
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -92,4 +93,15 @@ async def login(
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user information."""
-    return current_user
+    venue_name = current_user.venue.name if current_user.venue else None
+    
+    return UserResponse(
+        id=current_user.id,
+        username=current_user.username,
+        full_name=current_user.full_name,
+        role=current_user.role,
+        ship_id=current_user.ship_id,
+        venue_id=current_user.venue_id,
+        is_active=current_user.is_active,
+        venue_name=venue_name
+    )

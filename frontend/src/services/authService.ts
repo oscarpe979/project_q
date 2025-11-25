@@ -20,7 +20,7 @@ export const authService = {
         return !!this.getToken();
     },
 
-    async validateToken(): Promise<{ name: string; role: string; username: string } | null> {
+    async validateToken(): Promise<{ name: string; role: string; username: string; venueName?: string } | null> {
         const token = this.getToken();
         if (!token) return null;
 
@@ -38,7 +38,8 @@ export const authService = {
             return {
                 name: userData.full_name,
                 role: userData.role,
-                username: userData.username
+                username: userData.username,
+                venueName: userData.venue_name
             };
         } catch (error) {
             console.error('Token validation failed:', error);

@@ -6,7 +6,7 @@ interface MainLayoutProps {
     children: React.ReactNode;
     onImportClick?: () => void;
     onLogout?: () => void;
-    user?: { name: string; role: string; username: string } | null;
+    user?: { name: string; role: string; username: string; venueName?: string } | null;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick, onLogout, user }) => {
@@ -16,18 +16,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, onImportClick,
 
         const parts = user.username.split('_');
         const shipCode = parts[0]?.toUpperCase() || '';
-        const venueCode = parts[1]?.toLowerCase() || '';
 
-        const venueMap: Record<string, string> = {
-            'studiob': 'Studio B',
-            'theater': 'Royal Theater',
-            'two70': 'Two70°',
-            'aquatheater': 'AquaTheater',
-            'music': 'Music Hall'
-        };
+        // Use venueName from backend if available
+        if (user.venueName) {
+            return { ship: shipCode, venue: user.venueName };
+        }
 
-        const venueName = venueMap[venueCode] || 'Venue';
-        return { ship: shipCode, venue: venueName };
+        // Fallback for users without venue assignation (e.g. power users)
+        return { ship: shipCode, venue: 'Venue Schedule' };
     };
 
     const { ship, venue } = getHeaderInfo();
