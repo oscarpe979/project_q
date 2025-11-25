@@ -14,6 +14,7 @@ function App() {
   const [user, setUser] = useState<{ name: string; role: string; username: string } | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([
@@ -61,6 +62,7 @@ function App() {
 
   const handleFileSelect = async (file: File) => {
     setIsUploading(true);
+    setUploadSuccess(false);
     const formData = new FormData();
     formData.append('file', file);
 
@@ -109,15 +111,20 @@ function App() {
       }
 
       setEvents(prev => [...prev, ...newEvents]);
-      setIsImportOpen(false);
-
-      alert(`Successfully imported ${newEvents.length} events across ${data.itinerary?.length || 0} days!`);
+      setUploadSuccess(true);
+      // setIsImportOpen(false); // Don't close immediately
+      // alert(`Successfully imported ${newEvents.length} events across ${data.itinerary?.length || 0} days!`);
     } catch (error) {
       console.error('Error uploading file:', error);
       alert('Failed to upload file. Please try again.');
-    } finally {
-      setIsUploading(false);
+      setIsUploading(false); // Only stop uploading on error, success is handled by UI
     }
+  };
+
+  const handleViewSchedule = () => {
+    setIsImportOpen(false);
+    setIsUploading(false);
+    setUploadSuccess(false);
   };
 
   return (
@@ -140,6 +147,8 @@ function App() {
                 onFileSelect={handleFileSelect}
                 accept=".pdf,.xlsx,.xls"
                 isLoading={isUploading}
+                isSuccess={uploadSuccess}
+                onViewSchedule={handleViewSchedule}
               />
             </Modal>
           </MainLayout>

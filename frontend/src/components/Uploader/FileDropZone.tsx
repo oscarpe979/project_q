@@ -2,14 +2,18 @@ import React, { useCallback } from 'react';
 import { Upload } from 'lucide-react';
 import clsx from 'clsx';
 
+import { ProcessingStatus } from './ProcessingStatus';
+
 interface FileDropZoneProps {
     onFileSelect: (file: File) => void;
     accept?: string;
     label?: string;
     isLoading?: boolean;
+    isSuccess?: boolean;
+    onViewSchedule?: () => void;
 }
 
-export const FileDropZone: React.FC<FileDropZoneProps> = ({ onFileSelect, accept, label = "Drop CD Grid or AM Grid here", isLoading = false }) => {
+export const FileDropZone: React.FC<FileDropZoneProps> = ({ onFileSelect, accept, label = "Drop CD Grid or AM Grid here", isLoading = false, isSuccess = false, onViewSchedule }) => {
     const [isDragOver, setIsDragOver] = React.useState(false);
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -37,20 +41,8 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({ onFileSelect, accept
         }
     }, [onFileSelect, isLoading]);
 
-    if (isLoading) {
-        return (
-            <div className="drop-zone" style={{ cursor: 'default', borderColor: 'var(--text-accent)', backgroundColor: 'rgba(37, 99, 235, 0.05)' }}>
-                <div className="drop-zone-icon" style={{ color: 'var(--text-accent)', backgroundColor: 'rgba(37, 99, 235, 0.1)' }}>
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-current"></div>
-                </div>
-                <p className="drop-zone-label" style={{ color: 'var(--text-accent)' }}>
-                    Analyzing PDF with Gemini...
-                </p>
-                <p className="drop-zone-hint">
-                    This may take up to a minute.
-                </p>
-            </div>
-        );
+    if (isLoading || isSuccess) {
+        return <ProcessingStatus isSuccess={isSuccess} onViewSchedule={onViewSchedule} />;
     }
 
     return (
