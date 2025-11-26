@@ -42,7 +42,14 @@ class GenAIParser:
     
     def _create_parsing_prompt(self, venue: str) -> str:
         return f"""
-You are parsing a cruise ship Grid schedule PDF. Your task is to extract the itinerary and events for a specific venue.
+Analyze the uploaded as a strict grid structure. Focus strictly on the column labeled {venue}. 
+Extract every event listed in this column for each date.
+When reading the table, ignore all formatting attributes such as text color (e.g., red) or cell background colors (e.g., yellow highlights). 
+These are for human emphasis only and are not part of the data to be extracted.
+Your only priority is the text content and its position within the defined column boundaries (e.g., the 'Studio B' column). 
+Do not allow any color or highlighting to influence which text you select.
+
+Present the output as a JSON object with the following structure:
 
 1. ITINERARY (one entry per day):
    - day_number: Integer (e.g., 1, 2, 3)
@@ -58,29 +65,31 @@ You are parsing a cruise ship Grid schedule PDF. Your task is to extract the iti
    - date: String in YYYY-MM-DD format (match to itinerary date)
    - venue: String (always "{venue}")
 
-IMPORTANT RULES FOR ACCURACY:
-- **ROW ALIGNMENT**: The schedule is a grid. The "Date" and "Day" columns define the rows. You MUST align events in the "{venue}" column with the corresponding "Date" row.
-- **GRID LINES**: Respect the horizontal black lines separating the days. Do NOT merge text across these lines. An event listed in the "Day 2" row MUST be extracted with the "Day 2" date.
-- **COLUMN CONSTRAINTS**: Extract events ONLY from the column labeled "{venue}". Do NOT look at other columns.
-- **ORDER**: Maintain the vertical order of events within a cell.
+Please note the below rules:
 
-TIME PARSING RULES:
+THE GRID STRUCTURE: 
+Important Columns: DATE, DAY, ROYAL THEATER, TWO70, MUSIC HALL, ROYAL ESPLANADE.
+
+RULES FOR TIME PARSING:
 - **Midnight**: If the text says "Midnight", set `start_time` to "00:00".
 - **Late**: If an end time is "Late", record it as "03:00" (3 AM).
 - **Overnight**: If an event starts before midnight (e.g., 23:00) and ends after (e.g., 00:30), the start date is the current day.
 - **24-Hour Format**: Convert all times to HH:MM 24-hour format.
 - **Noon**: Convert "Noon" to "12:00".
 
-GENERAL RULES:
+RULES IN GENERAL:
 - **Date Assignment**: Always use the date corresponding to the row where the event text is physically located.
 - If the column "{venue}" DOES NOT EXIST, return an empty list `[]`.
 - Ignore "Doors open" times; use the show start time.
+- 'GO' followed by a time is the start time. Also, a time followed gy a 'GO' is a start time.
 - Skip empty cells or cells with just "-".
 - 'Perfect Day' = 'Coco Cay'.
+- Ignore numbers pax (passangers) for an event.
 
-GENERAL EVENT NAMES RULES:
+EVENT NAMES RULES:
 - 'BOTS' =  'Battle of The Sexes'.
 - 'RED' = 'RED: Nightclub Experience'.
+- Ignore dates in the event name like (10.21 - 12.11) or similar.
 
 Return ONLY valid JSON matching the schema.
 """
