@@ -2,6 +2,8 @@ import google.generativeai as genai
 from typing import Dict, Any, List, Optional
 import json
 from datetime import datetime, timedelta
+import pypdfium2 as pdfium
+import os
 
 
 class GenAIParser:
@@ -11,9 +13,9 @@ class GenAIParser:
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model_name)
     
-    def parse_cd_grid(self, pdf_path: str, target_venue: str) -> Dict[str, Any]:
+    def parse_cd_grid(self, file_path: str, target_venue: str) -> Dict[str, Any]:
         """
-        Parse CD Grid PDF and extract itinerary + events.
+        Parse CD Grid (PDF or Image) and extract itinerary + events.
         
         Returns:
             {
@@ -21,33 +23,83 @@ class GenAIParser:
                 "events": [...]
             }
         """
-        # Upload PDF to Gemini
-        pdf_file = genai.upload_file(pdf_path)
+        # Determine if we need to convert PDF to Image
+        upload_path = file_path
+        temp_images = []
         
-        # Create structured prompt
-        prompt = self._create_parsing_prompt(target_venue)
-        
-        # Generate response with JSON schema
-        response = self.model.generate_content(
-            [pdf_file, prompt],
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-                response_schema=self._get_response_schema()
+        if file_path.lower().endswith('.pdf'):
+            print("DEBUG: Converting PDF to image for better vision analysis...")
+            try:
+                # Convert first page to image (assuming grid is on page 1)
+                # If multiple pages, we might need to handle that, but usually it's one large grid or per page.
+                # For now, let's take the first page as it's the most common case for these schedules.
+                image_path = self._convert_pdf_to_image(file_path)
+                upload_path = image_path
+                temp_images.append(image_path)
+            except Exception as e:
+                print(f"Warning: PDF to Image conversion failed ({e}). Falling back to raw PDF.")
+                # Fallback to original PDF if conversion fails
+                upload_path = file_path
+
+        try:
+            # Upload file (Image or PDF) to Gemini
+            print(f"DEBUG: Uploading {upload_path} to Gemini...")
+            uploaded_file = genai.upload_file(upload_path)
+            
+            # Create structured prompt
+            prompt = self._create_parsing_prompt(target_venue)
+            
+            # Generate response with JSON schema
+            response = self.model.generate_content(
+                [uploaded_file, prompt],
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    response_schema=self._get_response_schema()
+                )
             )
-        )
+            
+            # Parse and validate response
+            result = json.loads(response.text)
+            
+            # Log debug info
+            if "debug_info" in result:
+                print(f"DEBUG INFO FROM LLM:\n{result['debug_info']}")
+                
+            return self._validate_and_transform(result)
+            
+        finally:
+            for img in temp_images:
+                if os.path.exists(img):
+                    os.remove(img)
+
+    def _convert_pdf_to_image(self, pdf_path: str) -> str:
+        """Convert the first page of a PDF to a high-res image."""
+        pdf = pdfium.PdfDocument(pdf_path)
+        page = pdf[0] # Load first page
         
-        # Parse and validate response
-        result = json.loads(response.text)
-        return self._validate_and_transform(result)
+        # Render to image (scale=2 for better resolution/OCR)
+        bitmap = page.render(scale=2)
+        pil_image = bitmap.to_pil()
+        
+        # Save to temp file
+        base_name = os.path.splitext(pdf_path)[0]
+        image_path = f"{base_name}_converted.png"
+        pil_image.save(image_path)
+        
+        return image_path
     
     def _create_parsing_prompt(self, venue: str) -> str:
         return f"""
-Analyze the uploaded as a strict grid structure. Focus strictly on the column labeled {venue}. 
+Analyze the uploaded file as a strict grid structure. Focus strictly on the column labeled {venue}. 
 Extract every event listed in this column for each date.
 When reading the table, ignore all formatting attributes such as text color (e.g., red) or cell background colors (e.g., yellow highlights). 
 These are for human emphasis only and are not part of the data to be extracted.
 Your only priority is the text content and its position within the defined column boundaries (e.g., the 'Studio B' column). 
 Do not allow any color or highlighting to influence which text you select.
+
+Ignore Saliency: Treat red text, yellow highlights, and bold fonts as identical to standard black text. They carry no special meaning.
+Preprocessing: Before extracting any text, mentally convert the entire page to a high-contrast black-and-white image.
+Focus: Your attention must be distributed evenly across the grid. Do not let colored text pull your focus away from the column structure.
 
 Present the output as a JSON object with the following structure:
 
@@ -66,9 +118,6 @@ Present the output as a JSON object with the following structure:
    - venue: String (always "{venue}")
 
 Please note the below rules:
-
-THE GRID STRUCTURE: 
-Important Columns: DATE, DAY, ROYAL THEATER, TWO70, MUSIC HALL, ROYAL ESPLANADE.
 
 RULES FOR TIME PARSING:
 - **Midnight**: If the text says "Midnight", set `start_time` to "00:00".
@@ -89,6 +138,9 @@ RULES IN GENERAL:
 EVENT NAMES RULES:
 - 'BOTS' =  'Battle of The Sexes'.
 - 'RED' = 'RED: Nightclub Experience'.
+- Format headliner event names as "Headliner: " followed by the event name.
+- Remove 'Production Show' from the event name.
+- Event names must be formated as title case unless it's an acronym.
 - Ignore dates in the event name like (10.21 - 12.11) or similar.
 
 Return ONLY valid JSON matching the schema.
