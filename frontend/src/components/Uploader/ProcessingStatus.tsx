@@ -11,7 +11,7 @@ interface ProcessingStatusProps {
 
 const STEPS = [
     { id: 1, label: 'Encrypting data for secure processing...', duration: 2000 },
-    { id: 2, label: 'Gemini AI analyzing schedule structure...', duration: 35000 },
+    { id: 2, label: 'Analyzing schedule structure...', duration: 35000 },
     { id: 3, label: 'Extracting events and itinerary...', duration: 15000 },
     { id: 4, label: 'Formatting data for grid view...', duration: 3000 },
 ];
@@ -110,8 +110,8 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({ startTime: p
             </div>
 
             <div className="processing-header">
-                <h3>AI Processing in Progress</h3>
-                <p className="processing-hint">This usually takes about a minute</p>
+                <h3>Processing in Progress</h3>
+                <p className="processing-hint">This usually takes 1 - 2 minutes</p>
                 <div className="processing-timer">
                     <Clock size={14} />
                     <span>{formatTime(elapsed)}</span>

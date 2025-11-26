@@ -9,7 +9,7 @@ import os
 class GenAIParser:
     """Parse CD Grid PDFs using Google Gemini."""
     
-    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash-lite"):
+    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model_name)
     
