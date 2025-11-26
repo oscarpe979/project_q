@@ -34,21 +34,15 @@ async def upload_cd_grid(
         file_path = tmp_file.name
     
     try:
-        if file.filename.endswith('.pdf'):
-            # Use GenAI Parser for CD Grid
+        if file.filename.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png', '.xls', '.xlsx')):
+            # Use GenAI Parser for CD Grid (PDF, Image, or Excel)
             try:
+                print(f"DEBUG: Parsing CD Grid with target_venue='{target_venue}'")
                 result = parser.parse_cd_grid(file_path, target_venue=target_venue)
                 return result
             except Exception as e:
                 print(f"GenAI parsing failed: {e}")
                 raise HTTPException(status_code=500, detail=f"Parsing failed: {str(e)}")
-            
-        elif file.filename.endswith(('.xls', '.xlsx')):
-            from ..services.parser import parse_venue_schedule_excel
-            # Try Venue Schedule Parser first
-            events = parse_venue_schedule_excel(file_path)
-            # Return in new format with empty itinerary for now
-            return {"events": events, "itinerary": []}
         else:
             return {"message": "Unsupported file type", "events": [], "itinerary": []}
             

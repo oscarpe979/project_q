@@ -9,13 +9,13 @@ import os
 class GenAIParser:
     """Parse CD Grid PDFs using Google Gemini."""
     
-    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash-lite"):
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model_name)
     
     def parse_cd_grid(self, file_path: str, target_venue: str) -> Dict[str, Any]:
         """
-        Parse CD Grid (PDF or Image) and extract itinerary + events.
+        Parse CD Grid (PDF, Image, or Excel) and extract itinerary + events.
         
         Returns:
             {
@@ -23,35 +23,55 @@ class GenAIParser:
                 "events": [...]
             }
         """
-        # Determine if we need to convert PDF to Image
-        upload_path = file_path
-        temp_images = []
+        # Determine file type and prepare content for Gemini
+        content_to_send = []
         
+
+        temp_files_to_cleanup = [] # Renamed from temp_images for clarity, as it can contain CSVs too
+        upload_path = file_path # Default to original file path
+
         if file_path.lower().endswith('.pdf'):
             print("DEBUG: Converting PDF to image for better vision analysis...")
             try:
                 # Convert first page to image (assuming grid is on page 1)
-                # If multiple pages, we might need to handle that, but usually it's one large grid or per page.
-                # For now, let's take the first page as it's the most common case for these schedules.
                 image_path = self._convert_pdf_to_image(file_path)
                 upload_path = image_path
-                temp_images.append(image_path)
+                temp_files_to_cleanup.append(image_path)
             except Exception as e:
                 print(f"Warning: PDF to Image conversion failed ({e}). Falling back to raw PDF.")
-                # Fallback to original PDF if conversion fails
                 upload_path = file_path
+        
+        elif file_path.lower().endswith(('.xls', '.xlsx')):
+            print("DEBUG: Converting Excel to CSV for Gemini analysis...")
+            try:
+                # Convert Excel to CSV
+                import pandas as pd
+                df = pd.read_excel(file_path)
+                csv_path = file_path + ".csv"
+                df.to_csv(csv_path, index=False)
+                upload_path = csv_path
+                temp_files_to_cleanup.append(csv_path) # Add to cleanup list
+            except Exception as e:
+                print(f"Warning: Excel to CSV conversion failed ({e}).")
+                # If conversion fails, try uploading the raw Excel file.
+                # Gemini might still be able to process it, or it will fail gracefully.
+                upload_path = file_path
+        else:
+            # Assume Image or other direct uploadable file type
+            upload_path = file_path
 
         try:
-            # Upload file (Image or PDF) to Gemini
             print(f"DEBUG: Uploading {upload_path} to Gemini...")
             uploaded_file = genai.upload_file(upload_path)
-            
+            content_to_send.append(uploaded_file)
+
             # Create structured prompt
             prompt = self._create_parsing_prompt(target_venue)
+            content_to_send.append(prompt)
             
             # Generate response with JSON schema
             response = self.model.generate_content(
-                [uploaded_file, prompt],
+                content_to_send,
                 generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
                     response_schema=self._get_response_schema()
@@ -68,9 +88,10 @@ class GenAIParser:
             return self._validate_and_transform(result)
             
         finally:
-            for img in temp_images:
-                if os.path.exists(img):
-                    os.remove(img)
+            # Cleanup temporary files
+            for f in temp_files_to_cleanup:
+                if os.path.exists(f):
+                    os.remove(f)
 
     def _convert_pdf_to_image(self, pdf_path: str) -> str:
         """Convert the first page of a PDF to a high-res image."""
@@ -90,7 +111,7 @@ class GenAIParser:
     
     def _create_parsing_prompt(self, venue: str) -> str:
         return f"""
-Analyze the uploaded file as a strict grid structure. Focus strictly on the column labeled {venue}. 
+Analyze the uploaded file (PDF, Image, Excel/CSV) as a strict grid structure. Focus strictly on the column labeled {venue}. 
 Extract every event listed in this column for each date.
 When reading the table, ignore all formatting attributes such as text color (e.g., red) or cell background colors (e.g., yellow highlights). 
 These are for human emphasis only and are not part of the data to be extracted.
@@ -125,6 +146,8 @@ RULES FOR TIME PARSING:
 - **Overnight**: If an event starts before midnight (e.g., 23:00) and ends after (e.g., 00:30), the start date is the current day.
 - **24-Hour Format**: Convert all times to HH:MM 24-hour format.
 - **Noon**: Convert "Noon" to "12:00".
+- **Multiple Showtimes**: If an event lists multiple times separated by '&', 'and', or '/' (e.g., "7:00 pm & 9:00 pm"), you MUST create TWO separate event entries. One event starting at 19:00 and another event starting at 21:00, both with the same title.
+- **Missing End Time**: If an event only lists a start time (e.g., "10:00 pm"), you MUST set `end_time` to `null`. Do NOT guess or fabricate an end time.
 
 RULES IN GENERAL:
 - **Date Assignment**: Always use the date corresponding to the row where the event text is physically located.
