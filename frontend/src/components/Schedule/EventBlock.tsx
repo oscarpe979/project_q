@@ -3,6 +3,7 @@ import { useDraggable } from '@dnd-kit/core';
 import clsx from 'clsx';
 import { format } from 'date-fns';
 import type { Event } from '../../types';
+import { getContrastColor } from '../../utils/eventColors';
 
 interface EventBlockProps {
     event: Event;
@@ -75,7 +76,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
         zIndex: isDragging || isResizingBottom || isResizingTop ? 50 : 10,
         transform: (isDragging && transform) ? `translate3d(${transform.x}px, 0, 0)` : undefined,
         background: event.color,
-        color: event.color ? '#111827' : undefined,
+        color: getContrastColor(event.color),
         borderLeft: event.color ? `4px solid ${event.color}` : undefined,
         borderColor: event.color ? 'transparent' : undefined
     };

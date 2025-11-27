@@ -167,15 +167,15 @@ EVENT NAMES RULES:
 - Event names must be formated as title case unless it's an acronym.
 - Ignore dates in the event name like (10.21 - 12.11) or similar.
 
-COLOR CATEGORIZATION RULES:
-Assign a `category` and `color_hex` to each event based on its type. Use ONLY these categories and colors:
-- **Production Shows** (category: "show"): `#f26868` (Vivid Red). *Rule: If there are more than one production show title, use `#3e63b3` (Dark Blue) or `#820080` (Deep Purple) for the others to distinguish them.*
-- **Headliners** (category: "headliner"): `#84f0e6` (Bright Teal)
-- **Movies** (category: "movie"): `#E1BEE7` (Light Purple)
-- **Game Shows** (category: "game"): `#f7be59` (Vivid Orange)
-- **Activities** (category: "activity"): `#BBDEFB` (Light Blue)
-- **Music** (category: "music"): `#9bfa9e` (Bright Green)
-- **Other** (category: "other"): `#e3ded3` (Warm Grey)
+CATEGORIZATION RULES:
+Assign a `category` to each event based on its type. Use ONLY these categories:
+- **Production Shows** (category: "show"): e.g., "Cats", "Hairspray", "Mamma Mia!", "Saturday Night Fever", "We Will Rock You", "Grease", "The Wizard of Oz", "The Effectors", "The Effectors II: Crash 'n' Burn", "Flight", "Hiro", "inTENse", "1977", "Aqua80", "Aqua80Too", "Big Daddy's Hideaway Heist", "Blue Planet", "Live. Love. Legs.", "The Gift", "Sonic Odyssey", "Starwater", "Spectra's Cabaret", "Showgirl™", "Columbus The Musical", "Can't Stop the Rock", "Fast Forward", "Gallery of Dreams", "Jackpot", "Marquee", "Music in Pictures", "Now and Forever", "Once Upon A Time", "One Sky", "Piano Man", "Pure Country", "Sequins & Feathers", "Stage to Screen", "Tango Buenos Aires", "The Beautiful Dream", "The Fine Line", "The Silk Road™", "Vibeology", "Voices", "West End to Broadway", "Wild Cool & Swingin'", "iSkate 2.0", "Ice Games", "Ice Odyssey", "Invitation to Dance", "Ballroom Fever", "Broadway Rhythm & Rhyme", "City of Dreams", "Hot Ice!", "Oceanides".
+- **Headliners** (category: "headliner"): e.g., events starting with "Headliner:".
+- **Movies** (category: "movie").
+- **Game Shows** (category: "game"): e.g., "Love & Marriage", "Battle of the Sexes", "The Quest", "Majority Rules", "Friendly Feud", "Who Wants to Be a Royal Caribbeanaire", "The Virtual Concert", "Late-Night DJ Music and Dancing", "NextStage", "The Voice".
+- **Activities** (category: "activity"): e.g., "Trivia", "Dance Class", "Karaoke".
+- **Music** (category: "music"): e.g., "Live Music", "Piano", "Band", "Live Concert", "Live Performance".
+- **Other** (category: "other"): Rehearsals, Maintenance, or anything else.
 
 Return ONLY valid JSON matching the schema.
 """
@@ -210,10 +210,9 @@ Return ONLY valid JSON matching the schema.
                             "end_time": {"type": "string"},
                             "date": {"type": "string"},
                             "venue": {"type": "string"},
-                            "category": {"type": "string", "enum": ["show", "movie", "game", "activity", "music", "headliner", "rehearsal", "maintenance", "other"]},
-                            "color_hex": {"type": "string"}
+                            "category": {"type": "string", "enum": ["show", "movie", "game", "activity", "music", "headliner", "rehearsal", "maintenance", "other"]}
                         },
-                        "required": ["title", "start_time", "date", "venue", "category", "color_hex"]
+                        "required": ["title", "start_time", "date", "venue", "category"]
                     }
                 }
             },
@@ -269,8 +268,7 @@ Return ONLY valid JSON matching the schema.
                 "end_time_str": end_time_str,
                 "venue": event["venue"],
                 "raw_date": date_str,
-                "category": event.get("category", "other"),
-                "color_hex": event.get("color_hex", "#F5F5F5")
+                "category": event.get("category", "other")
             }
         except (ValueError, KeyError) as e:
             print(f"Skipping malformed event: {event}, error: {e}")
@@ -335,8 +333,7 @@ Return ONLY valid JSON matching the schema.
             "start": event["start_dt"].isoformat(),
             "end": event["end_dt"].isoformat(),
             "type": event.get("category", "other"),
-            "venue": event["venue"],
-            "color": event.get("color_hex", "#F5F5F5")
+            "venue": event["venue"]
         }
     
 

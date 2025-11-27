@@ -8,6 +8,7 @@ import { Login } from './components/Auth/Login';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import { authService } from './services/authService';
 import { scheduleService } from './services/scheduleService';
+import { assignEventColors } from './utils/eventColors';
 import type { Event, ItineraryItem } from './types';
 
 function formatTimeDisplay(arrival?: string, departure?: string): string {
@@ -89,9 +90,9 @@ function App() {
           end: new Date(e.end),
           type: e.type || 'other',
           notes: e.notes,
-          color: e.color,
         }));
-        setEvents(newEvents);
+        const coloredEvents = assignEventColors(newEvents);
+        setEvents(coloredEvents);
       }
 
       if (data.itinerary && data.itinerary.length > 0) {
@@ -170,8 +171,10 @@ function App() {
         start: new Date(e.start),
         end: new Date(e.end),
         type: e.type || 'other',
-        color: e.color,
       }));
+
+      // Apply colors using frontend utility
+      const coloredEvents = assignEventColors(newEvents);
 
       // Transform and update itinerary
       if (data.itinerary && data.itinerary.length > 0) {
@@ -186,7 +189,7 @@ function App() {
         setItinerary(newItinerary);
       }
 
-      setEvents(prev => [...prev, ...newEvents]);
+      setEvents(prev => [...prev, ...coloredEvents]);
       setUploadSuccess(true);
     } catch (error) {
       console.error('Error uploading file:', error);
