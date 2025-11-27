@@ -64,6 +64,17 @@ function App() {
 
   const [voyages, setVoyages] = useState<{ voyage_number: string; start_date: string; end_date: string }[]>([]);
 
+  const [originalEvents, setOriginalEvents] = useState<Event[]>([]);
+  const [originalItinerary, setOriginalItinerary] = useState<ItineraryItem[]>([]);
+  const [isModified, setIsModified] = useState(false);
+
+  // Check for modifications
+  useEffect(() => {
+    const eventsChanged = JSON.stringify(events) !== JSON.stringify(originalEvents);
+    const itineraryChanged = JSON.stringify(itinerary) !== JSON.stringify(originalItinerary);
+    setIsModified(eventsChanged || itineraryChanged);
+  }, [events, itinerary, originalEvents, originalItinerary]);
+
   // Session restoration on app load
   useEffect(() => {
     const restoreSession = async () => {
@@ -114,6 +125,8 @@ function App() {
     } else {
       setCurrentVoyageNumber('');
     }
+
+    let processedEvents: Event[] = [];
     if (data.events && data.events.length > 0) {
       const newEvents: Event[] = data.events.map((e: any, index: number) => ({
         id: `loaded-${Date.now()}-${index}`,
@@ -123,14 +136,14 @@ function App() {
         type: e.type || 'other',
         notes: e.notes,
       }));
-      const coloredEvents = assignEventColors(newEvents);
-      setEvents(coloredEvents);
-    } else {
-      setEvents([]);
+      processedEvents = assignEventColors(newEvents);
     }
+    setEvents(processedEvents);
+    setOriginalEvents(processedEvents);
 
+    let processedItinerary: ItineraryItem[] = [];
     if (data.itinerary && data.itinerary.length > 0) {
-      const newItinerary: ItineraryItem[] = data.itinerary.map((day: any) => ({
+      processedItinerary = data.itinerary.map((day: any) => ({
         day: day.day,
         date: day.date,
         location: day.location,
@@ -138,16 +151,20 @@ function App() {
         arrival: day.arrival_time,
         departure: day.departure_time
       }));
-      setItinerary(newItinerary);
-    } else {
-      setItinerary([]);
     }
+    setItinerary(processedItinerary);
+    setOriginalItinerary(processedItinerary);
+
+    setIsModified(false);
   };
 
   const clearSchedule = () => {
     setEvents([]);
     setItinerary([]);
+    setOriginalEvents([]);
+    setOriginalItinerary([]);
     setCurrentVoyageNumber('');
+    setIsModified(false);
   };
 
   const handleLogout = () => {
@@ -232,6 +249,12 @@ function App() {
   const handlePublishSchedule = async (voyageNumber: string) => {
     await scheduleService.publishSchedule(voyageNumber, events, itinerary);
     setCurrentVoyageNumber(voyageNumber);
+
+    // Update original state to match current state (reset modified status)
+    setOriginalEvents(events);
+    setOriginalItinerary(itinerary);
+    setIsModified(false);
+
     loadVoyages();
     alert(`Schedule for Voyage ${voyageNumber} published successfully!`);
   };
@@ -240,9 +263,7 @@ function App() {
     await scheduleService.deleteSchedule(voyageNumber);
     alert(`Schedule for Voyage ${voyageNumber} deleted successfully.`);
     // Optionally clear events or reload
-    setEvents([]);
-    setItinerary([]);
-    setCurrentVoyageNumber('');
+    clearSchedule();
     loadVoyages();
   };
 
@@ -262,6 +283,7 @@ function App() {
             onDelete={handleDeleteSchedule}
             currentVoyageNumber={currentVoyageNumber}
             voyages={voyages}
+            isModified={isModified}
             onVoyageSelect={loadScheduleByVoyage}
             onNewSchedule={() => {
               clearSchedule();

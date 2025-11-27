@@ -14,6 +14,7 @@ interface MainLayoutProps {
     voyages?: { voyage_number: string; start_date: string; end_date: string }[];
     onVoyageSelect?: (voyageNumber: string) => void;
     onNewSchedule?: () => void;
+    isModified?: boolean;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = (props) => {
@@ -172,7 +173,7 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                                     currentVoyageNumber={currentVoyageNumber || ''}
                                     onSelect={props.onVoyageSelect}
                                     title={ship ? `${ship} ${venue}` : venue}
-                                    status={currentVoyageNumber ? 'live' : 'draft'}
+                                    status={!currentVoyageNumber ? 'draft' : props.isModified ? 'modified' : 'live'}
                                 />
                             ) : (
                                 <h2 className="header-title">
