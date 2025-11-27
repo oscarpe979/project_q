@@ -97,6 +97,7 @@ function App() {
         start: new Date(e.start),
         end: new Date(e.end),
         type: e.type || 'other',
+        color: e.color,
       }));
 
       // Transform and update itinerary

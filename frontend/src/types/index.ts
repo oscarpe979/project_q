@@ -3,7 +3,8 @@ export interface Event {
     title: string;
     start: Date;
     end: Date;
-    type: 'show' | 'rehearsal' | 'maintenance' | 'other';
+    type: 'show' | 'rehearsal' | 'maintenance' | 'movie' | 'game' | 'activity' | 'music' | 'headliner' | 'other';
+    color?: string;
 }
 
 export interface ItineraryItem {

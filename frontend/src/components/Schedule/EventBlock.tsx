@@ -74,6 +74,10 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
         width: containerStyle.width,
         zIndex: isDragging || isResizingBottom || isResizingTop ? 50 : 10,
         transform: (isDragging && transform) ? `translate3d(${transform.x}px, 0, 0)` : undefined,
+        background: event.color,
+        color: event.color ? '#111827' : undefined,
+        borderLeft: event.color ? `4px solid ${event.color}` : undefined,
+        borderColor: event.color ? 'transparent' : undefined
     };
 
     // Dynamic styles based on event type

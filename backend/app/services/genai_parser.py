@@ -166,6 +166,16 @@ EVENT NAMES RULES:
 - Event names must be formated as title case unless it's an acronym.
 - Ignore dates in the event name like (10.21 - 12.11) or similar.
 
+COLOR CATEGORIZATION RULES:
+Assign a `category` and `color_hex` to each event based on its type. Use ONLY these categories and colors:
+- **Production Shows** (category: "show"): `#f26868` (Vivid Red). *Rule: If there are more than one production show title, use `#3e63b3` (Dark Blue) or `#820080` (Deep Purple) for the others to distinguish them.*
+- **Headliners** (category: "headliner"): `#84f0e6` (Bright Teal)
+- **Movies** (category: "movie"): `#E1BEE7` (Light Purple)
+- **Game Shows** (category: "game"): `#f7be59` (Vivid Orange)
+- **Activities** (category: "activity"): `#BBDEFB` (Light Blue)
+- **Music** (category: "music"): `#9bfa9e` (Bright Green)
+- **Other** (category: "other"): `#e3ded3` (Warm Grey)
+
 Return ONLY valid JSON matching the schema.
 """
     
@@ -197,9 +207,11 @@ Return ONLY valid JSON matching the schema.
                             "start_time": {"type": "string"},
                             "end_time": {"type": "string"},
                             "date": {"type": "string"},
-                            "venue": {"type": "string"}
+                            "venue": {"type": "string"},
+                            "category": {"type": "string", "enum": ["show", "movie", "game", "activity", "music", "headliner", "rehearsal", "maintenance", "other"]},
+                            "color_hex": {"type": "string"}
                         },
-                        "required": ["title", "start_time", "date", "venue"]
+                        "required": ["title", "start_time", "date", "venue", "category", "color_hex"]
                     }
                 }
             },
@@ -254,7 +266,9 @@ Return ONLY valid JSON matching the schema.
                 "start_dt": start_dt,
                 "end_time_str": end_time_str,
                 "venue": event["venue"],
-                "raw_date": date_str
+                "raw_date": date_str,
+                "category": event.get("category", "other"),
+                "color_hex": event.get("color_hex", "#F5F5F5")
             }
         except (ValueError, KeyError) as e:
             print(f"Skipping malformed event: {event}, error: {e}")
@@ -318,8 +332,9 @@ Return ONLY valid JSON matching the schema.
             "title": event["title"],
             "start": event["start_dt"].isoformat(),
             "end": event["end_dt"].isoformat(),
-            "type": self._classify_event(event["title"]),
-            "venue": event["venue"]
+            "type": event.get("category", "other"),
+            "venue": event["venue"],
+            "color": event.get("color_hex", "#F5F5F5")
         }
     
     def _classify_event(self, title: str) -> str:
