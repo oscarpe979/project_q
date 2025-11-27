@@ -62,6 +62,8 @@ function App() {
     },
   ]);
 
+  const [voyages, setVoyages] = useState<{ voyage_number: string; start_date: string; end_date: string }[]>([]);
+
   // Session restoration on app load
   useEffect(() => {
     const restoreSession = async () => {
@@ -69,6 +71,7 @@ function App() {
       if (userData) {
         setUser(userData);
         loadLatestSchedule();
+        loadVoyages();
       }
       setIsCheckingAuth(false);
     };
@@ -76,62 +79,82 @@ function App() {
     restoreSession();
   }, []);
 
+  const loadVoyages = async () => {
+    try {
+      const data = await scheduleService.getVoyages();
+      setVoyages(data);
+    } catch (error) {
+      console.error("Failed to load voyages", error);
+    }
+  };
+
   const loadLatestSchedule = async () => {
     try {
       const data = await scheduleService.getLatestSchedule();
-      if (data.voyage_number) {
-        setCurrentVoyageNumber(data.voyage_number);
-      }
-      if (data.events && data.events.length > 0) {
-        const newEvents: Event[] = data.events.map((e: any, index: number) => ({
-          id: `loaded-${Date.now()}-${index}`,
-          title: e.title,
-          start: new Date(e.start),
-          end: new Date(e.end),
-          type: e.type || 'other',
-          notes: e.notes,
-        }));
-        const coloredEvents = assignEventColors(newEvents);
-        setEvents(coloredEvents);
-      }
-
-      if (data.itinerary && data.itinerary.length > 0) {
-        const newItinerary: ItineraryItem[] = data.itinerary.map((day: any) => ({
-          day: day.day,
-          date: day.date,
-          location: day.location,
-          time: formatTimeDisplay(day.arrival_time, day.departure_time),
-          arrival: day.arrival_time,
-          departure: day.departure_time
-        }));
-        setItinerary(newItinerary);
-      } else {
-        // Clear itinerary if none found
-        setItinerary([]);
-      }
-
-      if (!data.events || data.events.length === 0) {
-        setEvents([]);
-      }
-      if (!data.voyage_number) {
-        setCurrentVoyageNumber('');
-      }
-
+      processScheduleData(data);
     } catch (error) {
       console.error("Failed to load latest schedule", error);
-      // Ensure state is cleared on error or empty
-      setEvents([]);
-      setItinerary([]);
+      clearSchedule();
+    }
+  };
+
+  const loadScheduleByVoyage = async (voyageNumber: string) => {
+    try {
+      const data = await scheduleService.getScheduleByVoyage(voyageNumber);
+      processScheduleData(data);
+    } catch (error) {
+      console.error("Failed to load schedule", error);
+      alert('Failed to load schedule');
+    }
+  };
+
+  const processScheduleData = (data: any) => {
+    if (data.voyage_number) {
+      setCurrentVoyageNumber(data.voyage_number);
+    } else {
       setCurrentVoyageNumber('');
     }
+    if (data.events && data.events.length > 0) {
+      const newEvents: Event[] = data.events.map((e: any, index: number) => ({
+        id: `loaded-${Date.now()}-${index}`,
+        title: e.title,
+        start: new Date(e.start),
+        end: new Date(e.end),
+        type: e.type || 'other',
+        notes: e.notes,
+      }));
+      const coloredEvents = assignEventColors(newEvents);
+      setEvents(coloredEvents);
+    } else {
+      setEvents([]);
+    }
+
+    if (data.itinerary && data.itinerary.length > 0) {
+      const newItinerary: ItineraryItem[] = data.itinerary.map((day: any) => ({
+        day: day.day,
+        date: day.date,
+        location: day.location,
+        time: formatTimeDisplay(day.arrival_time, day.departure_time) || day.port_times || '',
+        arrival: day.arrival_time,
+        departure: day.departure_time
+      }));
+      setItinerary(newItinerary);
+    } else {
+      setItinerary([]);
+    }
+  };
+
+  const clearSchedule = () => {
+    setEvents([]);
+    setItinerary([]);
+    setCurrentVoyageNumber('');
   };
 
   const handleLogout = () => {
     authService.logout();
     setUser(null);
-    setEvents([]);
-    setItinerary([]);
-    setCurrentVoyageNumber('');
+    clearSchedule();
+    setVoyages([]);
     navigate('/login');
   };
 
@@ -209,6 +232,7 @@ function App() {
   const handlePublishSchedule = async (voyageNumber: string) => {
     await scheduleService.publishSchedule(voyageNumber, events, itinerary);
     setCurrentVoyageNumber(voyageNumber);
+    loadVoyages();
     alert(`Schedule for Voyage ${voyageNumber} published successfully!`);
   };
 
@@ -217,13 +241,15 @@ function App() {
     alert(`Schedule for Voyage ${voyageNumber} deleted successfully.`);
     // Optionally clear events or reload
     setEvents([]);
-    // setItinerary([]); // Maybe keep itinerary?
+    setItinerary([]);
+    setCurrentVoyageNumber('');
+    loadVoyages();
   };
 
   return (
     <Routes>
       <Route path="/login" element={
-        user ? <Navigate to="/schedule" replace /> : <Login onLogin={(u) => { setUser(u); loadLatestSchedule(); }} />
+        user ? <Navigate to="/schedule" replace /> : <Login onLogin={(u) => { setUser(u); loadLatestSchedule(); loadVoyages(); }} />
       } />
 
       <Route path="/schedule" element={
@@ -235,6 +261,12 @@ function App() {
             onPublish={handlePublishSchedule}
             onDelete={handleDeleteSchedule}
             currentVoyageNumber={currentVoyageNumber}
+            voyages={voyages}
+            onVoyageSelect={loadScheduleByVoyage}
+            onNewSchedule={() => {
+              clearSchedule();
+              alert('Started a new schedule draft.');
+            }}
           >
             <ScheduleGrid events={events} setEvents={setEvents} itinerary={itinerary} />
 

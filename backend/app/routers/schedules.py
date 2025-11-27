@@ -268,6 +268,91 @@ def get_latest_schedule(
         "itinerary": formatted_itinerary
     }
 
+@router.get("/voyages")
+def list_voyages(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.venue_id:
+        raise HTTPException(status_code=400, detail="User must be assigned to a venue.")
+    
+    # Find all voyages that have schedule items for this venue
+    # We join ScheduleItem -> Voyage to get voyage details
+    statement = (
+        select(Voyage)
+        .join(ScheduleItem)
+        .where(ScheduleItem.venue_id == current_user.venue_id)
+        .distinct()
+        .order_by(Voyage.start_date.desc())
+    )
+    
+    voyages = session.exec(statement).all()
+    
+    return [
+        {
+            "voyage_number": v.voyage_number,
+            "start_date": v.start_date.isoformat(),
+            "end_date": v.end_date.isoformat(),
+        }
+        for v in voyages
+    ]
+
+@router.get("/{voyage_number}")
+def get_schedule_by_voyage(
+    voyage_number: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.venue_id:
+        raise HTTPException(status_code=400, detail="User must be assigned to a venue.")
+        
+    voyage = session.exec(select(Voyage).where(Voyage.voyage_number == voyage_number)).first()
+    if not voyage:
+        raise HTTPException(status_code=404, detail="Voyage not found")
+        
+    # Get Itinerary
+    itinerary_items = session.exec(
+        select(VoyageItinerary)
+        .where(VoyageItinerary.voyage_id == voyage.id)
+        .order_by(VoyageItinerary.day_number)
+    ).all()
+    
+    # Get Schedule Items for user's venue
+    schedule_items = session.exec(
+        select(ScheduleItem)
+        .where(ScheduleItem.voyage_id == voyage.id)
+        .where(ScheduleItem.venue_id == current_user.venue_id)
+    ).all()
+    
+    # Format response
+    formatted_itinerary = [
+        {
+            "day": item.day_number,
+            "date": item.date.isoformat(),
+            "location": item.location,
+            "arrival_time": item.arrival_time.strftime('%-I:%M %p').lower() if item.arrival_time else None,
+            "departure_time": item.departure_time.strftime('%-I:%M %p').lower() if item.departure_time else None
+        }
+        for item in itinerary_items
+    ]
+    
+    formatted_events = [
+        {
+            "title": item.title,
+            "start": item.start_time.isoformat(),
+            "end": item.end_time.isoformat(),
+            "type": item.type,
+            "notes": item.notes
+        }
+        for item in schedule_items
+    ]
+    
+    return {
+        "voyage_number": voyage.voyage_number,
+        "events": formatted_events,
+        "itinerary": formatted_itinerary
+    }
+
 @router.delete("/{voyage_number}")
 def delete_schedule(
     voyage_number: str,

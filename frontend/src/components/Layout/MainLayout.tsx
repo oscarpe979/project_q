@@ -1,6 +1,7 @@
 import React from 'react';
-import { Calendar, Settings, Upload, LogOut, LayoutGrid } from 'lucide-react';
+import { Calendar, Settings, Upload, LogOut, LayoutGrid, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
+import { VoyageSelector } from './VoyageSelector';
 
 interface MainLayoutProps {
     children: React.ReactNode;
@@ -10,6 +11,9 @@ interface MainLayoutProps {
     onPublish?: (voyageNumber: string) => Promise<void>;
     onDelete?: (voyageNumber: string) => Promise<void>;
     currentVoyageNumber?: string;
+    voyages?: { voyage_number: string; start_date: string; end_date: string }[];
+    onVoyageSelect?: (voyageNumber: string) => void;
+    onNewSchedule?: () => void;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = (props) => {
@@ -37,6 +41,20 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
     const [isPublishing, setIsPublishing] = React.useState(false);
     const [isDeleting, setIsDeleting] = React.useState(false);
     const [isViewOptionsOpen, setIsViewOptionsOpen] = React.useState(false);
+    const viewOptionsRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (viewOptionsRef.current && !viewOptionsRef.current.contains(event.target as Node)) {
+                setIsViewOptionsOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     const handlePublishClick = () => {
         if (currentVoyageNumber) {
@@ -146,61 +164,99 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
             <main className="main-content">
                 {/* Header */}
                 <header className="top-header glass-header">
-                    <div>
-                        <h2 className="header-title">
-                            {ship ? `${ship} ${venue} - Venue Schedule` : venue}
-                        </h2>
-                        <p className="header-meta">
-                            <span className="status-dot"></span>
-                            Live Draft • Last saved just now
-                        </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                        <div>
+                            {props.voyages && props.onVoyageSelect ? (
+                                <VoyageSelector
+                                    voyages={props.voyages}
+                                    currentVoyageNumber={currentVoyageNumber || ''}
+                                    onSelect={props.onVoyageSelect}
+                                    title={ship ? `${ship} ${venue}` : venue}
+                                    status={currentVoyageNumber ? 'live' : 'draft'}
+                                />
+                            ) : (
+                                <h2 className="header-title">
+                                    {ship ? `${ship} ${venue}` : venue}
+                                </h2>
+                            )}
+                        </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '1rem' }}>
-                        <div className="dropdown" style={{ position: 'relative', display: 'inline-block' }}>
+                        <div className="dropdown" ref={viewOptionsRef} style={{ position: 'relative', display: 'inline-block' }}>
                             <button
-                                className="btn btn-secondary"
                                 onClick={() => setIsViewOptionsOpen(!isViewOptionsOpen)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.5rem 1rem',
+                                    background: isViewOptionsOpen ? 'rgba(0, 0, 0, 0.05)' : 'transparent',
+                                    border: '1px solid transparent',
+                                    borderRadius: '8px',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 500,
+                                    color: 'var(--text-primary)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.05)'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isViewOptionsOpen ? 'rgba(0, 0, 0, 0.05)' : 'transparent'}
                             >
                                 View Options
+                                <ChevronDown
+                                    size={16}
+                                    style={{
+                                        transform: isViewOptionsOpen ? 'rotate(180deg)' : 'none',
+                                        transition: 'transform 0.2s ease',
+                                        color: 'var(--text-secondary)'
+                                    }}
+                                />
                             </button>
                             {isViewOptionsOpen && (
                                 <div className="dropdown-content" style={{
                                     position: 'absolute',
                                     right: 0,
-                                    top: '100%',
-                                    marginTop: '0.5rem',
+                                    top: 'calc(100% + 4px)',
                                     backgroundColor: 'white',
-                                    minWidth: '160px',
-                                    boxShadow: '0px 4px 12px rgba(0,0,0,0.1)',
-                                    zIndex: 10,
+                                    minWidth: '200px',
+                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                                    zIndex: 50,
                                     padding: '0.5rem',
                                     borderRadius: '8px',
-                                    border: '1px solid var(--border-color)'
+                                    border: '1px solid rgba(0,0,0,0.05)',
+                                    animation: 'fadeIn 0.1s ease-out'
                                 }}>
-                                    <button
-                                        onClick={handleDeleteClick}
-                                        style={{
-                                            color: 'var(--error)',
-                                            width: '100%',
-                                            textAlign: 'left',
-                                            border: 'none',
-                                            background: 'none',
-                                            cursor: 'pointer',
-                                            padding: '0.5rem 0.75rem',
-                                            borderRadius: '4px',
-                                            fontSize: '0.875rem',
-                                            fontWeight: 500,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.5rem'
+                                    <MenuItem
+                                        onClick={() => {
+                                            if (props.onNewSchedule) {
+                                                props.onNewSchedule();
+                                                setIsViewOptionsOpen(false);
+                                            }
                                         }}
-                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                    >
-                                        <LogOut size={14} />
-                                        Delete Schedule
-                                    </button>
+                                        icon={
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: '24px',
+                                                height: '24px',
+                                                borderRadius: '50%',
+                                                background: '#e0e7ff',
+                                                color: '#6366f1'
+                                            }}>
+                                                <span style={{ fontSize: '16px', lineHeight: 1, fontWeight: 'bold' }}>+</span>
+                                            </div>
+                                        }
+                                        label="New Schedule"
+                                    />
+                                    <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }}></div>
+                                    <MenuItem
+                                        onClick={handleDeleteClick}
+                                        icon={<LogOut size={16} />}
+                                        label="Delete Schedule"
+                                        danger
+                                    />
                                 </div>
                             )}
                         </div>
@@ -266,6 +322,38 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                 </div>
             )}
         </div>
+    );
+};
+
+const MenuItem = ({ icon, label, onClick, danger = false }: { icon: React.ReactNode, label: string, onClick: () => void, danger?: boolean }) => {
+    const [isHovered, setIsHovered] = React.useState(false);
+
+    return (
+        <button
+            onClick={onClick}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            style={{
+                color: danger ? 'var(--error)' : 'var(--text-primary)',
+                width: '100%',
+                textAlign: 'left',
+                border: 'none',
+                background: isHovered ? 'var(--bg-secondary)' : 'transparent',
+                cursor: 'pointer',
+                padding: '0.5rem 0.75rem',
+                borderRadius: '4px',
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                marginBottom: '0.25rem',
+                transition: 'background-color 0.2s'
+            }}
+        >
+            {icon}
+            {label}
+        </button>
     );
 };
 

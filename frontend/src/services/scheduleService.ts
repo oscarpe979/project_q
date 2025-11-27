@@ -91,5 +91,31 @@ export const scheduleService = {
         }
 
         return response.json();
+    },
+
+    async getVoyages() {
+        const headers = authService.getAuthHeaders();
+        const response = await fetch(`${API_URL}/voyages`, {
+            headers: headers,
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch voyages');
+        }
+
+        return response.json();
+    },
+
+    async getScheduleByVoyage(voyageNumber: string) {
+        const headers = authService.getAuthHeaders();
+        const response = await fetch(`${API_URL}/${voyageNumber}`, {
+            headers: headers,
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch schedule');
+        }
+
+        return response.json();
     }
 };

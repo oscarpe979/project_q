@@ -5,6 +5,7 @@
   --bg-app: #f3f4f6;
   --bg-panel: rgba(255, 255, 255, 0.75);
   --bg-panel-hover: rgba(255, 255, 255, 0.9);
+  --bg-secondary: rgba(0, 0, 0, 0.05);
 
   --text-primary: #111827;
   --text-secondary: #4b5563;
