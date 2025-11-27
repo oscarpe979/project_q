@@ -39,6 +39,9 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
     const [isViewOptionsOpen, setIsViewOptionsOpen] = React.useState(false);
 
     const handlePublishClick = () => {
+        if (currentVoyageNumber) {
+            setVoyageNumber(currentVoyageNumber);
+        }
         setIsPublishModalOpen(true);
     };
 

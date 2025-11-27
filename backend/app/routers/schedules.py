@@ -159,12 +159,19 @@ def get_latest_schedule(
     if not current_user.ship_id:
         raise HTTPException(status_code=400, detail="User must be assigned to a ship.")
 
-    # Find most recent voyage for this ship
-    voyage = session.exec(
-        select(Voyage)
-        .where(Voyage.ship_id == current_user.ship_id)
-        .order_by(Voyage.updated_at.desc())
+    # Find most recent voyage for this ship AND venue
+    # We look for the ScheduleItem with the highest ID for this venue, 
+    # as items are re-inserted on publish (so higher ID = later publish).
+    latest_item_id = session.exec(
+        select(ScheduleItem.voyage_id)
+        .where(ScheduleItem.venue_id == current_user.venue_id)
+        .order_by(ScheduleItem.id.desc())
     ).first()
+    
+    if not latest_item_id:
+        return {"events": [], "itinerary": []}
+        
+    voyage = session.exec(select(Voyage).where(Voyage.id == latest_item_id)).first()
     
     if not voyage:
         return {"events": [], "itinerary": []}
