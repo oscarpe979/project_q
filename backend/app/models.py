@@ -61,6 +61,8 @@ class Voyage(SQLModel, table=True):
     start_date: date
     end_date: date
     voyage_number: str = Field(unique=True, index=True) # e.g., "WN-2023-11-23"
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
     
     ship: Ship = Relationship(back_populates="voyages")
     itineraries: List["VoyageItinerary"] = Relationship(back_populates="voyage")

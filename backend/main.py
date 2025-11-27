@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.routers import upload, auth
+from backend.app.routers import upload, auth, schedules
 
 from contextlib import asynccontextmanager
 from backend.app.database import create_db_and_tables
@@ -25,6 +25,7 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/api/auth")
 app.include_router(upload.router, prefix="/api")
+app.include_router(schedules.router, prefix="/api")
 
 @app.get("/")
 def read_root():

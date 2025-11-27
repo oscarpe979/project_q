@@ -7,6 +7,7 @@ import { FileDropZone } from './components/Uploader/FileDropZone';
 import { Login } from './components/Auth/Login';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import { authService } from './services/authService';
+import { scheduleService } from './services/scheduleService';
 import type { Event, ItineraryItem } from './types';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [currentVoyageNumber, setCurrentVoyageNumber] = useState<string>('');
 
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([
     { day: 1, date: '2025-11-17', location: 'SHANGHAI', time: '7:00 am - 4:30 pm' },
@@ -43,6 +45,7 @@ function App() {
       const userData = await authService.validateToken();
       if (userData) {
         setUser(userData);
+        loadLatestSchedule();
       }
       setIsCheckingAuth(false);
     };
@@ -50,9 +53,60 @@ function App() {
     restoreSession();
   }, []);
 
+  const loadLatestSchedule = async () => {
+    try {
+      const data = await scheduleService.getLatestSchedule();
+      if (data.voyage_number) {
+        setCurrentVoyageNumber(data.voyage_number);
+      }
+      if (data.events && data.events.length > 0) {
+        const newEvents: Event[] = data.events.map((e: any, index: number) => ({
+          id: `loaded-${Date.now()}-${index}`,
+          title: e.title,
+          start: new Date(e.start),
+          end: new Date(e.end),
+          type: e.type || 'other',
+          notes: e.notes,
+          color: e.color,
+        }));
+        setEvents(newEvents);
+      }
+
+      if (data.itinerary && data.itinerary.length > 0) {
+        const newItinerary: ItineraryItem[] = data.itinerary.map((day: any) => ({
+          day: day.day,
+          date: day.date,
+          location: day.location,
+          time: day.port_times || ''
+        }));
+        setItinerary(newItinerary);
+      } else {
+        // Clear itinerary if none found
+        setItinerary([]);
+      }
+
+      if (!data.events || data.events.length === 0) {
+        setEvents([]);
+      }
+      if (!data.voyage_number) {
+        setCurrentVoyageNumber('');
+      }
+
+    } catch (error) {
+      console.error("Failed to load latest schedule", error);
+      // Ensure state is cleared on error or empty
+      setEvents([]);
+      setItinerary([]);
+      setCurrentVoyageNumber('');
+    }
+  };
+
   const handleLogout = () => {
     authService.logout();
     setUser(null);
+    setEvents([]);
+    setItinerary([]);
+    setCurrentVoyageNumber('');
     navigate('/login');
   };
 
@@ -68,9 +122,6 @@ function App() {
 
     try {
       const headers = authService.getAuthHeaders();
-      // headers is HeadersInit, but fetch expects HeadersInit. 
-      // We need to cast or construct properly if it's a simple object.
-      // authService returns { Authorization: ... } which is valid.
 
       const response = await fetch('http://localhost:8000/api/upload/cd-grid', {
         method: 'POST',
@@ -113,12 +164,10 @@ function App() {
 
       setEvents(prev => [...prev, ...newEvents]);
       setUploadSuccess(true);
-      // setIsImportOpen(false); // Don't close immediately
-      // alert(`Successfully imported ${newEvents.length} events across ${data.itinerary?.length || 0} days!`);
     } catch (error) {
       console.error('Error uploading file:', error);
       alert('Failed to upload file. Please try again.');
-      setIsUploading(false); // Only stop uploading on error, success is handled by UI
+      setIsUploading(false);
     }
   };
 
@@ -128,15 +177,35 @@ function App() {
     setUploadSuccess(false);
   };
 
+  const handlePublishSchedule = async (voyageNumber: string) => {
+    await scheduleService.publishSchedule(voyageNumber, events, itinerary);
+    alert(`Schedule for Voyage ${voyageNumber} published successfully!`);
+  };
+
+  const handleDeleteSchedule = async (voyageNumber: string) => {
+    await scheduleService.deleteSchedule(voyageNumber);
+    alert(`Schedule for Voyage ${voyageNumber} deleted successfully.`);
+    // Optionally clear events or reload
+    setEvents([]);
+    // setItinerary([]); // Maybe keep itinerary?
+  };
+
   return (
     <Routes>
       <Route path="/login" element={
-        user ? <Navigate to="/schedule" replace /> : <Login onLogin={setUser} />
+        user ? <Navigate to="/schedule" replace /> : <Login onLogin={(u) => { setUser(u); loadLatestSchedule(); }} />
       } />
 
       <Route path="/schedule" element={
         <ProtectedRoute user={user}>
-          <MainLayout onImportClick={() => setIsImportOpen(true)} onLogout={handleLogout} user={user}>
+          <MainLayout
+            onImportClick={() => setIsImportOpen(true)}
+            onLogout={handleLogout}
+            user={user}
+            onPublish={handlePublishSchedule}
+            onDelete={handleDeleteSchedule}
+            currentVoyageNumber={currentVoyageNumber}
+          >
             <ScheduleGrid events={events} setEvents={setEvents} itinerary={itinerary} />
 
             <Modal

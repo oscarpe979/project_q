@@ -5,6 +5,7 @@ export interface Event {
     end: Date;
     type: 'show' | 'rehearsal' | 'maintenance' | 'movie' | 'game' | 'activity' | 'music' | 'headliner' | 'other';
     color?: string;
+    notes?: string;
 }
 
 export interface ItineraryItem {
