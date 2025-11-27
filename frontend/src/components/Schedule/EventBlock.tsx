@@ -77,8 +77,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
         transform: (isDragging && transform) ? `translate3d(${transform.x}px, 0, 0)` : undefined,
         background: event.color,
         color: getContrastColor(event.color),
-        borderLeft: event.color ? `4px solid ${event.color}` : undefined,
-        borderColor: event.color ? 'transparent' : undefined
+        border: '2px solid rgba(0, 0, 0, 0.14)'
     };
 
     // Dynamic styles based on event type

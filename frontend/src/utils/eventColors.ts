@@ -2,8 +2,8 @@ import type { Event } from '../types';
 
 // Color Palette
 const COLORS = {
-    PRODUCTION_SHOW_1: '#962f2fff', // Vivid Red
-    PRODUCTION_SHOW_2: '#234da8ff', // Vivid Blue
+    PRODUCTION_SHOW_1: '#963333ff', // Vivid Red
+    PRODUCTION_SHOW_2: '#7e46beff', // Vivid Blue
     PRODUCTION_SHOW_3: '#820080', // Deep Purple
     HEADLINER: '#84f0e6',         // Bright Teal
     MOVIE: '#E1BEE7',             // Light Purple
@@ -11,6 +11,7 @@ const COLORS = {
     ACTIVITY: '#BBDEFB',          // Light Blues
     MUSIC: '#9bfa9e',             // Bright Green
     PARTY: '#a5e1f8ff',             // Yellow
+    COMEDY: '#4dc7a2ff',            // Light Pink
     OTHER: '#e3ded3',             // Warm Grey
 };
 
@@ -59,6 +60,9 @@ export const assignEventColors = (events: Event[]): Event[] => {
                 break;
             case 'party':
                 color = COLORS.PARTY;
+                break;
+            case 'comedy':
+                color = COLORS.COMEDY;
                 break;
             case 'rehearsal':
             case 'maintenance':

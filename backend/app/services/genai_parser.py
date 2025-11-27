@@ -184,6 +184,7 @@ Assign a `category` to each event based on its type. Use ONLY these categories:
 - **Game Shows** (category: "game"): e.g., "Love & Marriage", "Battle of the Sexes", "The Quest", "Majority Rules", "Friendly Feud", "Who Wants to Be a Royal Caribbeanaire", "The Virtual Concert", "Late-Night DJ Music and Dancing", "NextStage", "The Voice".
 - **Activities** (category: "activity"): e.g., "Trivia", "Dance Class", "Karaoke", "Laser Tags", "Ice Skating", .
 - **Music** (category: "music"): e.g., "Live Music", "Piano", "Band", "Live Concert", "Live Performance".
+- **Comedy** (category: "comedy"): e.g., "Stand-up Comedy", "Comedian", "Comedy Show", "Adult Comedy Show".
 - **Party** (category: "party"): e.g., "RED: Nightclub Experience", "Nightclub".
 - **Other** (category: "other"): Rehearsals, Maintenance, or anything else.
 
@@ -220,7 +221,7 @@ Return ONLY valid JSON matching the schema.
                             "end_time": {"type": "string"},
                             "date": {"type": "string"},
                             "venue": {"type": "string"},
-                            "category": {"type": "string", "enum": ["show", "movie", "game", "activity", "music", "party", "headliner", "rehearsal", "maintenance", "other"]}
+                            "category": {"type": "string", "enum": ["show", "movie", "game", "activity", "music", "party", "comedy", "headliner", "rehearsal", "maintenance", "other"]}
                         },
                         "required": ["title", "start_time", "date", "venue", "category"]
                     }

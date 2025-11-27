@@ -47,11 +47,7 @@ def parse_port_times(time_str: Optional[str]):
     
     return arrival, departure
 
-# Helper to format time objects back to string
-def format_port_times(arrival: Optional[time], departure: Optional[time]) -> str:
-    if not arrival or not departure:
-        return ""
-    return f"{arrival.strftime('%-I:%M %p').lower()} - {departure.strftime('%-I:%M %p').lower()}"
+
 from backend.app.database import get_session
 from backend.app.models import (
     User, Voyage, VoyageItinerary, ScheduleItem, Venue, EventType
@@ -249,7 +245,8 @@ def get_latest_schedule(
             "day": item.day_number,
             "date": item.date.isoformat(),
             "location": item.location,
-            "port_times": format_port_times(item.arrival_time, item.departure_time)
+            "arrival_time": item.arrival_time.strftime('%-I:%M %p').lower() if item.arrival_time else None,
+            "departure_time": item.departure_time.strftime('%-I:%M %p').lower() if item.departure_time else None
         }
         for item in itinerary_items
     ]

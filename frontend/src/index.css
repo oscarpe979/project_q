@@ -626,7 +626,7 @@ body {
 /* Event Block - Core Styles */
 .event-block {
   position: absolute;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   font-size: 0.75rem;
   cursor: grab;
   transition: box-shadow 0.2s ease, transform 0.2s ease;

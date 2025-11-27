@@ -100,7 +100,9 @@ function App() {
           day: day.day,
           date: day.date,
           location: day.location,
-          time: day.port_times || ''
+          time: formatTimeDisplay(day.arrival_time, day.departure_time),
+          arrival: day.arrival_time,
+          departure: day.departure_time
         }));
         setItinerary(newItinerary);
       } else {
@@ -182,7 +184,7 @@ function App() {
           day: day.day_number,
           date: day.date,
           location: day.port,
-          time: day.port_times || formatTimeDisplay(day.arrival_time, day.departure_time),
+          time: formatTimeDisplay(day.arrival_time, day.departure_time),
           arrival: day.arrival_time,
           departure: day.departure_time
         }));
