@@ -74,12 +74,21 @@ class GenAIParser:
                 content_to_send,
                 generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
-                    response_schema=self._get_response_schema()
+                    response_schema=self._get_response_schema(),
+                    temperature=0.0
                 )
             )
             
             # Parse and validate response
             result = json.loads(response.text)
+
+            # DEBUG: Save raw response to file
+            # try:
+            #     with open("debug_llm_response.json", "w") as f:
+            #         json.dump(result, f, indent=2)
+            #     print("DEBUG: Saved LLM response to debug_llm_response.json")
+            # except Exception as e:
+            #     print(f"DEBUG: Failed to save debug file: {e}")
             
             # Log debug info
             if "debug_info" in result:
@@ -148,7 +157,7 @@ RULES FOR TIME PARSING:
 - **24-Hour Format**: Convert all times to HH:MM 24-hour format.
 - **Noon**: Convert "Noon" to "12:00".
 - **Multiple Showtimes**: If an event lists multiple times separated by '&', 'and', or '/' (e.g., "7:00 pm & 9:00 pm"), you MUST create TWO separate event entries. One event starting at 19:00 and another event starting at 21:00, both with the same title.
-- **Missing End Time**: If an event only lists a start time (e.g., "10:00 pm"), you MUST set `end_time` to `null`. Do NOT guess or fabricate an end time.
+- **Missing End Time**: If an event only lists a start time (e.g., "10:00 pm"), you MUST set `end_time` to `null`. Do NOT guess or fabricate an end time. NEVER use "00:00" as a default end time unless the text explicitly says "Midnight" or "12:00 am" for the end time.
 
 RULES IN GENERAL:
 - **Date Assignment**: Always use the date corresponding to the row where the event text is physically located.
@@ -173,8 +182,9 @@ Assign a `category` to each event based on its type. Use ONLY these categories:
 - **Headliners** (category: "headliner"): e.g., events starting with "Headliner:".
 - **Movies** (category: "movie").
 - **Game Shows** (category: "game"): e.g., "Love & Marriage", "Battle of the Sexes", "The Quest", "Majority Rules", "Friendly Feud", "Who Wants to Be a Royal Caribbeanaire", "The Virtual Concert", "Late-Night DJ Music and Dancing", "NextStage", "The Voice".
-- **Activities** (category: "activity"): e.g., "Trivia", "Dance Class", "Karaoke".
+- **Activities** (category: "activity"): e.g., "Trivia", "Dance Class", "Karaoke", "Laser Tags", "Ice Skating", .
 - **Music** (category: "music"): e.g., "Live Music", "Piano", "Band", "Live Concert", "Live Performance".
+- **Party** (category: "party"): e.g., "RED: Nightclub Experience", "Nightclub".
 - **Other** (category: "other"): Rehearsals, Maintenance, or anything else.
 
 Return ONLY valid JSON matching the schema.
@@ -210,7 +220,7 @@ Return ONLY valid JSON matching the schema.
                             "end_time": {"type": "string"},
                             "date": {"type": "string"},
                             "venue": {"type": "string"},
-                            "category": {"type": "string", "enum": ["show", "movie", "game", "activity", "music", "headliner", "rehearsal", "maintenance", "other"]}
+                            "category": {"type": "string", "enum": ["show", "movie", "game", "activity", "music", "party", "headliner", "rehearsal", "maintenance", "other"]}
                         },
                         "required": ["title", "start_time", "date", "venue", "category"]
                     }
