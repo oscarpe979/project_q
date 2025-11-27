@@ -10,6 +10,28 @@ import { authService } from './services/authService';
 import { scheduleService } from './services/scheduleService';
 import type { Event, ItineraryItem } from './types';
 
+function formatTimeDisplay(arrival?: string, departure?: string): string {
+  const formatSingleTime = (t?: string) => {
+    if (!t || t.toLowerCase() === 'null') return null;
+    // Try parsing 24h time "17:00" -> "5:00 pm"
+    const [hours, minutes] = t.split(':').map(Number);
+    if (!isNaN(hours) && !isNaN(minutes)) {
+      const date = new Date();
+      date.setHours(hours, minutes);
+      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+    }
+    return t; // Return as is if not HH:MM
+  };
+
+  const arr = formatSingleTime(arrival);
+  const dep = formatSingleTime(departure);
+
+  if (arr && dep) return `${arr} - ${dep}`;
+  if (arr) return `Arrival ${arr}`;
+  if (dep) return `Departure ${dep}`;
+  return '';
+}
+
 function App() {
   const navigate = useNavigate();
   const [user, setUser] = useState<{ name: string; role: string; username: string; venueName?: string } | null>(null);
@@ -157,7 +179,9 @@ function App() {
           day: day.day_number,
           date: day.date,
           location: day.port,
-          time: day.port_times || ''
+          time: day.port_times || formatTimeDisplay(day.arrival_time, day.departure_time),
+          arrival: day.arrival_time,
+          departure: day.departure_time
         }));
         setItinerary(newItinerary);
       }
@@ -179,6 +203,7 @@ function App() {
 
   const handlePublishSchedule = async (voyageNumber: string) => {
     await scheduleService.publishSchedule(voyageNumber, events, itinerary);
+    setCurrentVoyageNumber(voyageNumber);
     alert(`Schedule for Voyage ${voyageNumber} published successfully!`);
   };
 

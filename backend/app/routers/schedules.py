@@ -1,7 +1,57 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time
+
+# Helper to parse a single time string with various formats
+def parse_single_time_string(t_str: Optional[str]) -> Optional[time]:
+    if not t_str:
+        return None
+    
+    t_str = t_str.strip().lower().replace("midnight", "12:00 am")
+    formats = [
+        "%I:%M %p",  # 07:00 am
+        "%I:%M%p",   # 07:00am
+        "%H:%M",     # 19:00
+        "%-I:%M %p", # 7:00 am
+    ]
+    
+    for fmt in formats:
+        try:
+            return datetime.strptime(t_str, fmt).time()
+        except ValueError:
+            continue
+    return None
+
+# Helper to parse time string "7:00 am - 4:30 pm"
+def parse_port_times(time_str: Optional[str]):
+    if not time_str:
+        return None, None
+    
+    # Normalize string: lowercase, remove extra spaces
+    ts = time_str.lower().strip()
+    
+    # Handle "Midnight" special case (often used for departure)
+    if "midnight" in ts:
+        # If it's a range like "7:00 am - midnight"
+        parts = ts.replace('midnight', '12:00 am').split('-')
+    else:
+        # Split by various dash types
+        parts = ts.replace('–', '-').replace('—', '-').split('-')
+        
+    if len(parts) != 2:
+        return None, None
+    
+    arrival = parse_single_time_string(parts[0])
+    departure = parse_single_time_string(parts[1])
+    
+    return arrival, departure
+
+# Helper to format time objects back to string
+def format_port_times(arrival: Optional[time], departure: Optional[time]) -> str:
+    if not arrival or not departure:
+        return ""
+    return f"{arrival.strftime('%-I:%M %p').lower()} - {departure.strftime('%-I:%M %p').lower()}"
 from backend.app.database import get_session
 from backend.app.models import (
     User, Voyage, VoyageItinerary, ScheduleItem, Venue, EventType
@@ -30,6 +80,8 @@ class ItineraryInput(BaseModel):
     date: str # YYYY-MM-DD
     location: str
     time: Optional[str] = None # "7:00 am - 4:30 pm"
+    arrival: Optional[str] = None
+    departure: Optional[str] = None
 
 class PublishScheduleRequest(BaseModel):
     voyage_number: str
@@ -96,20 +148,21 @@ def publish_schedule(
             session.delete(item)
         
         for item in request.itinerary:
-            # Parse times if needed, for now storing raw string in location or we need to adapt model
-            # Model has arrival_time/departure_time as time objects.
-            # Frontend sends "7:00 am - 4:30 pm".
-            # For simplicity in this iteration, we might need to adjust the model or parsing.
-            # Let's look at VoyageItinerary model again.
-            # It has arrival_time and departure_time.
-            # We will try to parse, or just leave None if complex string.
+            if item.arrival or item.departure:
+                # Use provided structured times
+                arrival_time = parse_single_time_string(item.arrival)
+                departure_time = parse_single_time_string(item.departure)
+            else:
+                # Fallback to parsing the 'time' string
+                arrival_time, departure_time = parse_port_times(item.time)
             
             itinerary_entry = VoyageItinerary(
                 voyage_id=voyage.id,
                 day_number=item.day,
                 date=datetime.strptime(item.date, "%Y-%m-%d").date(),
-                location=item.location,
-                # arrival_time/departure_time parsing skipped for MVP, logic can be added here
+                location=item.location.title(),
+                arrival_time=arrival_time,
+                departure_time=departure_time
             )
             session.add(itinerary_entry)
 
@@ -196,7 +249,7 @@ def get_latest_schedule(
             "day": item.day_number,
             "date": item.date.isoformat(),
             "location": item.location,
-            "port_times": "" # Placeholder as we didn't parse times back perfectly yet
+            "port_times": format_port_times(item.arrival_time, item.departure_time)
         }
         for item in itinerary_items
     ]
@@ -204,8 +257,8 @@ def get_latest_schedule(
     formatted_events = [
         {
             "title": item.title,
-            "start": item.start_time.replace(tzinfo=timezone.utc) if item.start_time.tzinfo is None else item.start_time,
-            "end": item.end_time.replace(tzinfo=timezone.utc) if item.end_time.tzinfo is None else item.end_time,
+            "start": item.start_time.isoformat(),
+            "end": item.end_time.isoformat(),
             "type": item.type,
             "notes": item.notes
         }

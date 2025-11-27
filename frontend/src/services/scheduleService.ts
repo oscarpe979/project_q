@@ -17,9 +17,15 @@ interface PublishScheduleRequest {
         date: string;
         location: string;
         time?: string;
+        arrival?: string;
+        departure?: string;
     }[];
 }
-
+// Helper to format date as local ISO string (YYYY-MM-DDTHH:mm:ss)
+const toLocalISOString = (date: Date) => {
+    const pad = (num: number) => num.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
 export const scheduleService = {
     async publishSchedule(voyageNumber: string, events: Event[], itinerary: ItineraryItem[]) {
         const headers = authService.getAuthHeaders();
@@ -28,8 +34,8 @@ export const scheduleService = {
             voyage_number: voyageNumber,
             events: events.map(e => ({
                 title: e.title,
-                start: e.start.toISOString(),
-                end: e.end.toISOString(),
+                start: toLocalISOString(e.start),
+                end: toLocalISOString(e.end),
                 type: e.type,
                 notes: e.notes // Assuming Event type has notes, if not we might need to extend it or ignore
             })),
@@ -37,7 +43,9 @@ export const scheduleService = {
                 day: i.day,
                 date: i.date,
                 location: i.location,
-                time: i.time
+                time: i.time,
+                arrival: i.arrival,
+                departure: i.departure
             }))
         };
 

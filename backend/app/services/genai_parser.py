@@ -129,7 +129,8 @@ Present the output as a JSON object with the following structure:
    - date: String in YYYY-MM-DD format
    - day_of_week: String (e.g., "Monday", "Tuesday")
    - port: String (port name or "CRUISING")
-   - port_times: String (e.g., "7:00 am - 6:00 pm" or "Depart 4:30 pm" or empty)
+   - arrival_time: String (e.g., "7:00 am" or null if none/cruising)
+   - departure_time: String (e.g., "6:00 pm" or "Midnight" or null if none)
 
 2. EVENTS (from the "{venue}" column only):
    - title: String (event name, excluding time information)
@@ -193,7 +194,8 @@ Return ONLY valid JSON matching the schema.
                             "date": {"type": "string"},
                             "day_of_week": {"type": "string"},
                             "port": {"type": "string"},
-                            "port_times": {"type": "string"}
+                            "arrival_time": {"type": "string"},
+                            "departure_time": {"type": "string"}
                         },
                         "required": ["day_number", "date", "day_of_week", "port"]
                     }
@@ -337,13 +339,4 @@ Return ONLY valid JSON matching the schema.
             "color": event.get("color_hex", "#F5F5F5")
         }
     
-    def _classify_event(self, title: str) -> str:
-        """Simple event classification."""
-        title_lower = title.lower()
-        if any(keyword in title_lower for keyword in ['silk road', 'oceanaria', 'show girl', 'effectors']):
-            return 'show'
-        elif 'rehearsal' in title_lower:
-            return 'rehearsal'
-        elif 'maintenance' in title_lower or 'dark' in title_lower:
-            return 'maintenance'
-        return 'other'
+

@@ -13,4 +13,6 @@ export interface ItineraryItem {
     date: string;
     location: string;
     time: string;
+    arrival?: string;
+    departure?: string;
 }
