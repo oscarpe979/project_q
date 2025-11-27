@@ -75,6 +75,16 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
             return;
         }
 
+        // Check for duplicate voyage number
+        const isDuplicate = props.voyages?.some(
+            v => v.voyage_number === voyageNumber && v.voyage_number !== props.currentVoyageNumber
+        );
+
+        if (isDuplicate) {
+            alert(`Voyage Number "${voyageNumber}" already exists. Please use a unique number.`);
+            return;
+        }
+
         if (props.onPublish) {
             setIsPublishing(true);
             try {
