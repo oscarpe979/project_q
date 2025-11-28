@@ -250,45 +250,23 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                                     }}
                                 />
                             ) : (
-                                <div className="relative flex items-center group-time-wrapper">
+                                <div className="relative inline-block group-time-wrapper">
                                     <span>{timeLabel}</span>
                                     {!isInteracting && (
-                                        <button
-                                            className="edit-icon-btn"
-                                            onPointerDown={(e) => e.stopPropagation()}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setIsEditingTime(true);
-                                            }}
-                                            style={{
-                                                position: 'absolute',
-                                                left: '100%',
-                                                marginLeft: '4px',
-                                                background: 'transparent',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                padding: 0,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                opacity: 0,
-                                                color: 'inherit'
-                                            }}
-                                        >
-                                            <Edit2 size={10} className="edit-icon-svg" />
-                                        </button>
+                                        <span className="pencil-spacer">
+                                            <span
+                                                role="button"
+                                                className="edit-icon-btn"
+                                                onPointerDown={(e) => e.stopPropagation()}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsEditingTime(true);
+                                                }}
+                                            >
+                                                <Edit2 size={10} className="edit-icon-svg" />
+                                            </span>
+                                        </span>
                                     )}
-                                    <style>{`
-                                        .group-time-wrapper:hover .edit-icon-btn {
-                                            opacity: 1 !important;
-                                        }
-                                        .edit-icon-svg {
-                                            opacity: 0.8;
-                                            transition: opacity 0.2s;
-                                        }
-                                        .edit-icon-btn:hover .edit-icon-svg {
-                                            opacity: 1;
-                                        }
-                                    `}</style>
                                 </div>
                             )}
                         </div>
@@ -319,45 +297,23 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                                     }}
                                 />
                             ) : (
-                                <div className="relative flex items-center group-title-wrapper">
+                                <div className="relative inline-block group-title-wrapper">
                                     <span>{event.title}</span>
                                     {!isInteracting && (
-                                        <button
-                                            className="edit-icon-btn"
-                                            onPointerDown={(e) => e.stopPropagation()}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setIsEditingTitle(true);
-                                            }}
-                                            style={{
-                                                position: 'absolute',
-                                                left: '100%',
-                                                marginLeft: '4px',
-                                                background: 'transparent',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                padding: 0,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                opacity: 0,
-                                                color: 'inherit'
-                                            }}
-                                        >
-                                            <Edit2 size={10} className="edit-icon-svg" />
-                                        </button>
+                                        <span className="pencil-spacer">
+                                            <span
+                                                role="button"
+                                                className="edit-icon-btn"
+                                                onPointerDown={(e) => e.stopPropagation()}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsEditingTitle(true);
+                                                }}
+                                            >
+                                                <Edit2 size={10} className="edit-icon-svg" />
+                                            </span>
+                                        </span>
                                     )}
-                                    <style>{`
-                                        .group-title-wrapper:hover .edit-icon-btn {
-                                            opacity: 1 !important;
-                                        }
-                                        .edit-icon-svg {
-                                            opacity: 0.8;
-                                            transition: opacity 0.2s;
-                                        }
-                                        .edit-icon-btn:hover .edit-icon-svg {
-                                            opacity: 1;
-                                        }
-                                    `}</style>
                                 </div>
                             )}
                         </div>

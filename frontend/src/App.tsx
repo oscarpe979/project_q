@@ -134,6 +134,7 @@ function App() {
         start: new Date(e.start),
         end: new Date(e.end),
         type: e.type || 'other',
+        timeDisplay: e.time_display,
         notes: e.notes,
       }));
       processedEvents = assignEventColors(newEvents);

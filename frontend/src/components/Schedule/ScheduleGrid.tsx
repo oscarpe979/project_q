@@ -203,7 +203,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                 </div>
                 <div
                     className="days-grid"
-                    style={{ gridTemplateColumns: `repeat(${days.length}, minmax(160px, 250px))` }}
+                    style={{ gridTemplateColumns: `repeat(${days.length}, minmax(210px, 250px))` }}
                 >
                     {days.map((day, i) => {
                         const info = itinerary[i];
@@ -241,7 +241,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
 
                     <div
                         className="events-grid"
-                        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(160px, 250px))` }}
+                        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(210px, 250px))` }}
                     >
                         {/* Horizontal Grid Lines */}
                         <div className="grid-lines">

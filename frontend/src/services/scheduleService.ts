@@ -38,6 +38,7 @@ export const scheduleService = {
                 start: toLocalISOString(e.start),
                 end: toLocalISOString(e.end),
                 type: e.type,
+                time_display: e.timeDisplay,
                 notes: e.notes // Assuming Event type has notes, if not we might need to extend it or ignore
             })),
             itinerary: itinerary.map(i => ({

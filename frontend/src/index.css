@@ -686,7 +686,7 @@ body {
   flex-direction: column;
   height: 100%;
   position: relative;
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 1.25rem;
   justify-content: center;
   align-items: center;
 }
@@ -694,7 +694,7 @@ body {
 .event-title {
   font-weight: 700;
   white-space: normal;
-  overflow: hidden;
+  /* overflow: hidden; Removed to allow pencil visibility */
   font-size: 13px;
   line-height: 1.2;
   text-align: center;
@@ -708,8 +708,8 @@ body {
   opacity: 0.9;
   margin-bottom: 2px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* overflow: hidden; Removed to allow pencil visibility */
+  /* text-overflow: ellipsis; Removed as it requires overflow: hidden */
   text-align: center;
   width: 100%;
 }
@@ -788,6 +788,55 @@ body {
   height: 2px;
   background: rgba(255, 255, 255, 0.6);
   border-radius: 2px;
+}
+
+/* Edit Pencil Styles */
+.group-title-wrapper,
+.group-time-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.pencil-spacer {
+  display: inline-block;
+  width: 0;
+  overflow: visible;
+  vertical-align: middle;
+  position: relative;
+}
+
+.edit-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+  position: relative;
+  z-index: 20;
+  pointer-events: auto;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  color: inherit;
+  cursor: pointer;
+  transform: translateY(-2px);
+  border-radius: 4px;
+}
+
+.group-title-wrapper:hover .edit-icon-btn,
+.group-time-wrapper:hover .edit-icon-btn,
+.edit-icon-btn:hover {
+  opacity: 1;
+}
+
+.edit-icon-svg {
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.edit-icon-btn:hover .edit-icon-svg {
+  opacity: 1;
 }
 
 /* Event Types */
