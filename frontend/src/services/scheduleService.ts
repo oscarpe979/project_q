@@ -10,6 +10,7 @@ interface PublishScheduleRequest {
         start: string; // ISO string
         end: string;   // ISO string
         type: string;
+        time_display?: string;
         notes?: string;
     }[];
     itinerary: {

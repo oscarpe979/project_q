@@ -72,7 +72,8 @@ class EventInput(BaseModel):
     title: str
     start: datetime
     end: datetime
-    type: str # "show", "setup", etc.
+    type: str # "show",
+    time_display: Optional[str] = None
     notes: Optional[str] = None
     color: Optional[str] = None # Not stored in DB currently, but good to accept
 
@@ -195,6 +196,7 @@ def publish_schedule(
             start_time=event.start,
             end_time=event.end,
             type=event.type,
+            time_display=event.time_display,
             notes=event.notes
         )
         session.add(new_item)
@@ -262,6 +264,7 @@ def get_latest_schedule(
             "start": item.start_time.isoformat(),
             "end": item.end_time.isoformat(),
             "type": item.type,
+            "time_display": item.time_display,
             "notes": item.notes
         }
         for item in schedule_items
@@ -347,6 +350,7 @@ def get_schedule_by_voyage(
             "start": item.start_time.isoformat(),
             "end": item.end_time.isoformat(),
             "type": item.type,
+            "time_display": item.time_display,
             "notes": item.notes
         }
         for item in schedule_items

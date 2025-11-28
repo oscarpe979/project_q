@@ -36,6 +36,12 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
         useSensor(PointerSensor)
     );
 
+    const handleUpdateEvent = (eventId: string, updates: { title?: string; timeDisplay?: string }) => {
+        setEvents(prev => prev.map(e =>
+            e.id === eventId ? { ...e, ...updates } : e
+        ));
+    };
+
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, delta, over } = event;
         const activeId = String(active.id);
@@ -68,7 +74,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                         newStart = new Date(e.end.getTime() - 15 * 60 * 1000);
                     }
 
-                    return { ...e, start: newStart };
+                    return { ...e, start: newStart, timeDisplay: undefined };
                 } else if (isResizeBottom) {
                     // Update End Time (dragging bottom edge)
                     let newEnd = addDays(setMinutes(e.end, e.end.getMinutes() + snappedMinutes), 0);
@@ -82,7 +88,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                         newEnd = new Date(e.start.getTime() + 15 * 60 * 1000);
                     }
 
-                    return { ...e, end: newEnd };
+                    return { ...e, end: newEnd, timeDisplay: undefined };
                 } else {
                     // Move Event (Start & End)
                     let newStart = addDays(setMinutes(e.start, e.start.getMinutes() + snappedMinutes), 0);
@@ -118,6 +124,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                         ...e,
                         start: newStart,
                         end: newEnd,
+                        timeDisplay: undefined
                     };
                 }
             }
@@ -313,6 +320,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                                                     event={event}
                                                     style={finalStyle}
                                                     isLate={finalIsLate}
+                                                    onUpdate={handleUpdateEvent}
                                                 />
                                             );
                                         })}

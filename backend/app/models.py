@@ -89,6 +89,7 @@ class ScheduleItem(SQLModel, table=True):
     start_time: datetime
     end_time: datetime
     type: str # "Show", "Setup", "Strike", "Rehearsal", "Cast Install", "Cast Reblock"
+    time_display: Optional[str] = None # Custom time label (e.g. "Doors Open 7pm")
     notes: Optional[str] = None
     
     voyage: Voyage = Relationship(back_populates="schedule_items")
