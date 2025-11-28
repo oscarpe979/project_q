@@ -321,6 +321,17 @@ function App() {
     setEvents(newEvents);
   };
 
+  const handleLocationChange = (dayIndex: number, newLocation: string) => {
+    const newItinerary = [...itinerary];
+    if (newItinerary[dayIndex]) {
+      newItinerary[dayIndex] = {
+        ...newItinerary[dayIndex],
+        location: newLocation
+      };
+      setItinerary(newItinerary);
+    }
+  };
+
   return (
     <Routes>
       <Route path="/login" element={
@@ -349,6 +360,7 @@ function App() {
               setEvents={setEvents}
               itinerary={itinerary}
               onDateChange={handleDateChange}
+              onLocationChange={handleLocationChange}
             />
 
             <Modal

@@ -15,6 +15,7 @@ interface ScheduleGridProps {
     setEvents: React.Dispatch<React.SetStateAction<Event[]>>;
     itinerary?: ItineraryItem[];
     onDateChange?: (dayIndex: number, newDate: Date) => void;
+    onLocationChange?: (dayIndex: number, newLocation: string) => void;
 }
 
 const PIXELS_PER_HOUR = 100;
@@ -27,11 +28,37 @@ interface DayHeaderCellProps {
     info?: ItineraryItem;
     index: number;
     onDateChange?: (dayIndex: number, newDate: Date) => void;
+    onLocationChange?: (dayIndex: number, newLocation: string) => void;
     isOpen: boolean;
     onToggle: () => void;
 }
 
-const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateChange, isOpen, onToggle }) => {
+const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateChange, onLocationChange, isOpen, onToggle }) => {
+    const [isEditingLocation, setIsEditingLocation] = React.useState(false);
+    const [locationInput, setLocationInput] = React.useState(info ? info.location : '');
+    const inputRef = React.useRef<HTMLInputElement>(null);
+    const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    React.useEffect(() => {
+        if (info) {
+            setLocationInput(info.location);
+        }
+    }, [info]);
+
+    React.useEffect(() => {
+        if (isEditingLocation && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isEditingLocation]);
+
+    React.useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
+
     const handleDateClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         onToggle();
@@ -41,13 +68,32 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
         if (newDate && onDateChange) {
             onDateChange(index, newDate);
         }
-        // Close picker after selection (handled by parent toggling off or explicit close if needed, 
-        // but here we just want to ensure it closes. The parent toggle logic handles the open/close state.
-        // Actually, if we select a date, we want to close it. 
-        // We can call onToggle() if it's currently open, or we can have a specific onClose prop.
-        // But onToggle works if we know it's open.
         if (isOpen) {
             onToggle();
+        }
+    };
+
+    const handleLocationClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsEditingLocation(true);
+    };
+
+    const handleLocationSubmit = () => {
+        // Delay closing to allow "shrink back" animation (CSS transition is 0.05s)
+        timeoutRef.current = setTimeout(() => {
+            if (onLocationChange && locationInput !== (info ? info.location : '')) {
+                onLocationChange(index, locationInput);
+            }
+            setIsEditingLocation(false);
+        }, 50);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.currentTarget.blur(); // Triggers onBlur -> handleLocationSubmit
+        } else if (e.key === 'Escape') {
+            setLocationInput(info ? info.location : '');
+            setIsEditingLocation(false);
         }
     };
 
@@ -79,19 +125,47 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
                     </>
                 )}
             </div>
-            <div className="header-row-location">{info ? info.location : 'AT SEA'}</div>
+            <div className="header-row-location relative group/location">
+                {isEditingLocation ? (
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        className="glass-input"
+                        value={locationInput}
+                        onChange={(e) => setLocationInput(e.target.value)}
+                        onBlur={handleLocationSubmit}
+                        onKeyDown={handleKeyDown}
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                ) : (
+                    <>
+                        <span>{info ? info.location : 'AT SEA'}</span>
+                        {onLocationChange && (
+                            <span className="pencil-spacer">
+                                <span
+                                    role="button"
+                                    className="edit-icon-btn"
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onClick={handleLocationClick}
+                                >
+                                    <Edit2 size={10} className="edit-icon-svg" />
+                                </span>
+                            </span>
+                        )}
+                    </>
+                )}
+            </div>
             <div className="header-row-time">{info ? info.time : '\u00A0'}</div>
         </div>
     );
 };
 
-export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [], onDateChange }) => {
+export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [], onDateChange, onLocationChange }) => {
     const [activeDatePickerIndex, setActiveDatePickerIndex] = React.useState<number | null>(null);
 
     const days = useMemo(() => {
         if (itinerary.length > 0) {
             return itinerary.map(item => {
-                // Create date at local midnight to avoid timezone issues with UTC parsing
                 const [year, month, day] = item.date.split('-').map(Number);
                 return new Date(year, month - 1, day);
             });
@@ -123,62 +197,39 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
 
         setEvents((prev) => prev.map((e) => {
             if (e.id === eventId) {
-                // Calculate time shift in minutes
                 const minutesShift = delta.y * (60 / PIXELS_PER_HOUR);
-
-                // Snap to nearest SNAP_MINUTES
                 const snappedMinutes = Math.round(minutesShift / SNAP_MINUTES) * SNAP_MINUTES;
 
                 if (isResizeTop) {
-                    // Update Start Time (dragging top edge)
                     let newStart = addDays(setMinutes(e.start, e.start.getMinutes() + snappedMinutes), 0);
-
-                    // Check for inversion (dragged past end time)
                     if (newStart >= e.end) return e;
-
-                    // Enforce minimum 15 minute duration by clamping
                     const durationMinutes = (e.end.getTime() - newStart.getTime()) / (1000 * 60);
                     if (durationMinutes < 15) {
                         newStart = new Date(e.end.getTime() - 15 * 60 * 1000);
                     }
-
                     return { ...e, start: newStart, timeDisplay: undefined };
                 } else if (isResizeBottom) {
-                    // Update End Time (dragging bottom edge)
                     let newEnd = addDays(setMinutes(e.end, e.end.getMinutes() + snappedMinutes), 0);
-
-                    // Check for inversion (dragged past start time)
                     if (newEnd <= e.start) return e;
-
-                    // Enforce minimum 15 minute duration by clamping
                     const durationMinutes = (newEnd.getTime() - e.start.getTime()) / (1000 * 60);
                     if (durationMinutes < 15) {
                         newEnd = new Date(e.start.getTime() + 15 * 60 * 1000);
                     }
-
                     return { ...e, end: newEnd, timeDisplay: undefined };
                 } else {
-                    // Move Event (Start & End)
                     let newStart = addDays(setMinutes(e.start, e.start.getMinutes() + snappedMinutes), 0);
                     let newEnd = addDays(setMinutes(e.end, e.end.getMinutes() + snappedMinutes), 0);
 
-                    // Check if dropped into a different day column
                     if (over && over.id !== activeId) {
                         const targetDayStr = String(over.id);
-                        // Check if it's a day column (ISO string format)
                         if (targetDayStr.includes('T')) {
                             const targetDay = new Date(targetDayStr);
-
-                            // Calculate "Visual Day" of the event
-                            // If event starts < 04:00, it belongs to the previous visual day
                             const currentVisualDay = new Date(e.start);
                             if (currentVisualDay.getHours() < 4) {
                                 currentVisualDay.setDate(currentVisualDay.getDate() - 1);
                             }
                             currentVisualDay.setHours(0, 0, 0, 0);
                             targetDay.setHours(0, 0, 0, 0);
-
-                            // Calculate day difference based on Visual Day
                             const dayDiff = Math.round((targetDay.getTime() - currentVisualDay.getTime()) / (1000 * 60 * 60 * 24));
 
                             if (dayDiff !== 0) {
@@ -200,7 +251,6 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
         }));
     };
 
-    // Helper to get the "Visual Day" for an event (grouping late night events with previous day)
     const getVisualDay = (date: Date) => {
         const d = new Date(date);
         if (d.getHours() < 4) {
@@ -210,34 +260,26 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
         return d.getTime();
     };
 
-    // Calculate layout for all events once (memoized for performance)
     const allEventsWithLayout = useMemo(() => events.map((event) => {
-        // Find overlapping events for this specific event
         const overlaps = events.filter(other =>
             other.id !== event.id &&
             other.start < event.end &&
             other.end > event.start &&
-            // Check overlap considering the visual day
             getVisualDay(other.start) === getVisualDay(event.start)
         );
 
         const totalOverlaps = overlaps.length + 1;
-        // Find index among overlaps (naive approach, can be improved)
         const overlapIndex = overlaps.filter(o => o.start.getTime() < event.start.getTime() || (o.start.getTime() === event.start.getTime() && o.id < event.id)).length;
 
-        // Calculate width: full column width divided by overlaps
         const widthCalc = `${100 / totalOverlaps}%`;
         const leftCalc = `${(100 / totalOverlaps) * overlapIndex}%`;
 
-        // Calculate top position based on start time
         const startHour = event.start.getHours() + event.start.getMinutes() / 60;
         const top = (startHour - START_HOUR) * PIXELS_PER_HOUR;
 
-        // Calculate height based on duration
         const durationMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
         let height = (durationMinutes / 60) * PIXELS_PER_HOUR;
 
-        // CLAMPING LOGIC
         const maxGridHeight = HOURS_COUNT * PIXELS_PER_HOUR;
         const isLate = (top + height) > maxGridHeight;
 
@@ -259,10 +301,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
 
     return (
         <div className="schedule-container custom-scrollbar">
-            {/* Days Header */}
-            <div
-                className="days-header"
-            >
+            <div className="days-header">
                 <div className="time-spacer">
                     <div className="spacer-label spacer-day">DAY</div>
                     <div className="spacer-label spacer-date">DATE</div>
@@ -280,6 +319,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                             info={itinerary[i]}
                             index={i}
                             onDateChange={onDateChange}
+                            onLocationChange={onLocationChange}
                             isOpen={activeDatePickerIndex === i}
                             onToggle={() => setActiveDatePickerIndex(activeDatePickerIndex === i ? null : i)}
                         />
@@ -293,10 +333,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                 </div>
             </div>
 
-            {/* Main Grid */}
-            <div
-                className="grid-body"
-            >
+            <div className="grid-body">
                 <div
                     className="grid-content"
                     style={{ height: `${HOURS_COUNT * PIXELS_PER_HOUR}px` }}
@@ -309,11 +346,9 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                         className="events-grid"
                         style={{ gridTemplateColumns: `repeat(${days.length}, minmax(210px, 250px))` }}
                     >
-                        {/* Horizontal Grid Lines */}
                         <div className="grid-lines">
                             {Array.from({ length: HOURS_COUNT }).map((_, i) => (
                                 <div key={i} className="grid-line-hour">
-                                    {/* 5-minute sub-lines */}
                                     {Array.from({ length: 11 }).map((_, j) => {
                                         const minutes = (j + 1) * 5;
                                         const top = (minutes / 60) * PIXELS_PER_HOUR - 1;
@@ -340,38 +375,21 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                                         .filter(item => {
                                             const eventStart = item.event.start;
                                             const nextDay = addDays(day, 1);
-
-                                            // Standard case: starts today, BUT exclude early morning hours (00:00 - 04:00)
-                                            // because those belong to the previous visual day
                                             const startsToday = eventStart >= day && eventStart < nextDay && eventStart.getHours() >= 4;
-
-                                            // Late night case: starts tomorrow early morning (e.g. 00:00 - 04:00)
-                                            // Only if it is considered "late night" of THIS day.
-                                            // We define late night as < 04:00 on the IMMEDIATE next day
                                             const startsTomorrowEarly = eventStart >= nextDay && eventStart < addDays(nextDay, 1) && eventStart.getHours() < 4;
-
                                             return startsToday || startsTomorrowEarly;
                                         })
                                         .map(({ event, style, isLate }) => {
-                                            // Adjust style for late night events
                                             let finalStyle = { ...style };
                                             let finalIsLate = isLate;
-
-                                            // Check if this is a "late night" event relative to the column day
                                             if (event.start.getDate() !== day.getDate()) {
-                                                // It must be a late night event (e.g. 00:00 start)
-                                                // Re-calculate top
                                                 const startHour = event.start.getHours() + event.start.getMinutes() / 60;
-                                                const adjustedHour = startHour + 24; // Treat 00:00 as 24:00
+                                                const adjustedHour = startHour + 24;
                                                 const newTop = (adjustedHour - START_HOUR) * PIXELS_PER_HOUR;
-
                                                 finalStyle.top = `${newTop}px`;
-
-                                                // Re-calculate clamping
                                                 const maxGridHeight = HOURS_COUNT * PIXELS_PER_HOUR;
                                                 const durationMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
                                                 const heightVal = (durationMinutes / 60) * PIXELS_PER_HOUR;
-
                                                 if (newTop + heightVal > maxGridHeight) {
                                                     const newHeight = maxGridHeight - newTop;
                                                     finalStyle.height = `${Math.max(0, newHeight)}px`;
@@ -381,7 +399,6 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                                                     finalIsLate = false;
                                                 }
                                             }
-
                                             return (
                                                 <EventBlock
                                                     key={event.id}

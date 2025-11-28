@@ -843,6 +843,36 @@ body {
 /* Glassy Date Picker */
 /* Glassy Date Picker styles are now handled by MUI sx prop in DatePicker.tsx */
 
+/* Glassy Input for Port Editing */
+.glass-input {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-align: center;
+  width: 100%;
+  outline: none;
+  transition: all 0.05s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  z-index: 10;
+  text-transform: uppercase;
+}
+
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), 0 0 0 2px rgba(59, 130, 246, 0.5);
+  transform: scale(1.05);
+  z-index: 100;
+  /* Ensure it's above sticky columns (z-index 60) */
+}
+
 /* Event Types */
 .event-show {
   background: linear-gradient(135deg, #3b82f6, #2563eb);
