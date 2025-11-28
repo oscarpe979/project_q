@@ -627,39 +627,49 @@ body {
 /* Event Block - Core Styles */
 .event-block {
   position: absolute;
+  /* No visual styles, just positioning wrapper */
+  z-index: 10;
+  /* Default z-index */
+}
+
+.event-box {
+  position: relative;
+  width: 100%;
+  height: 100%;
   border-radius: 0.25rem;
   font-size: 0.75rem;
   cursor: grab;
   transition: box-shadow 0.2s ease, transform 0.2s ease;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  /* Real border */
 }
 
 .event-block:hover {
-  box-shadow: var(--shadow-lg);
   z-index: 20;
-  transform: scale(1.005);
-  filter: brightness(1.1);
 }
 
-.event-block.dragging {
+.event-block:hover .event-box {
+  box-shadow: var(--shadow-lg);
+  filter: brightness(1.05);
+}
+
+
+
+.event-block.dragging .event-box {
   opacity: 0.8;
   box-shadow: var(--shadow-lg);
-  transform: scale(1.05);
-  z-index: 50;
+  transform: scale(1.02);
   cursor: grabbing;
-  transition: none;
 }
 
-.event-block.resizing {
+.event-block.resizing .event-box {
   opacity: 0.8;
   box-shadow: var(--shadow-lg);
-  z-index: 50;
   cursor: ns-resize;
-  transition: none;
 }
 
-.event-block.resizing:hover {
+.event-block.resizing:hover .event-box {
   filter: none;
   transform: none;
 }
@@ -778,28 +788,28 @@ body {
 .event-show {
   background: linear-gradient(135deg, #3b82f6, #2563eb);
   color: white;
-  border-color: #60a5fa;
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(37, 99, 235, 0.3);
 }
 
 .event-rehearsal {
   background: linear-gradient(135deg, #f59e0b, #d97706);
   color: white;
-  border-color: #fbbf24;
-  box-shadow: 0 2px 4px rgba(217, 119, 6, 0.2);
+  border: 1px solid rgba(217, 119, 6, 0.3);
 }
 
 .event-maintenance {
   background: linear-gradient(135deg, #6b7280, #4b5563);
   color: white;
-  border-color: #9ca3af;
+  border: 1px solid rgba(75, 85, 99, 0.3);
 }
 
 .event-other {
   background: white;
   color: var(--text-primary);
-  border-left: 4px solid #6366f1;
+  border: 1px solid rgba(0, 0, 0, 0.24);
 }
+
+
 
 
 

@@ -157,13 +157,9 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
         // Find index among overlaps (naive approach, can be improved)
         const overlapIndex = overlaps.filter(o => o.start.getTime() < event.start.getTime() || (o.start.getTime() === event.start.getTime() && o.id < event.id)).length;
 
-        // Calculate width: full column width divided by overlaps, minus 2px total (1px margin each side)
-        const widthCalc = totalOverlaps === 1
-            ? 'calc(100% - 2px)'
-            : `calc(${100 / totalOverlaps}% - 2px)`;
-        const leftCalc = totalOverlaps === 1
-            ? '1px'
-            : `calc(${(100 / totalOverlaps) * overlapIndex}% + 1px)`;
+        // Calculate width: full column width divided by overlaps
+        const widthCalc = `${100 / totalOverlaps}%`;
+        const leftCalc = `${(100 / totalOverlaps) * overlapIndex}%`;
 
         // Calculate top position based on start time
         const startHour = event.start.getHours() + event.start.getMinutes() / 60;
