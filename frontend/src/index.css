@@ -873,6 +873,37 @@ body {
   /* Ensure it's above sticky columns (z-index 60) */
 }
 
+.glass-input-event {
+  background: var(--event-color, rgba(255, 255, 255, 0.9));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--event-color), black 20%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-align: center;
+  width: 100%;
+  outline: none;
+  transition: all 0.05s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  z-index: 50;
+}
+
+.glass-input-event:focus {
+  background: var(--event-color, #ffffff);
+  box-shadow: 0 8px 12px -3px rgba(0, 0, 0, 0.2);
+  border: 0.5px solid color-mix(in srgb, var(--event-color), black 20%);
+  transform: scale(1);
+  font-size: 1.1em;
+  z-index: 100;
+  filter: brightness(1);
+  /* Slight brightness boost to make it pop */
+}
+
 /* Event Types */
 .event-show {
   background: linear-gradient(135deg, #3b82f6, #2563eb);

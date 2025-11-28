@@ -27,31 +27,45 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
     const [editTitle, setEditTitle] = React.useState(event.title);
     const [editTimeDisplay, setEditTimeDisplay] = React.useState(event.timeDisplay || defaultTimeLabel);
 
+    const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
     // Reset state when event changes
     React.useEffect(() => {
         setEditTitle(event.title);
         setEditTimeDisplay(event.timeDisplay || defaultTimeLabel);
     }, [event.title, event.timeDisplay, defaultTimeLabel]);
 
+    React.useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
+
     const handleSaveTitle = () => {
-        if (onUpdate && editTitle !== event.title) {
-            onUpdate(event.id, { title: editTitle });
-        }
-        setIsEditingTitle(false);
+        timeoutRef.current = setTimeout(() => {
+            if (onUpdate && editTitle !== event.title) {
+                onUpdate(event.id, { title: editTitle });
+            }
+            setIsEditingTitle(false);
+        }, 50);
     };
 
     const handleSaveTime = () => {
         const newTime = editTimeDisplay.trim();
-        if (onUpdate) {
-            onUpdate(event.id, { timeDisplay: newTime || undefined });
-        }
-        setIsEditingTime(false);
+        timeoutRef.current = setTimeout(() => {
+            if (onUpdate) {
+                onUpdate(event.id, { timeDisplay: newTime || undefined });
+            }
+            setIsEditingTime(false);
+        }, 50);
     };
 
     const handleKeyDownTitle = (e: React.KeyboardEvent) => {
         e.stopPropagation();
         if (e.key === 'Enter') {
-            handleSaveTitle();
+            (e.currentTarget as HTMLInputElement).blur();
         } else if (e.key === 'Escape') {
             setEditTitle(event.title);
             setIsEditingTitle(false);
@@ -61,7 +75,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
     const handleKeyDownTime = (e: React.KeyboardEvent) => {
         e.stopPropagation();
         if (e.key === 'Enter') {
-            handleSaveTime();
+            (e.currentTarget as HTMLInputElement).blur();
         } else if (e.key === 'Escape') {
             setEditTimeDisplay(event.timeDisplay || defaultTimeLabel);
             setIsEditingTime(false);
@@ -128,7 +142,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
         height: `${currentHeight}px`,
         left: containerStyle.left,
         width: containerStyle.width,
-        zIndex: isDragging || isResizingBottom || isResizingTop || isEditingTitle || isEditingTime ? 50 : 10,
+        zIndex: isDragging || isResizingBottom || isResizingTop || isEditingTitle || isEditingTime ? 80 : 10,
         transform: (isDragging && transform) ? `translate3d(${transform.x}px, 0, 0)` : undefined,
         paddingRight: '1px',
         paddingBottom: '2px',
@@ -137,7 +151,8 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
 
     const visualStyle: React.CSSProperties = {
         background: event.color,
-        color: getContrastColor(event.color)
+        color: getContrastColor(event.color),
+        overflow: (!isEditingTitle && !isEditingTime) ? 'hidden' : 'visible'
     };
 
     // Dynamic styles based on event type
@@ -202,7 +217,8 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
         >
             <div
                 className={clsx(
-                    "event-box w-full h-full relative overflow-hidden rounded",
+                    "event-box w-full h-full relative rounded",
+                    (!isEditingTitle && !isEditingTime) ? "overflow-hidden" : "overflow-visible",
                     getEventClass(),
                     isSmallDuration && "is-compact"
                 )}
@@ -225,95 +241,85 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                     <div className="event-content-full">
 
                         {/* Time Section */}
-                        <div className="event-time flex justify-center" style={{ minHeight: '1.2em' }}>
-                            {isEditingTime ? (
-                                <input
-                                    type="text"
-                                    value={editTimeDisplay}
-                                    onChange={(e) => setEditTimeDisplay(e.target.value)}
-                                    onBlur={handleSaveTime}
-                                    onKeyDown={handleKeyDownTime}
-                                    autoFocus
-                                    onPointerDown={(e) => e.stopPropagation()}
-                                    className="bg-transparent border-none outline-none p-0 w-full"
-                                    style={{
-                                        fontFamily: 'inherit',
-                                        fontSize: 'inherit',
-                                        color: 'inherit',
-                                        background: 'transparent',
-                                        border: 'none',
-                                        borderBottom: '1px solid currentColor',
-                                        outline: 'none',
-                                        boxShadow: 'none',
-                                        textAlign: 'center',
-                                        opacity: 0.9
-                                    }}
-                                />
-                            ) : (
-                                <div className="relative inline-block group-time-wrapper">
-                                    <span>{timeLabel}</span>
-                                    {!isInteracting && (
-                                        <span className="pencil-spacer">
-                                            <span
-                                                role="button"
-                                                className="edit-icon-btn"
-                                                onPointerDown={(e) => e.stopPropagation()}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setIsEditingTime(true);
-                                                }}
-                                            >
-                                                <Edit2 size={10} className="edit-icon-svg" />
-                                            </span>
+                        <div className="event-time flex justify-center items-center relative" style={{ minHeight: '1.2em' }}>
+                            <div className={`relative inline-block group-time-wrapper ${isEditingTime ? 'invisible' : ''}`}>
+                                <span>{timeLabel}</span>
+                                {!isInteracting && (
+                                    <span className="pencil-spacer">
+                                        <span
+                                            role="button"
+                                            className="edit-icon-btn"
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsEditingTime(true);
+                                            }}
+                                        >
+                                            <Edit2 size={10} className="edit-icon-svg" />
                                         </span>
-                                    )}
+                                    </span>
+                                )}
+                            </div>
+                            {isEditingTime && (
+                                <div className="absolute inset-0 flex items-center justify-center z-50">
+                                    <input
+                                        type="text"
+                                        value={editTimeDisplay}
+                                        onChange={(e) => setEditTimeDisplay(e.target.value)}
+                                        onBlur={handleSaveTime}
+                                        onKeyDown={handleKeyDownTime}
+                                        onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
+                                        autoFocus
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                        className="glass-input-event"
+                                        style={{
+                                            '--event-color': event.color,
+                                            width: `calc(${editTimeDisplay.length}ch + 3rem)`,
+                                            minWidth: '100%'
+                                        } as React.CSSProperties}
+                                    />
                                 </div>
                             )}
                         </div>
 
                         {/* Title Section */}
-                        <div className="event-title flex justify-center" style={{ minHeight: '1.2em' }}>
-                            {isEditingTitle ? (
-                                <input
-                                    type="text"
-                                    value={editTitle}
-                                    onChange={(e) => setEditTitle(e.target.value)}
-                                    onBlur={handleSaveTitle}
-                                    onKeyDown={handleKeyDownTitle}
-                                    autoFocus
-                                    onPointerDown={(e) => e.stopPropagation()}
-                                    className="bg-transparent border-none outline-none p-0 w-full font-bold"
-                                    style={{
-                                        fontFamily: 'inherit',
-                                        fontSize: 'inherit',
-                                        color: 'inherit',
-                                        background: 'transparent',
-                                        border: 'none',
-                                        borderBottom: '1px solid currentColor',
-                                        outline: 'none',
-                                        boxShadow: 'none',
-                                        textAlign: 'center',
-                                        opacity: 0.9
-                                    }}
-                                />
-                            ) : (
-                                <div className="relative inline-block group-title-wrapper">
-                                    <span>{event.title}</span>
-                                    {!isInteracting && (
-                                        <span className="pencil-spacer">
-                                            <span
-                                                role="button"
-                                                className="edit-icon-btn"
-                                                onPointerDown={(e) => e.stopPropagation()}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setIsEditingTitle(true);
-                                                }}
-                                            >
-                                                <Edit2 size={10} className="edit-icon-svg" />
-                                            </span>
+                        <div className="event-title flex justify-center items-center relative" style={{ minHeight: '1.2em' }}>
+                            <div className={`relative inline-block group-title-wrapper ${isEditingTitle ? 'invisible' : ''}`}>
+                                <span>{event.title}</span>
+                                {!isInteracting && (
+                                    <span className="pencil-spacer">
+                                        <span
+                                            role="button"
+                                            className="edit-icon-btn"
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsEditingTitle(true);
+                                            }}
+                                        >
+                                            <Edit2 size={10} className="edit-icon-svg" />
                                         </span>
-                                    )}
+                                    </span>
+                                )}
+                            </div>
+                            {isEditingTitle && (
+                                <div className="absolute inset-0 flex items-center justify-center z-50">
+                                    <input
+                                        type="text"
+                                        value={editTitle}
+                                        onChange={(e) => setEditTitle(e.target.value)}
+                                        onBlur={handleSaveTitle}
+                                        onKeyDown={handleKeyDownTitle}
+                                        onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
+                                        autoFocus
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                        className="glass-input-event"
+                                        style={{
+                                            '--event-color': event.color,
+                                            width: `calc(${editTitle.length}ch + 3rem)`,
+                                            minWidth: '100%'
+                                        } as React.CSSProperties}
+                                    />
                                 </div>
                             )}
                         </div>
@@ -329,16 +335,15 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                                 onChange={(e) => setEditTitle(e.target.value)}
                                 onBlur={handleSaveTitle}
                                 onKeyDown={handleKeyDownTitle}
+                                onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
                                 autoFocus
                                 onPointerDown={(e) => e.stopPropagation()}
-                                className="bg-transparent border-none outline-none p-0 w-full font-bold"
+                                className="glass-input-event"
                                 style={{
-                                    fontFamily: 'inherit',
-                                    fontSize: 'inherit',
-                                    color: 'inherit',
-                                    background: 'rgba(255,255,255,0.2)',
-                                    borderRadius: '2px'
-                                }}
+                                    '--event-color': event.color,
+                                    padding: '0 2px',
+                                    fontSize: 'inherit'
+                                } as React.CSSProperties}
                             />
                         ) : (
                             <>
