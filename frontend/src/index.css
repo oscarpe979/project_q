@@ -354,26 +354,15 @@ body {
 .schedule-container {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   position: relative;
-  padding: 0 16px 16px 16px;
+  padding: 0 16px 16px 0;
   gap: 0;
+  margin-top: 16px;
+  margin-left: 16px;
 }
 
-/* Mask for the top gap */
-.schedule-container::before {
-  content: "";
-  display: block;
-  position: sticky;
-  top: 0;
-  height: 16px;
-  background: var(--bg-app);
-  z-index: 75;
-  /* Above days-header (70) */
-  /* Pull header up so it sticks below mask? No, we want header to start AFTER mask */
-  /* Actually, if we want header to stick at 16px, we just set top: 16px on header */
-  width: 100%;
-}
+
 
 .days-header {
   display: flex;
@@ -382,13 +371,12 @@ body {
   backdrop-filter: blur(12px);
   z-index: 70;
   position: sticky;
-  top: 16px;
+  top: 0;
   /* Stick below the 16px mask */
   width: fit-content;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border-radius: 8px 8px 0 0;
-  overflow: hidden;
-  /* Ensure content respects radius */
+  /* overflow: hidden; Removed to allow sticky children */
 }
 
 .time-spacer {
