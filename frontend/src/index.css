@@ -826,6 +826,7 @@ body {
 
 .group-title-wrapper:hover .edit-icon-btn,
 .group-time-wrapper:hover .edit-icon-btn,
+.header-row-date:hover .edit-icon-btn,
 .edit-icon-btn:hover {
   opacity: 1;
 }

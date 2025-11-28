@@ -268,6 +268,59 @@ function App() {
     loadVoyages();
   };
 
+  const handleDateChange = (dayIndex: number, newDate: Date) => {
+    if (!itinerary[dayIndex]) return;
+
+    // 1. Calculate the difference in days
+    const oldDateStr = itinerary[dayIndex].date;
+    const [oldYear, oldMonth, oldDay] = oldDateStr.split('-').map(Number);
+    const oldDate = new Date(oldYear, oldMonth - 1, oldDay);
+
+    // Reset hours to avoid timezone/DST issues affecting day calculation
+    oldDate.setHours(0, 0, 0, 0);
+    newDate.setHours(0, 0, 0, 0);
+
+    const diffTime = newDate.getTime() - oldDate.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return;
+
+    // 2. Shift Itinerary
+    const newItinerary = itinerary.map(item => {
+      const [y, m, d] = item.date.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
+      date.setDate(date.getDate() + diffDays);
+
+      // Format back to YYYY-MM-DD
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+
+      return {
+        ...item,
+        date: `${year}-${month}-${day}`
+      };
+    });
+
+    // 3. Shift Events
+    const newEvents = events.map(event => {
+      const newStart = new Date(event.start);
+      newStart.setDate(newStart.getDate() + diffDays);
+
+      const newEnd = new Date(event.end);
+      newEnd.setDate(newEnd.getDate() + diffDays);
+
+      return {
+        ...event,
+        start: newStart,
+        end: newEnd
+      };
+    });
+
+    setItinerary(newItinerary);
+    setEvents(newEvents);
+  };
+
   return (
     <Routes>
       <Route path="/login" element={
@@ -291,7 +344,12 @@ function App() {
               alert('Started a new schedule draft.');
             }}
           >
-            <ScheduleGrid events={events} setEvents={setEvents} itinerary={itinerary} />
+            <ScheduleGrid
+              events={events}
+              setEvents={setEvents}
+              itinerary={itinerary}
+              onDateChange={handleDateChange}
+            />
 
             <Modal
               isOpen={isImportOpen}

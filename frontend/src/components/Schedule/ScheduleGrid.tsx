@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { format, addDays, startOfWeek, setMinutes } from 'date-fns';
 import { DndContext, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
+import { Edit2 } from 'lucide-react';
 import type { DragEndEvent } from '@dnd-kit/core';
 
 import { TimeColumn } from './TimeColumn';
@@ -12,6 +13,7 @@ interface ScheduleGridProps {
     events: Event[];
     setEvents: React.Dispatch<React.SetStateAction<Event[]>>;
     itinerary?: ItineraryItem[];
+    onDateChange?: (dayIndex: number, newDate: Date) => void;
 }
 
 const PIXELS_PER_HOUR = 100;
@@ -19,7 +21,67 @@ const START_HOUR = 7;
 const SNAP_MINUTES = 5;
 const HOURS_COUNT = 18; // 07:00 to 01:00 next day
 
-export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [] }) => {
+interface DayHeaderCellProps {
+    day: Date;
+    info?: ItineraryItem;
+    index: number;
+    onDateChange?: (dayIndex: number, newDate: Date) => void;
+}
+
+const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateChange }) => {
+    const dateInputRef = React.useRef<HTMLInputElement>(null);
+
+    const handleDateClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (dateInputRef.current) {
+            dateInputRef.current.showPicker();
+        }
+    };
+
+    const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.value && onDateChange) {
+            const [year, month, day] = e.target.value.split('-').map(Number);
+            const newDate = new Date(year, month - 1, day);
+            onDateChange(index, newDate);
+        }
+    };
+
+    return (
+        <div className="day-header-cell">
+            <div className="header-row-day-number">DAY {info ? info.day : index + 1}</div>
+            <div className="header-row-day-name">{format(day, 'EEEE')}</div>
+            <div className="header-row-date relative group/date">
+                <span>{format(day, 'd-MMM-yy')}</span>
+                {onDateChange && (
+                    <>
+                        <span className="pencil-spacer">
+                            <span
+                                role="button"
+                                className="edit-icon-btn"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={handleDateClick}
+                            >
+                                <Edit2 size={10} className="edit-icon-svg" />
+                            </span>
+                        </span>
+                        <input
+                            ref={dateInputRef}
+                            type="date"
+                            className="absolute opacity-0 pointer-events-none w-0 h-0"
+                            style={{ visibility: 'hidden' }}
+                            onChange={handleDateInputChange}
+                            value={format(day, 'yyyy-MM-dd')}
+                        />
+                    </>
+                )}
+            </div>
+            <div className="header-row-location">{info ? info.location : 'AT SEA'}</div>
+            <div className="header-row-time">{info ? info.time : '\u00A0'}</div>
+        </div>
+    );
+};
+
+export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [], onDateChange }) => {
     const days = useMemo(() => {
         if (itinerary.length > 0) {
             return itinerary.map(item => {
@@ -205,19 +267,15 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                     className="days-grid"
                     style={{ gridTemplateColumns: `repeat(${days.length}, minmax(210px, 250px))` }}
                 >
-                    {days.map((day, i) => {
-                        const info = itinerary[i];
-
-                        return (
-                            <div key={i} className="day-header-cell">
-                                <div className="header-row-day-number">DAY {info ? info.day : i + 1}</div>
-                                <div className="header-row-day-name">{format(day, 'EEEE')}</div>
-                                <div className="header-row-date">{format(day, 'd-MMM-yy')}</div>
-                                <div className="header-row-location">{info ? info.location : 'AT SEA'}</div>
-                                <div className="header-row-time">{info ? info.time : '\u00A0'}</div>
-                            </div>
-                        );
-                    })}
+                    {days.map((day, i) => (
+                        <DayHeaderCell
+                            key={i}
+                            day={day}
+                            info={itinerary[i]}
+                            index={i}
+                            onDateChange={onDateChange}
+                        />
+                    ))}
                 </div>
                 <div className="time-spacer-right">
                     <div className="spacer-label spacer-day">DAY</div>

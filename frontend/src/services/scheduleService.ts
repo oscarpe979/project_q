@@ -1,7 +1,7 @@
 import { authService } from './authService';
 import type { Event, ItineraryItem } from '../types';
 
-const API_URL = 'http://localhost:8000/api/schedules';
+const API_URL = 'http://localhost:8000/api/schedules/';
 
 interface PublishScheduleRequest {
     voyage_number: string;
@@ -70,7 +70,7 @@ export const scheduleService = {
 
     async getLatestSchedule() {
         const headers = authService.getAuthHeaders();
-        const response = await fetch(`${API_URL}/latest`, {
+        const response = await fetch(`${API_URL}latest`, {
             headers: headers,
         });
 
@@ -83,7 +83,7 @@ export const scheduleService = {
 
     async deleteSchedule(voyageNumber: string) {
         const headers = authService.getAuthHeaders();
-        const response = await fetch(`${API_URL}/${voyageNumber}`, {
+        const response = await fetch(`${API_URL}${voyageNumber}`, {
             method: 'DELETE',
             headers: headers,
         });
@@ -97,7 +97,7 @@ export const scheduleService = {
 
     async getVoyages() {
         const headers = authService.getAuthHeaders();
-        const response = await fetch(`${API_URL}/voyages`, {
+        const response = await fetch(`${API_URL}voyages`, {
             headers: headers,
         });
 
@@ -110,7 +110,7 @@ export const scheduleService = {
 
     async getScheduleByVoyage(voyageNumber: string) {
         const headers = authService.getAuthHeaders();
-        const response = await fetch(`${API_URL}/${voyageNumber}`, {
+        const response = await fetch(`${API_URL}${voyageNumber}`, {
             headers: headers,
         });
 
