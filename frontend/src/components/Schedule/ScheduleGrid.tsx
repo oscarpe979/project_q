@@ -219,6 +219,12 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                         );
                     })}
                 </div>
+                <div className="time-spacer-right">
+                    <div className="spacer-label spacer-day">DAY</div>
+                    <div className="spacer-label spacer-date">DATE</div>
+                    <div className="spacer-label spacer-port">PORT</div>
+                    <div className="spacer-label spacer-empty"></div>
+                </div>
             </div>
 
             {/* Main Grid */}
@@ -323,6 +329,10 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                                 </DayColumn>
                             ))}
                         </DndContext>
+                    </div>
+
+                    <div className="time-column-right">
+                        <TimeColumn />
                     </div>
                 </div>
             </div>
