@@ -1,7 +1,8 @@
 import React from 'react';
-import { Calendar, Settings, Upload, LogOut, LayoutGrid, ChevronDown } from 'lucide-react';
+import { Calendar, Settings, Upload, LogOut, LayoutGrid, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import clsx from 'clsx';
 import { VoyageSelector } from './VoyageSelector';
+import { authService } from '../../services/authService';
 
 interface MainLayoutProps {
     children: React.ReactNode;
@@ -41,6 +42,7 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
     const [voyageNumber, setVoyageNumber] = React.useState('');
     const [isPublishing, setIsPublishing] = React.useState(false);
     const [isDeleting, setIsDeleting] = React.useState(false);
+    const [isExporting, setIsExporting] = React.useState(false);
     const [isViewOptionsOpen, setIsViewOptionsOpen] = React.useState(false);
     const viewOptionsRef = React.useRef<HTMLDivElement>(null);
 
@@ -118,6 +120,80 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
             } finally {
                 setIsDeleting(false);
             }
+        }
+    };
+
+    const handleExportClick = async () => {
+        if (!currentVoyageNumber) {
+            alert('No voyage selected to export.');
+            return;
+        }
+
+        setIsExporting(true);
+        try {
+            // Generate filename locally to open picker immediately
+            const { ship, venue } = getHeaderInfo();
+            const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            const filename = `${ship}_${venue.replace(/\s+/g, '_')}_${currentVoyageNumber}_${dateStr}.xlsx`;
+
+            let fileHandle: any = null;
+
+            // Try to open picker first if supported
+            if ('showSaveFilePicker' in window) {
+                try {
+                    fileHandle = await (window as any).showSaveFilePicker({
+                        suggestedName: filename,
+                        types: [{
+                            description: 'Excel File',
+                            accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] },
+                        }],
+                    });
+                } catch (err: any) {
+                    if (err.name === 'AbortError') {
+                        setIsExporting(false);
+                        return; // User cancelled
+                    }
+                    console.error('File picker error:', err);
+                    // Continue to fallback
+                }
+            }
+
+            // Fetch data
+            const headers = authService.getAuthHeaders();
+            const response = await fetch(`http://localhost:8000/api/schedules/${currentVoyageNumber}/export`, {
+                method: 'GET',
+                headers: headers,
+            });
+
+            if (!response.ok) {
+                throw new Error('Export failed');
+            }
+
+            const blob = await response.blob();
+
+            if (fileHandle) {
+                // Write to selected file
+                const writable = await fileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+            } else {
+                // Fallback download
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename; // Use locally generated name or from header if preferred
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }
+
+            setIsViewOptionsOpen(false);
+        } catch (error) {
+            console.error('Export error:', error);
+            alert('Failed to export schedule.');
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -260,6 +336,11 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                                             </div>
                                         }
                                         label="New Schedule"
+                                    />
+                                    <MenuItem
+                                        onClick={handleExportClick}
+                                        icon={<FileSpreadsheet size={16} />}
+                                        label={isExporting ? "Exporting..." : "Export to Excel"}
                                     />
                                     <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }}></div>
                                     <MenuItem
