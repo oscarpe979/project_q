@@ -7,6 +7,7 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { TimeColumn } from './TimeColumn';
 import { DayColumn } from './DayColumn';
 import { EventBlock } from './EventBlock';
+import { DatePicker } from '../UI/DatePicker';
 import type { Event, ItineraryItem } from '../../types';
 
 interface ScheduleGridProps {
@@ -26,23 +27,27 @@ interface DayHeaderCellProps {
     info?: ItineraryItem;
     index: number;
     onDateChange?: (dayIndex: number, newDate: Date) => void;
+    isOpen: boolean;
+    onToggle: () => void;
 }
 
-const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateChange }) => {
-    const dateInputRef = React.useRef<HTMLInputElement>(null);
-
+const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateChange, isOpen, onToggle }) => {
     const handleDateClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (dateInputRef.current) {
-            dateInputRef.current.showPicker();
-        }
+        onToggle();
     };
 
-    const handleDateInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.value && onDateChange) {
-            const [year, month, day] = e.target.value.split('-').map(Number);
-            const newDate = new Date(year, month - 1, day);
+    const handleDateChange = (newDate: Date | null) => {
+        if (newDate && onDateChange) {
             onDateChange(index, newDate);
+        }
+        // Close picker after selection (handled by parent toggling off or explicit close if needed, 
+        // but here we just want to ensure it closes. The parent toggle logic handles the open/close state.
+        // Actually, if we select a date, we want to close it. 
+        // We can call onToggle() if it's currently open, or we can have a specific onClose prop.
+        // But onToggle works if we know it's open.
+        if (isOpen) {
+            onToggle();
         }
     };
 
@@ -64,14 +69,13 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
                                 <Edit2 size={10} className="edit-icon-svg" />
                             </span>
                         </span>
-                        <input
-                            ref={dateInputRef}
-                            type="date"
-                            className="absolute opacity-0 pointer-events-none w-0 h-0"
-                            style={{ visibility: 'hidden' }}
-                            onChange={handleDateInputChange}
-                            value={format(day, 'yyyy-MM-dd')}
-                        />
+                        {isOpen && (
+                            <DatePicker
+                                value={day}
+                                onChange={handleDateChange}
+                                onClose={onToggle}
+                            />
+                        )}
                     </>
                 )}
             </div>
@@ -82,6 +86,8 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
 };
 
 export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [], onDateChange }) => {
+    const [activeDatePickerIndex, setActiveDatePickerIndex] = React.useState<number | null>(null);
+
     const days = useMemo(() => {
         if (itinerary.length > 0) {
             return itinerary.map(item => {
@@ -274,6 +280,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                             info={itinerary[i]}
                             index={i}
                             onDateChange={onDateChange}
+                            isOpen={activeDatePickerIndex === i}
+                            onToggle={() => setActiveDatePickerIndex(activeDatePickerIndex === i ? null : i)}
                         />
                     ))}
                 </div>

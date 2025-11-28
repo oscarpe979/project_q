@@ -840,6 +840,9 @@ body {
   opacity: 1;
 }
 
+/* Glassy Date Picker */
+/* Glassy Date Picker styles are now handled by MUI sx prop in DatePicker.tsx */
+
 /* Event Types */
 .event-show {
   background: linear-gradient(135deg, #3b82f6, #2563eb);
