@@ -55,7 +55,7 @@ def parse_port_times(time_str: Optional[str]):
 
 from backend.app.database import get_session
 from backend.app.models import (
-    User, Voyage, VoyageItinerary, ScheduleItem, Venue, EventType
+    User, Voyage, VoyageItinerary, ScheduleItem, Venue, EventType, VenueHighlight
 )
 from backend.app.routers.auth import get_current_user
 from pydantic import BaseModel
@@ -84,11 +84,18 @@ class ItineraryInput(BaseModel):
     time: Optional[str] = None # "7:00 am - 4:30 pm"
     arrival: Optional[str] = None
     departure: Optional[str] = None
+    
+class OtherVenueShowInput(BaseModel):
+    venue: str
+    date: str
+    title: str
+    time: str
 
 class PublishScheduleRequest(BaseModel):
     voyage_number: str
     events: List[EventInput]
     itinerary: List[ItineraryInput]
+    other_venue_shows: Optional[List[OtherVenueShowInput]] = None
 
 # --- Endpoints ---
 
@@ -200,8 +207,33 @@ def publish_schedule(
             notes=event.notes
         )
         session.add(new_item)
+        
+    # 4. Update Venue Highlights (Scoped to Venue)
+    if request.other_venue_shows is not None:
+        # Delete existing highlights for this venue and voyage
+        existing_highlights = session.exec(
+            select(VenueHighlight)
+            .where(VenueHighlight.voyage_id == voyage.id)
+            .where(VenueHighlight.source_venue_id == current_user.venue_id)
+        ).all()
+        
+        for h in existing_highlights:
+            session.delete(h)
+            
+        # Add new highlights
+        for show in request.other_venue_shows:
+            highlight = VenueHighlight(
+                voyage_id=voyage.id,
+                source_venue_id=current_user.venue_id,
+                date=datetime.strptime(show.date, "%Y-%m-%d").date(),
+                highlight_venue_name=show.venue,
+                title=show.title,
+                time_text=show.time
+            )
+            session.add(highlight)
 
     session.commit()
+    
     return {"message": "Schedule published successfully", "voyage_number": voyage.voyage_number}
 
 @router.get("/latest")
@@ -244,6 +276,14 @@ def get_latest_schedule(
         select(ScheduleItem)
         .where(ScheduleItem.voyage_id == voyage.id)
         .where(ScheduleItem.venue_id == current_user.venue_id)
+        .where(ScheduleItem.venue_id == current_user.venue_id)
+    ).all()
+    
+    # Get Venue Highlights
+    highlights = session.exec(
+        select(VenueHighlight)
+        .where(VenueHighlight.voyage_id == voyage.id)
+        .where(VenueHighlight.source_venue_id == current_user.venue_id)
     ).all()
     
     # Format response
@@ -270,10 +310,21 @@ def get_latest_schedule(
         for item in schedule_items
     ]
     
+    formatted_highlights = [
+        {
+            "venue": h.highlight_venue_name,
+            "date": h.date.isoformat(),
+            "title": h.title,
+            "time": h.time_text
+        }
+        for h in highlights
+    ]
+
     return {
         "voyage_number": voyage.voyage_number,
         "events": formatted_events,
-        "itinerary": formatted_itinerary
+        "itinerary": formatted_itinerary,
+        "other_venue_shows": formatted_highlights
     }
 
 @router.get("/voyages")
@@ -305,6 +356,24 @@ def list_voyages(
         for v in voyages
     ]
 
+@router.get("/venues")
+def get_ship_venues(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.ship_id:
+        raise HTTPException(status_code=400, detail="User must be assigned to a ship.")
+        
+    venues = session.exec(select(Venue).where(Venue.ship_id == current_user.ship_id)).all()
+    
+    # Filter out the current user's venue if desired, or keep all. 
+    # The user wants "Other Venue Shows", so typically we exclude the current one.
+    # But for a "template", maybe they want to see all? 
+    # Let's exclude the current venue to match the "Other" semantics.
+    other_venues = [v for v in venues if v.id != current_user.venue_id]
+    
+    return [{"id": v.id, "name": v.name} for v in other_venues]
+
 @router.get("/{voyage_number}")
 def get_schedule_by_voyage(
     voyage_number: str,
@@ -332,6 +401,13 @@ def get_schedule_by_voyage(
         .where(ScheduleItem.venue_id == current_user.venue_id)
     ).all()
     
+    # Get Venue Highlights
+    highlights = session.exec(
+        select(VenueHighlight)
+        .where(VenueHighlight.voyage_id == voyage.id)
+        .where(VenueHighlight.source_venue_id == current_user.venue_id)
+    ).all()
+    
     # Format response
     formatted_itinerary = [
         {
@@ -356,11 +432,24 @@ def get_schedule_by_voyage(
         for item in schedule_items
     ]
     
+    formatted_highlights = [
+        {
+            "venue": h.highlight_venue_name,
+            "date": h.date.isoformat(),
+            "title": h.title,
+            "time": h.time_text
+        }
+        for h in highlights
+    ]
+    
     return {
         "voyage_number": voyage.voyage_number,
         "events": formatted_events,
-        "itinerary": formatted_itinerary
+        "itinerary": formatted_itinerary,
+        "other_venue_shows": formatted_highlights
     }
+
+
 
 @router.delete("/{voyage_number}")
 def delete_schedule(

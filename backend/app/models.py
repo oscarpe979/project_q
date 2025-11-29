@@ -43,6 +43,7 @@ class Venue(SQLModel, table=True):
     capabilities: List["EventType"] = Relationship(back_populates="venues", link_model=VenueCapability)
     schedule_items: List["ScheduleItem"] = Relationship(back_populates="venue")
     users: List["User"] = Relationship(back_populates="venue")
+    highlights: List["VenueHighlight"] = Relationship(back_populates="source_venue", sa_relationship_kwargs={"foreign_keys": "VenueHighlight.source_venue_id"})
 
 class EventType(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -67,6 +68,7 @@ class Voyage(SQLModel, table=True):
     ship: Ship = Relationship(back_populates="voyages")
     itineraries: List["VoyageItinerary"] = Relationship(back_populates="voyage")
     schedule_items: List["ScheduleItem"] = Relationship(back_populates="voyage")
+    highlights: List["VenueHighlight"] = Relationship(back_populates="voyage")
 
 class VoyageItinerary(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -95,3 +97,24 @@ class ScheduleItem(SQLModel, table=True):
     voyage: Voyage = Relationship(back_populates="schedule_items")
     venue: Venue = Relationship(back_populates="schedule_items")
     event_type: Optional[EventType] = Relationship(back_populates="schedule_items")
+
+class VenueHighlight(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    
+    # SCOPING FIELDS (Strictly tied to Ship/Voyage and Venue)
+    voyage_id: int = Field(foreign_key="voyage.id")
+    source_venue_id: int = Field(foreign_key="venue.id") # The venue that "owns" this highlight list
+    
+    # CONTENT FIELDS (Extracted from PDF)
+    date: date
+    highlight_venue_name: str  # e.g., "Royal Theater" (The venue being highlighted)
+    title: str                 # e.g., "Ice Spectacular"
+    time_text: str             # e.g., "8:00 pm & 10:00 pm"
+    
+    # FUTURE-PROOFING FIELDS ("Smart Link")
+    linked_venue_id: Optional[int] = Field(default=None, foreign_key="venue.id")
+    linked_event_id: Optional[int] = Field(default=None, foreign_key="scheduleitem.id")
+    
+    # Relationships
+    voyage: Voyage = Relationship(back_populates="highlights")
+    source_venue: Venue = Relationship(back_populates="highlights", sa_relationship_kwargs={"foreign_keys": "VenueHighlight.source_venue_id"})

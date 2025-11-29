@@ -1,5 +1,5 @@
 import { authService } from './authService';
-import type { Event, ItineraryItem } from '../types';
+import type { Event, ItineraryItem, OtherVenueShow } from '../types';
 
 const API_URL = 'http://localhost:8000/api/schedules/';
 
@@ -21,14 +21,21 @@ interface PublishScheduleRequest {
         arrival?: string;
         departure?: string;
     }[];
+    other_venue_shows?: {
+        venue: string;
+        date: string;
+        title: string;
+        time: string;
+    }[];
 }
+
 // Helper to format date as local ISO string (YYYY-MM-DDTHH:mm:ss)
 const toLocalISOString = (date: Date) => {
     const pad = (num: number) => num.toString().padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
 export const scheduleService = {
-    async publishSchedule(voyageNumber: string, events: Event[], itinerary: ItineraryItem[]) {
+    async publishSchedule(voyageNumber: string, events: Event[], itinerary: ItineraryItem[], otherVenueShows?: OtherVenueShow[]) {
         const headers = authService.getAuthHeaders();
 
         const payload: PublishScheduleRequest = {
@@ -48,7 +55,15 @@ export const scheduleService = {
                 time: i.time,
                 arrival: i.arrival,
                 departure: i.departure
-            }))
+            })),
+            other_venue_shows: otherVenueShows?.flatMap(venue =>
+                venue.shows.map(show => ({
+                    venue: venue.venue,
+                    date: show.date,
+                    title: show.title,
+                    time: show.time
+                }))
+            )
         };
 
         const response = await fetch(API_URL, {
@@ -116,6 +131,19 @@ export const scheduleService = {
 
         if (!response.ok) {
             throw new Error('Failed to fetch schedule');
+        }
+
+        return response.json();
+    },
+
+    async getShipVenues() {
+        const headers = authService.getAuthHeaders();
+        const response = await fetch(`${API_URL}venues`, {
+            headers: headers,
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch ship venues');
         }
 
         return response.json();

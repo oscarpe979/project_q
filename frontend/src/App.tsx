@@ -38,9 +38,11 @@ function App() {
   const [user, setUser] = useState<{ name: string; role: string; username: string; venueName?: string } | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [currentVoyageNumber, setCurrentVoyageNumber] = useState<string>('');
+  const [shipVenues, setShipVenues] = useState<{ id: number; name: string }[]>([]);
 
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([
     { day: 1, date: '2025-11-17', location: 'SHANGHAI', time: '7:00 am - 4:30 pm' },
@@ -77,20 +79,58 @@ function App() {
     setIsModified(eventsChanged || itineraryChanged);
   }, [events, itinerary, originalEvents, originalItinerary]);
 
-  // Session restoration on app load
-  useEffect(() => {
-    const restoreSession = async () => {
-      const userData = await authService.validateToken();
-      if (userData) {
-        setUser(userData);
-        loadLatestSchedule();
-        loadVoyages();
-      }
-      setIsCheckingAuth(false);
-    };
+  const loadShipVenues = async () => {
+    try {
+      const venues = await scheduleService.getShipVenues();
+      setShipVenues(venues);
+    } catch (error) {
+      console.error("Failed to load ship venues", error);
+    }
+  };
 
-    restoreSession();
+  // Sync shipVenues with otherVenueShows to ensure template persistence
+  useEffect(() => {
+    if (shipVenues.length > 0) {
+      setOtherVenueShows(prevShows => {
+        const newShows = [...prevShows];
+        let changed = false;
+
+        shipVenues.forEach(venue => {
+          if (!newShows.find(s => s.venue === venue.name)) {
+            newShows.push({ venue: venue.name, shows: [] });
+            changed = true;
+          }
+        });
+
+        if (changed) {
+          return newShows;
+        }
+        return prevShows;
+      });
+    }
+  }, [shipVenues]);
+
+  useEffect(() => {
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    try {
+      const currentUser = await authService.validateToken();
+      setUser(currentUser);
+      if (currentUser) {
+        loadVoyages();
+        loadLatestSchedule();
+        loadShipVenues();
+      }
+    } catch (error) {
+      console.error("Auth check failed", error);
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
+
+
 
   const loadVoyages = async () => {
     try {
@@ -158,6 +198,33 @@ function App() {
     setItinerary(processedItinerary);
     setOriginalItinerary(processedItinerary);
 
+    // Process other venue shows
+    const grouped: { [key: string]: { date: string; title: string; time: string }[] } = {};
+
+    // Initialize with empty lists for all ship venues (template)
+    shipVenues.forEach(v => {
+      grouped[v.name] = [];
+    });
+
+    if (data.other_venue_shows && data.other_venue_shows.length > 0) {
+      data.other_venue_shows.forEach((show: any) => {
+        if (!grouped[show.venue]) {
+          grouped[show.venue] = [];
+        }
+        grouped[show.venue].push({
+          date: show.date,
+          title: show.title,
+          time: show.time
+        });
+      });
+    }
+
+    const newOtherShows: OtherVenueShow[] = Object.keys(grouped).map(venue => ({
+      venue,
+      shows: grouped[venue]
+    }));
+    setOtherVenueShows(newOtherShows);
+
     setIsModified(false);
   };
 
@@ -168,6 +235,13 @@ function App() {
     setOriginalItinerary([]);
     setCurrentVoyageNumber('');
     setIsModified(false);
+
+    // Reset footer to template (empty rows for all venues)
+    const templateShows: OtherVenueShow[] = shipVenues.map(v => ({
+      venue: v.name,
+      shows: []
+    }));
+    setOtherVenueShows(templateShows);
   };
 
   const handleLogout = () => {
@@ -175,6 +249,8 @@ function App() {
     setUser(null);
     clearSchedule();
     setVoyages([]);
+    setShipVenues([]);
+    setOtherVenueShows([]);
     navigate('/login');
   };
 
@@ -276,16 +352,26 @@ function App() {
   };
 
   const handlePublishSchedule = async (voyageNumber: string) => {
-    await scheduleService.publishSchedule(voyageNumber, events, itinerary);
-    setCurrentVoyageNumber(voyageNumber);
+    try {
+      setIsPublishing(true);
+      await scheduleService.publishSchedule(voyageNumber, events, itinerary, otherVenueShows);
+      setUploadSuccess(true);
+      // Update current voyage number if it's new
+      setCurrentVoyageNumber(voyageNumber);
+      setIsModified(false);
+      alert('Schedule published successfully!');
+    } catch (error) {
+      console.error("Failed to publish schedule", error);
+      alert('Failed to publish schedule. Please try again.');
+    } finally {
+      // Update original state to match current state (reset modified status)
+      setOriginalEvents(events);
+      setOriginalItinerary(itinerary);
+      setIsModified(false);
 
-    // Update original state to match current state (reset modified status)
-    setOriginalEvents(events);
-    setOriginalItinerary(itinerary);
-    setIsModified(false);
-
-    loadVoyages();
-    alert(`Schedule for Voyage ${voyageNumber} published successfully!`);
+      loadVoyages();
+      setIsPublishing(false);
+    }
   };
 
   const handleDeleteSchedule = async (voyageNumber: string) => {
@@ -363,7 +449,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={
-        user ? <Navigate to="/schedule" replace /> : <Login onLogin={(u) => { setUser(u); loadLatestSchedule(); loadVoyages(); }} />
+        user ? <Navigate to="/schedule" replace /> : <Login onLogin={(u) => { setUser(u); loadLatestSchedule(); loadVoyages(); loadShipVenues(); }} />
       } />
 
       <Route path="/schedule" element={
