@@ -9,7 +9,7 @@ import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import { authService } from './services/authService';
 import { scheduleService } from './services/scheduleService';
 import { assignEventColors } from './utils/eventColors';
-import type { Event, ItineraryItem } from './types';
+import type { Event, ItineraryItem, OtherVenueShow } from './types';
 
 function formatTimeDisplay(arrival?: string, departure?: string): string {
   const formatSingleTime = (t?: string) => {
@@ -61,6 +61,8 @@ function App() {
       type: 'show',
     },
   ]);
+
+  const [otherVenueShows, setOtherVenueShows] = useState<OtherVenueShow[]>([]);
 
   const [voyages, setVoyages] = useState<{ voyage_number: string; start_date: string; end_date: string }[]>([]);
 
@@ -230,6 +232,32 @@ function App() {
           departure: day.departure_time
         }));
         setItinerary(newItinerary);
+        setItinerary(newItinerary);
+      }
+
+      // Process other venue shows
+      if (data.other_venue_shows && data.other_venue_shows.length > 0) {
+        // Group by venue
+        const grouped: { [key: string]: { date: string; title: string; time: string }[] } = {};
+
+        data.other_venue_shows.forEach((show: any) => {
+          if (!grouped[show.venue]) {
+            grouped[show.venue] = [];
+          }
+          grouped[show.venue].push({
+            date: show.date,
+            title: show.title,
+            time: show.time
+          });
+        });
+
+        const newOtherShows: OtherVenueShow[] = Object.keys(grouped).map(venue => ({
+          venue,
+          shows: grouped[venue]
+        }));
+        setOtherVenueShows(newOtherShows);
+      } else {
+        setOtherVenueShows([]);
       }
 
       setEvents(prev => [...prev, ...coloredEvents]);
@@ -361,6 +389,7 @@ function App() {
               itinerary={itinerary}
               onDateChange={handleDateChange}
               onLocationChange={handleLocationChange}
+              otherVenueShows={otherVenueShows}
             />
 
             <Modal

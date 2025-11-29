@@ -37,8 +37,16 @@ async def upload_cd_grid(
         if file.filename.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png', '.xls', '.xlsx')):
             # Use GenAI Parser for CD Grid (PDF, Image, or Excel)
             try:
-                print(f"DEBUG: Parsing CD Grid with target_venue='{target_venue}'")
-                result = parser.parse_cd_grid(file_path, target_venue=target_venue)
+                # Fetch other venues for this ship to extract their main shows
+                other_venues = []
+                if current_user.ship_id:
+                    # Get all venues for the ship, excluding the target venue
+                    from sqlmodel import select
+                    venues = session.exec(select(Venue).where(Venue.ship_id == current_user.ship_id)).all()
+                    other_venues = [v.name for v in venues if v.name != target_venue]
+
+                print(f"DEBUG: Parsing CD Grid with target_venue='{target_venue}', other_venues={other_venues}")
+                result = parser.parse_cd_grid(file_path, target_venue=target_venue, other_venues=other_venues)
                 return result
             except Exception as e:
                 print(f"GenAI parsing failed: {e}")

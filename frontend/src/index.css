@@ -439,6 +439,95 @@ body {
   grid-template-columns: repeat(7, 1fr);
 }
 
+.venue-days-grid {
+  width: fit-content;
+  display: grid;
+  /* grid-template-columns set inline */
+}
+
+.other-venues-section {
+  border-top: 1px solid var(--border-medium);
+  background-color: white;
+  width: fit-content;
+}
+
+.venue-row {
+  display: flex;
+  border-bottom: 1px solid var(--border-medium);
+  width: fit-content;
+}
+
+.venue-label {
+  flex-shrink: 0;
+  width: 80px;
+  min-width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.65rem;
+  /* Matches spacer-label */
+  color: #5f6368;
+  background-color: white;
+  padding: 0.5rem;
+  text-align: center;
+  line-height: 1.25;
+  /* text-transform: uppercase; Removed to show actual name */
+  letter-spacing: 0.05em;
+}
+
+.venue-label.left {
+  border-right: 1px solid var(--border-medium);
+  position: sticky;
+  left: 0;
+  z-index: 80;
+}
+
+.venue-label.right {
+  border-left: 1px solid var(--border-medium);
+}
+
+.venue-day-cell {
+  border-right: 1px solid var(--border-medium);
+  background-color: white;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+  position: relative;
+  transition: background-color 0.2s;
+}
+
+.venue-day-cell:hover {
+  background-color: #f9fafb;
+}
+
+.venue-show-time {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  margin-bottom: 0.25rem;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.venue-show-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+  line-height: 1.25;
+}
+
+.venue-no-show {
+  color: var(--border-medium);
+  font-size: 0.75rem;
+  opacity: 0.3;
+}
+
 .day-header-cell {
   padding: 0;
   text-align: center;

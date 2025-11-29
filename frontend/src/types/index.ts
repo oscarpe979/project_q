@@ -17,3 +17,12 @@ export interface ItineraryItem {
     arrival?: string;
     departure?: string;
 }
+
+export interface OtherVenueShow {
+    venue: string;
+    shows: {
+        date: string; // YYYY-MM-DD
+        title: string;
+        time: string; // Display string e.g. "8:00 pm & 10:00 pm"
+    }[];
+}

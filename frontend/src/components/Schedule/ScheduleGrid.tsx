@@ -8,7 +8,7 @@ import { TimeColumn } from './TimeColumn';
 import { DayColumn } from './DayColumn';
 import { EventBlock } from './EventBlock';
 import { DatePicker } from '../UI/DatePicker';
-import type { Event, ItineraryItem } from '../../types';
+import type { Event, ItineraryItem, OtherVenueShow } from '../../types';
 
 interface ScheduleGridProps {
     events: Event[];
@@ -16,12 +16,14 @@ interface ScheduleGridProps {
     itinerary?: ItineraryItem[];
     onDateChange?: (dayIndex: number, newDate: Date) => void;
     onLocationChange?: (dayIndex: number, newLocation: string) => void;
+    otherVenueShows?: OtherVenueShow[];
 }
 
 const PIXELS_PER_HOUR = 100;
 const START_HOUR = 7;
 const SNAP_MINUTES = 5;
 const HOURS_COUNT = 18; // 07:00 to 01:00 next day
+const COLUMN_WIDTH_DEF = 'minmax(210px, 230px)';
 
 interface DayHeaderCellProps {
     day: Date;
@@ -160,7 +162,7 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
     );
 };
 
-export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [], onDateChange, onLocationChange }) => {
+export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [], onDateChange, onLocationChange, otherVenueShows = [] }) => {
     const [activeDatePickerIndex, setActiveDatePickerIndex] = React.useState<number | null>(null);
 
     const days = useMemo(() => {
@@ -310,7 +312,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                 </div>
                 <div
                     className="days-grid"
-                    style={{ gridTemplateColumns: `repeat(${days.length}, minmax(210px, 250px))` }}
+                    style={{ gridTemplateColumns: `repeat(${days.length}, ${COLUMN_WIDTH_DEF})` }}
                 >
                     {days.map((day, i) => (
                         <DayHeaderCell
@@ -344,7 +346,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
 
                     <div
                         className="events-grid"
-                        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(210px, 250px))` }}
+                        style={{ gridTemplateColumns: `repeat(${days.length}, ${COLUMN_WIDTH_DEF})` }}
                     >
                         <div className="grid-lines">
                             {Array.from({ length: HOURS_COUNT }).map((_, i) => (
@@ -418,6 +420,46 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                         <TimeColumn />
                     </div>
                 </div>
+
+                {/* Other Venue Shows Section */}
+                {otherVenueShows.length > 0 && (
+                    <div className="other-venues-section">
+                        {otherVenueShows.map((venueData, vIndex) => (
+                            <div key={vIndex} className="venue-row">
+                                {/* Venue Name Label (Left) */}
+                                <div className="venue-label left">
+                                    {venueData.venue}
+                                </div>
+
+                                {/* Days Grid */}
+                                <div className="venue-days-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${days.length}, ${COLUMN_WIDTH_DEF})` }}>
+                                    {days.map((day, dIndex) => {
+                                        const dateStr = format(day, 'yyyy-MM-dd');
+                                        const show = venueData.shows.find(s => s.date === dateStr);
+
+                                        return (
+                                            <div key={dIndex} className="venue-day-cell group">
+                                                {show ? (
+                                                    <>
+                                                        <div className="venue-show-time">{show.time}</div>
+                                                        <div className="venue-show-title">{show.title}</div>
+                                                    </>
+                                                ) : (
+                                                    <div className="venue-no-show">-</div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Venue Name Label (Right) */}
+                                <div className="venue-label right">
+                                    {venueData.venue}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -13,7 +13,7 @@ class GenAIParser:
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model_name)
     
-    def parse_cd_grid(self, file_path: str, target_venue: str) -> Dict[str, Any]:
+    def parse_cd_grid(self, file_path: str, target_venue: str, other_venues: List[str] = []) -> Dict[str, Any]:
         """
         Parse CD Grid (PDF, Image, or Excel) and extract itinerary + events.
         
@@ -66,7 +66,7 @@ class GenAIParser:
             content_to_send.append(uploaded_file)
 
             # Create structured prompt
-            prompt = self._create_parsing_prompt(target_venue)
+            prompt = self._create_parsing_prompt(target_venue, other_venues)
             content_to_send.append(prompt)
             
             # Generate response with JSON schema
@@ -118,7 +118,25 @@ class GenAIParser:
         
         return image_path
     
-    def _create_parsing_prompt(self, venue: str) -> str:
+    def _create_parsing_prompt(self, venue: str, other_venues: List[str]) -> str:
+        other_venues_prompt = ""
+        if other_venues:
+            other_venues_list = ", ".join(other_venues)
+            other_venues_prompt = f"""
+3. OTHER VENUE SHOWS (Focus on these columns: {other_venues_list}):
+   - For each of these other venues, extract the "Main Evening Show" for each day.
+   - The "Main Evening Show" is typically the most prominent event in that venue's column for the evening (usually 7pm onwards).
+   - Ignore any 'Back Up' or 'Backup' shows in these columns.
+   - Try to only extract the main show title. For example: 'inTENSE: Maximum Performance' can be 'inTENse', 'Headliner: Adam Kario' can be 'Adam Kario'. 
+   - Ignore minor activities like "Trivia" or "Music" in these columns unless it's clearly the main event.
+   - If a venue column doesn't exist or has no main show, skip it for that day.
+   - Extract:
+     - venue: The name of the venue. You MUST use one of the exact strings from this list: [{other_venues_list}]. Do NOT combine names (e.g., do NOT output "AquaTheater/Boardwalk"). If a column header contains multiple names, map it to the single most appropriate venue name from the provided list.
+     - date: String in YYYY-MM-DD format
+     - title: The name of the show
+     - time: The display time string exactly as it appears. Convert it to 12-hour format (e.g., "8:00 pm & 10:00 pm" or "9:00 pm")
+"""
+
         return f"""
 Analyze the uploaded file (PDF, Image, Excel/CSV) as a strict grid structure. Focus strictly on the column labeled {venue}. 
 Extract every event listed in this column for each date.
@@ -147,6 +165,8 @@ Present the output as a JSON object with the following structure:
    - end_time: String in HH:MM format (24-hour) or null if not specified
    - date: String in YYYY-MM-DD format (match to itinerary date)
    - venue: String (always "{venue}")
+
+{other_venues_prompt}
 
 Please note the below rules:
 
@@ -225,6 +245,19 @@ Return ONLY valid JSON matching the schema.
                         },
                         "required": ["title", "start_time", "date", "venue", "category"]
                     }
+                },
+                "other_venue_shows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "venue": {"type": "string"},
+                            "date": {"type": "string"},
+                            "title": {"type": "string"},
+                            "time": {"type": "string"}
+                        },
+                        "required": ["venue", "date", "title", "time"]
+                    }
                 }
             },
             "required": ["itinerary", "events"]
@@ -252,7 +285,8 @@ Return ONLY valid JSON matching the schema.
         
         return {
             "itinerary": result.get("itinerary", []),
-            "events": formatted_events
+            "events": formatted_events,
+            "other_venue_shows": result.get("other_venue_shows", [])
         }
 
     def _parse_single_event(self, event: Dict) -> Optional[Dict]:
