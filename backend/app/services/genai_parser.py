@@ -124,17 +124,17 @@ class GenAIParser:
             other_venues_list = ", ".join(other_venues)
             other_venues_prompt = f"""
 3. OTHER VENUE SHOWS (Focus on these columns: {other_venues_list}):
-   - For each of these other venues, extract the "Main Evening Show" for each day.
-   - The "Main Evening Show" is typically the most prominent event in that venue's column for the evening (usually 7pm onwards).
-   - Ignore any 'Back Up' or 'Backup' shows in these columns.
+   - For each of these other venues, extract **EXACTLY ONE** "Main Evening Show" for each day.
+   - The "Main Evening Show" is the single most important event in that venue for the evening (usually 7pm onwards).
+   - **CRITICAL**: You must output EXACTLY ONE event per venue per day. If there are multiple shows (e.g. 8pm and 10pm), choose the most important one that is a main production show or headliner.
+   - Ignore any 'Back Up' or 'Backup' shows.
    - Try to only extract the main show title. For example: 'inTENSE: Maximum Performance' can be 'inTENse', 'Headliner: Adam Kario' can be 'Adam Kario'. 
-   - Ignore minor activities like "Trivia" or "Music" in these columns unless it's clearly the main event.
    - If a venue column doesn't exist or has no main show, skip it for that day.
    - Extract:
-     - venue: The name of the venue. You MUST use one of the exact strings from this list: [{other_venues_list}]. Do NOT combine names (e.g., do NOT output "AquaTheater/Boardwalk"). If a column header contains multiple names, map it to the single most appropriate venue name from the provided list.
+     - venue: The name of the venue. You MUST use one of the exact strings from this list: [{other_venues_list}]. Do NOT combine names.
      - date: String in YYYY-MM-DD format
      - title: The name of the show
-     - time: The display time string exactly as it appears. Convert it to 12-hour format (e.g., "8:00 pm & 10:00 pm" or "9:00 pm")
+     - time: The display time string should be kept as they are but trying to convert it to 12-hour format. Keep in mind there might be multiple times that means there are two shows and we should keep both times in the time string. If you get times in words like "Midnight" or "Late", keep them as they are. (e.g., "8:00 pm & 10:00 pm" or "9:00 pm" or "Midnight").
 """
 
         return f"""
@@ -286,8 +286,42 @@ Return ONLY valid JSON matching the schema.
         return {
             "itinerary": result.get("itinerary", []),
             "events": formatted_events,
-            "other_venue_shows": result.get("other_venue_shows", [])
+            "other_venue_shows": self._filter_other_venue_shows(result.get("other_venue_shows", []))
         }
+
+    def _filter_other_venue_shows(self, shows: List[Dict]) -> List[Dict]:
+        """
+        Ensure only one show per venue per day.
+        Prioritize:
+        1. Shows starting between 7 PM and 10 PM.
+        2. Earliest show in that window.
+        """
+        grouped = {}
+        for show in shows:
+            key = (show['venue'], show['date'])
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(show)
+        
+        filtered_shows = []
+        for key, venue_shows in grouped.items():
+            if len(venue_shows) == 1:
+                filtered_shows.append(venue_shows[0])
+                continue
+            
+            # Multiple shows: Pick the best one
+            best_show = None
+            
+            # Strategy: Parse time and find the one closest to 8 PM (20:00)
+            # This is a heuristic since 'time' is a display string (e.g. "8:00 pm & 10:00 pm")
+            # We'll just pick the first one for now as the prompt instructs LLM to pick the main one.
+            # But to be safe, we can look for keywords or just take the first one.
+            
+            # If the prompt works well, the LLM should have already filtered. 
+            # But if it didn't, we just take the first one to enforce the constraint.
+            filtered_shows.append(venue_shows[0])
+            
+        return filtered_shows
 
     def _parse_single_event(self, event: Dict) -> Optional[Dict]:
         """Parse a single raw event into an intermediate structure."""

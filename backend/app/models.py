@@ -66,9 +66,9 @@ class Voyage(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.now)
     
     ship: Ship = Relationship(back_populates="voyages")
-    itineraries: List["VoyageItinerary"] = Relationship(back_populates="voyage")
-    schedule_items: List["ScheduleItem"] = Relationship(back_populates="voyage")
-    highlights: List["VenueHighlight"] = Relationship(back_populates="voyage")
+    itineraries: List["VoyageItinerary"] = Relationship(back_populates="voyage", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    schedule_items: List["ScheduleItem"] = Relationship(back_populates="voyage", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    highlights: List["VenueHighlight"] = Relationship(back_populates="voyage", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 class VoyageItinerary(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

@@ -464,6 +464,16 @@ def delete_schedule(
     if not voyage:
         raise HTTPException(status_code=404, detail="Voyage not found")
         
+    # Delete Venue Highlights for this venue (and voyage)
+    highlights_to_delete = session.exec(
+        select(VenueHighlight)
+        .where(VenueHighlight.voyage_id == voyage.id)
+        .where(VenueHighlight.source_venue_id == current_user.venue_id)
+    ).all()
+    
+    for highlight in highlights_to_delete:
+        session.delete(highlight)
+
     # Delete Schedule Items for this venue
     items_to_delete = session.exec(
         select(ScheduleItem)
@@ -489,6 +499,13 @@ def delete_schedule(
         ).all()
         for it in itineraries:
             session.delete(it)
+            
+        # Also delete ALL remaining highlights for this voyage (from any venue)
+        all_highlights = session.exec(
+            select(VenueHighlight).where(VenueHighlight.voyage_id == voyage.id)
+        ).all()
+        for h in all_highlights:
+            session.delete(h)
             
         session.delete(voyage)
         session.commit()

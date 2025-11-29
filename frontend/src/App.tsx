@@ -251,6 +251,8 @@ function App() {
     setVoyages([]);
     setShipVenues([]);
     setOtherVenueShows([]);
+    setIsUploading(false);
+    setUploadSuccess(false);
     navigate('/login');
   };
 
@@ -480,7 +482,12 @@ function App() {
 
             <Modal
               isOpen={isImportOpen}
-              onClose={() => !isUploading && setIsImportOpen(false)}
+              onClose={() => {
+                if (!isUploading) {
+                  setIsImportOpen(false);
+                  setUploadSuccess(false);
+                }
+              }}
               title="Import Schedule Grid"
             >
               <FileDropZone
