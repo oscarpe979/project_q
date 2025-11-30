@@ -8,6 +8,7 @@ import { TimeColumn } from './TimeColumn';
 import { DayColumn } from './DayColumn';
 import { EventBlock } from './EventBlock';
 import { DatePicker } from '../UI/DatePicker';
+import { FooterHighlightCell } from './FooterHighlightCell';
 import type { Event, ItineraryItem, OtherVenueShow } from '../../types';
 
 interface ScheduleGridProps {
@@ -17,6 +18,7 @@ interface ScheduleGridProps {
     onDateChange?: (dayIndex: number, newDate: Date) => void;
     onLocationChange?: (dayIndex: number, newLocation: string) => void;
     otherVenueShows?: OtherVenueShow[];
+    onOtherVenueShowUpdate?: (venue: string, date: string, title: string, time: string) => void;
 }
 
 const PIXELS_PER_HOUR = 100;
@@ -162,7 +164,7 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
     );
 };
 
-export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [], onDateChange, onLocationChange, otherVenueShows = [] }) => {
+export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [], onDateChange, onLocationChange, otherVenueShows = [], onOtherVenueShowUpdate }) => {
     const [activeDatePickerIndex, setActiveDatePickerIndex] = React.useState<number | null>(null);
 
     const days = useMemo(() => {
@@ -438,16 +440,13 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                                         const show = venueData.shows.find(s => s.date === dateStr);
 
                                         return (
-                                            <div key={dIndex} className="venue-day-cell group">
-                                                {show ? (
-                                                    <>
-                                                        <div className="venue-show-time">{show.time}</div>
-                                                        <div className="venue-show-title">{show.title}</div>
-                                                    </>
-                                                ) : (
-                                                    <div className="venue-no-show">-</div>
-                                                )}
-                                            </div>
+                                            <FooterHighlightCell
+                                                key={dIndex}
+                                                venue={venueData.venue}
+                                                date={day}
+                                                show={show}
+                                                onUpdate={onOtherVenueShowUpdate || (() => { })}
+                                            />
                                         );
                                     })}
                                 </div>

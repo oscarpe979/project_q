@@ -448,6 +448,33 @@ function App() {
     }
   };
 
+  const handleOtherVenueShowUpdate = (venue: string, date: string, title: string, time: string) => {
+    setOtherVenueShows(prevShows => {
+      const newShows = [...prevShows];
+      const venueIndex = newShows.findIndex(v => v.venue === venue);
+
+      if (venueIndex !== -1) {
+        const showIndex = newShows[venueIndex].shows.findIndex(s => s.date === date);
+
+        if (title.trim() === '' && time.trim() === '') {
+          // Delete if both empty
+          if (showIndex !== -1) {
+            newShows[venueIndex].shows.splice(showIndex, 1);
+          }
+        } else {
+          // Update or Add
+          if (showIndex !== -1) {
+            newShows[venueIndex].shows[showIndex] = { date, title, time };
+          } else {
+            newShows[venueIndex].shows.push({ date, title, time });
+          }
+        }
+      }
+      return newShows;
+    });
+    setIsModified(true);
+  };
+
   return (
     <Routes>
       <Route path="/login" element={
@@ -478,6 +505,7 @@ function App() {
               onDateChange={handleDateChange}
               onLocationChange={handleLocationChange}
               otherVenueShows={otherVenueShows}
+              onOtherVenueShowUpdate={handleOtherVenueShowUpdate}
             />
 
             <Modal
