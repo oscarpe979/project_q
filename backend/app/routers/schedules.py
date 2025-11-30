@@ -543,6 +543,13 @@ def export_schedule(
         .where(ScheduleItem.venue_id == current_user.venue_id)
     ).all()
 
+    # Fetch Venue Highlights for Footer
+    highlights = session.exec(
+        select(VenueHighlight)
+        .where(VenueHighlight.voyage_id == voyage.id)
+        .where(VenueHighlight.source_venue_id == current_user.venue_id)
+    ).all()
+
     # 2. Prepare Workbook
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -898,10 +905,10 @@ def export_schedule(
     # Column widths
     # User requested 75px for time columns and 300px for day columns.
     # OpenPyXL uses character units. Approx 1 char = 7px.
-    # 75px / 7 ≈ 10.7 -> 12 (generous)
+    # 75px / 7 ≈ 10.7 -> 12 (generous) -> User requested 100px -> 14.3
     # 300px / 7 ≈ 42.8 -> 42
-    ws.column_dimensions[get_column_letter(1)].width = 12
-    ws.column_dimensions[get_column_letter(len(itinerary_items) + 2)].width = 12
+    ws.column_dimensions[get_column_letter(1)].width = 14.3
+    ws.column_dimensions[get_column_letter(len(itinerary_items) + 2)].width = 14.3
     for i in range(len(itinerary_items)):
         ws.column_dimensions[get_column_letter(i + 2)].width = 42
 
@@ -942,6 +949,96 @@ def export_schedule(
     ws.cell(row=max_grid_row, column=1).border = Border(top=ws.cell(row=max_grid_row, column=1).border.top, left=thick_side, right=ws.cell(row=max_grid_row, column=1).border.right, bottom=thick_side)
     # Bottom-Right
     ws.cell(row=max_grid_row, column=last_col).border = Border(top=ws.cell(row=max_grid_row, column=last_col).border.top, left=ws.cell(row=max_grid_row, column=last_col).border.left, right=thick_side, bottom=thick_side)
+
+    # 7. Other Venue Shows Footer
+    if highlights:
+        # Group highlights by venue
+        venue_shows = {}
+        for h in highlights:
+            if h.highlight_venue_name not in venue_shows:
+                venue_shows[h.highlight_venue_name] = {}
+            venue_shows[h.highlight_venue_name][h.date] = h
+
+        sorted_venues = sorted(venue_shows.keys())
+        
+        # Start footer 1 row below max_grid_row (User requested moving up by 1)
+        footer_start_row = max_grid_row + 1
+        current_row = footer_start_row
+        
+        # Styles for footer
+        footer_venue_font = Font(name='Arial', size=11, bold=True, color='FF000000') # Black
+        footer_time_font = Font(name='Arial', size=10, bold=True, color='FF000000') # Black
+        footer_title_font = Font(name='Arial', size=11, bold=True, color='FF000000') # Black
+        
+        medium_side = Side(style='medium')
+        thin_side = Side(style='thin')
+
+        for venue in sorted_venues:
+            # Row A (Time) and Row B (Title)
+            row_a = current_row
+            row_b = current_row + 1
+            last_col = len(itinerary_items) + 2
+            
+            # Venue Name (Left Col)
+            ws.merge_cells(start_row=row_a, start_column=1, end_row=row_b, end_column=1)
+            cell_left = ws.cell(row=row_a, column=1, value=venue)
+            cell_left.font = footer_venue_font
+            cell_left.alignment = center_align
+            
+            # Venue Name (Right Col)
+            ws.merge_cells(start_row=row_a, start_column=last_col, end_row=row_b, end_column=last_col)
+            cell_right = ws.cell(row=row_a, column=last_col, value=venue)
+            cell_right.font = footer_venue_font
+            cell_right.alignment = center_align
+
+            # Shows per day
+            for idx, item in enumerate(itinerary_items):
+                col_idx = idx + 2
+                show = venue_shows[venue].get(item.date)
+                
+                # Cell A (Time)
+                cell_a = ws.cell(row=row_a, column=col_idx)
+                cell_a.alignment = Alignment(horizontal='center', vertical='bottom', wrap_text=True)
+                
+                # Cell B (Title)
+                cell_b = ws.cell(row=row_b, column=col_idx)
+                cell_b.alignment = Alignment(horizontal='center', vertical='top', wrap_text=True)
+                
+                if show:
+                    cell_a.value = show.time_text
+                    cell_a.font = footer_time_font
+                    
+                    cell_b.value = show.title
+                    cell_b.font = footer_title_font
+            
+            # Apply Borders to the entire 2-row block for this venue
+            # We need a medium border around the outside (Top of row_a, Bottom of row_b, Left of col 1, Right of last_col)
+            # And medium vertical borders for all columns to match the grid above.
+            
+            for c in range(1, last_col + 1):
+                # Row A (Top)
+                cell_top = ws.cell(row=row_a, column=c)
+                current_top_border = cell_top.border
+                new_top = medium_side
+                new_bottom = Side(style=None) # No internal horizontal divider
+                new_left = medium_side # Vertical lines are medium
+                new_right = medium_side # Vertical lines are medium
+                
+                cell_top.border = Border(top=new_top, bottom=new_bottom, left=new_left, right=new_right)
+                cell_top.fill = white_fill
+
+                # Row B (Bottom)
+                cell_bottom = ws.cell(row=row_b, column=c)
+                current_bottom_border = cell_bottom.border
+                new_top_b = Side(style=None) # No internal horizontal divider
+                new_bottom_b = medium_side
+                new_left_b = medium_side # Vertical lines are medium
+                new_right_b = medium_side # Vertical lines are medium
+                
+                cell_bottom.border = Border(top=new_top_b, bottom=new_bottom_b, left=new_left_b, right=new_right_b)
+                cell_bottom.fill = white_fill
+            
+            current_row += 2
 
     # Output
     output = io.BytesIO()
