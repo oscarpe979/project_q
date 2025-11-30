@@ -104,7 +104,17 @@ export const FooterHighlightCell: React.FC<FooterHighlightCellProps> = ({ venue,
                             } as React.CSSProperties}
                         />
                     ) : (
-                        <div className="venue-show-time" onClick={() => setIsEditingTime(true)}>{editTime || 'Time'}</div>
+                        <div
+                            className="venue-show-time select-none cursor-pointer"
+                            onClick={(e) => {
+                                if (e.detail === 2) {
+                                    e.stopPropagation();
+                                    setIsEditingTime(true);
+                                }
+                            }}
+                        >
+                            {editTime || 'Time'}
+                        </div>
                     )}
 
                     {isEditingTitle ? (
@@ -128,15 +138,33 @@ export const FooterHighlightCell: React.FC<FooterHighlightCellProps> = ({ venue,
                             } as React.CSSProperties}
                         />
                     ) : (
-                        <div className="venue-show-title" onClick={() => setIsEditingTitle(true)}>{editTitle || 'Title'}</div>
+                        <div
+                            className="venue-show-title select-none cursor-pointer"
+                            onClick={(e) => {
+                                if (e.detail === 2) {
+                                    e.stopPropagation();
+                                    setIsEditingTitle(true);
+                                }
+                            }}
+                        >
+                            {editTitle || 'Title'}
+                        </div>
                     )}
                 </div>
             );
         }
 
         return (
-            <div className="venue-day-cell group relative">
-                <div className="venue-no-show relative inline-block group-title-wrapper">
+            <div
+                className="venue-day-cell group relative"
+                onClick={(e) => {
+                    if (e.detail === 2) {
+                        e.stopPropagation();
+                        handleCreate();
+                    }
+                }}
+            >
+                <div className="venue-no-show relative inline-block group-title-wrapper select-none cursor-pointer">
                     <span>-</span>
                     <span className="pencil-spacer">
                         <span
@@ -159,8 +187,19 @@ export const FooterHighlightCell: React.FC<FooterHighlightCellProps> = ({ venue,
     return (
         <div className="venue-day-cell group relative flex flex-col justify-center items-center">
             {/* Time Section */}
-            <div className="venue-show-time relative flex justify-center items-center" style={{ minHeight: '1.2em' }}>
-                <div className={`relative inline-block group-time-wrapper ${isEditingTime ? 'invisible' : ''}`}>
+            <div
+                className="venue-show-time relative flex justify-center items-center select-none cursor-pointer"
+                style={{ minHeight: '1.2em' }}
+                onClick={(e) => {
+                    if (e.detail === 2) {
+                        e.stopPropagation();
+                        setIsEditingTime(true);
+                    }
+                }}
+            >
+                <div
+                    className={`relative inline-block group-time-wrapper ${isEditingTime ? 'invisible' : ''}`}
+                >
                     <span>{show.time}</span>
                     <span className="pencil-spacer">
                         <span
@@ -202,8 +241,19 @@ export const FooterHighlightCell: React.FC<FooterHighlightCellProps> = ({ venue,
             </div>
 
             {/* Title Section */}
-            <div className="venue-show-title relative flex justify-center items-center" style={{ minHeight: '1.2em' }}>
-                <div className={`relative inline-block group-title-wrapper ${isEditingTitle ? 'invisible' : ''}`}>
+            <div
+                className="venue-show-title relative flex justify-center items-center select-none cursor-pointer"
+                style={{ minHeight: '1.2em' }}
+                onClick={(e) => {
+                    if (e.detail === 2) {
+                        e.stopPropagation();
+                        setIsEditingTitle(true);
+                    }
+                }}
+            >
+                <div
+                    className={`relative inline-block group-title-wrapper ${isEditingTitle ? 'invisible' : ''}`}
+                >
                     <span>{show.title}</span>
                     <span className="pencil-spacer">
                         <span

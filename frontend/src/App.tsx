@@ -73,8 +73,29 @@ function App() {
   const [isModified, setIsModified] = useState(false);
 
   // Check for modifications
+  // Check for modifications
   useEffect(() => {
-    const eventsChanged = JSON.stringify(events) !== JSON.stringify(originalEvents);
+    const areEventsEqual = (arr1: Event[], arr2: Event[]) => {
+      if (arr1.length !== arr2.length) return false;
+      const sorted1 = [...arr1].sort((a, b) => a.id.localeCompare(b.id));
+      const sorted2 = [...arr2].sort((a, b) => a.id.localeCompare(b.id));
+
+      return sorted1.every((e1, i) => {
+        const e2 = sorted2[i];
+        return (
+          e1.id === e2.id &&
+          e1.title === e2.title &&
+          e1.start.getTime() === e2.start.getTime() &&
+          e1.end.getTime() === e2.end.getTime() &&
+          e1.type === e2.type &&
+          e1.color === e2.color &&
+          e1.notes === e2.notes &&
+          (e1.timeDisplay === e2.timeDisplay || (!e1.timeDisplay && !e2.timeDisplay))
+        );
+      });
+    };
+
+    const eventsChanged = !areEventsEqual(events, originalEvents);
     const itineraryChanged = JSON.stringify(itinerary) !== JSON.stringify(originalItinerary);
     setIsModified(eventsChanged || itineraryChanged);
   }, [events, itinerary, originalEvents, originalItinerary]);

@@ -211,6 +211,9 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                     if (durationMinutes < 15) {
                         newStart = new Date(e.end.getTime() - 15 * 60 * 1000);
                     }
+
+                    if (newStart.getTime() === e.start.getTime()) return e; // No change
+
                     return { ...e, start: newStart, timeDisplay: undefined };
                 } else if (isResizeBottom) {
                     let newEnd = addDays(setMinutes(e.end, e.end.getMinutes() + snappedMinutes), 0);
@@ -219,6 +222,9 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                     if (durationMinutes < 15) {
                         newEnd = new Date(e.start.getTime() + 15 * 60 * 1000);
                     }
+
+                    if (newEnd.getTime() === e.end.getTime()) return e; // No change
+
                     return { ...e, end: newEnd, timeDisplay: undefined };
                 } else {
                     let newStart = addDays(setMinutes(e.start, e.start.getMinutes() + snappedMinutes), 0);
@@ -242,6 +248,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                             }
                         }
                     }
+
+                    if (newStart.getTime() === e.start.getTime() && newEnd.getTime() === e.end.getTime()) return e; // No change
 
                     return {
                         ...e,

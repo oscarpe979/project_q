@@ -28,12 +28,33 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
     const [editTimeDisplay, setEditTimeDisplay] = React.useState(event.timeDisplay || defaultTimeLabel);
 
     const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastTimeClickRef = React.useRef(0);
+    const lastTitleClickRef = React.useRef(0);
+    const titleInputRef = React.useRef<HTMLInputElement>(null);
+    const timeInputRef = React.useRef<HTMLInputElement>(null);
 
     // Reset state when event changes
     React.useEffect(() => {
         setEditTitle(event.title);
         setEditTimeDisplay(event.timeDisplay || defaultTimeLabel);
     }, [event.title, event.timeDisplay, defaultTimeLabel]);
+
+    // Focus management
+    React.useEffect(() => {
+        if (isEditingTitle && titleInputRef.current) {
+            setTimeout(() => {
+                titleInputRef.current?.focus();
+            }, 10);
+        }
+    }, [isEditingTitle]);
+
+    React.useEffect(() => {
+        if (isEditingTime && timeInputRef.current) {
+            setTimeout(() => {
+                timeInputRef.current?.focus();
+            }, 10);
+        }
+    }, [isEditingTime]);
 
     React.useEffect(() => {
         return () => {
@@ -44,6 +65,9 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
     }, []);
 
     const handleSaveTitle = () => {
+        // Grace period: Ignore blur if it happens immediately after opening
+        if (Date.now() - lastTitleClickRef.current < 200) return;
+
         timeoutRef.current = setTimeout(() => {
             if (onUpdate && editTitle !== event.title) {
                 onUpdate(event.id, { title: editTitle });
@@ -53,13 +77,24 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
     };
 
     const handleSaveTime = () => {
+        // Grace period: Ignore blur if it happens immediately after opening
+        if (Date.now() - lastTimeClickRef.current < 200) return;
+
         const newTime = editTimeDisplay.trim();
-        timeoutRef.current = setTimeout(() => {
-            if (onUpdate) {
-                onUpdate(event.id, { timeDisplay: newTime || undefined });
-            }
+        const currentTime = event.timeDisplay || defaultTimeLabel;
+
+        // Only save if the time has actually changed
+        // This also prevents "flashing" from triggering unnecessary saves
+        if (newTime !== currentTime) {
+            timeoutRef.current = setTimeout(() => {
+                if (onUpdate) {
+                    onUpdate(event.id, { timeDisplay: newTime || undefined });
+                }
+                setIsEditingTime(false);
+            }, 50);
+        } else {
             setIsEditingTime(false);
-        }, 50);
+        }
     };
 
     const handleKeyDownTitle = (e: React.KeyboardEvent) => {
@@ -169,26 +204,26 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
 
     // Calculate preview times during drag/resize
     const getPreviewTimes = () => {
-        // Calculate duration in minutes based on the CLAMPED visual height
-        const durationMinutes = Math.round((currentHeight / PIXELS_PER_HOUR) * 60);
+        const pixelsToMinutes = (px: number) => {
+            const minutes = px * (60 / PIXELS_PER_HOUR);
+            return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
+        };
 
         if (isDragging && transform) {
             // Moving the entire event
-            const pixelsToMinutes = (px: number) => {
-                const minutes = px * (60 / PIXELS_PER_HOUR);
-                return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
-            };
             const minutesShift = pixelsToMinutes(snappedTransformY);
             const previewStart = new Date(event.start.getTime() + minutesShift * 60 * 1000);
             const previewEnd = new Date(event.end.getTime() + minutesShift * 60 * 1000);
             return { start: previewStart, end: previewEnd };
         } else if (isResizingTop) {
-            // Resizing from top: End is fixed, Start is derived from duration
-            const previewStart = new Date(event.end.getTime() - durationMinutes * 60 * 1000);
+            // Resizing from top: Apply delta to start time
+            const minutesShift = pixelsToMinutes(snappedResizeTopTransformY);
+            const previewStart = new Date(event.start.getTime() + minutesShift * 60 * 1000);
             return { start: previewStart, end: event.end };
         } else if (isResizingBottom) {
-            // Resizing from bottom: Start is fixed, End is derived from duration
-            const previewEnd = new Date(event.start.getTime() + durationMinutes * 60 * 1000);
+            // Resizing from bottom: Apply delta to end time
+            const minutesShift = pixelsToMinutes(snappedResizeTransformY);
+            const previewEnd = new Date(event.end.getTime() + minutesShift * 60 * 1000);
             return { start: event.start, end: previewEnd };
         }
         return { start: event.start, end: event.end };
@@ -220,7 +255,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                     "event-box w-full h-full relative rounded",
                     (!isEditingTitle && !isEditingTime) ? "overflow-hidden" : "overflow-visible",
                     getEventClass(),
-                    isSmallDuration && "is-compact"
+                    (isSmallDuration && !isEditingTitle && !isEditingTime) && "is-compact"
                 )}
                 style={visualStyle}
             >
@@ -241,7 +276,20 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                     <div className="event-content-full">
 
                         {/* Time Section */}
-                        <div className="event-time flex justify-center items-center relative" style={{ minHeight: '1.2em' }}>
+                        <div
+                            className="event-time flex justify-center items-center relative select-none cursor-pointer"
+                            style={{ minHeight: '1.2em' }}
+                            onPointerDown={(e) => {
+                                const now = Date.now();
+                                if (now - lastTimeClickRef.current < 300) {
+                                    e.stopPropagation();
+                                    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                                    setEditTimeDisplay(event.timeDisplay || defaultTimeLabel);
+                                    setIsEditingTime(true);
+                                }
+                                lastTimeClickRef.current = now;
+                            }}
+                        >
                             <div className={`relative inline-block group-time-wrapper ${isEditingTime ? 'invisible' : ''}`}>
                                 <span>{timeLabel}</span>
                                 {!isInteracting && (
@@ -263,6 +311,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                             {isEditingTime && (
                                 <div className="absolute inset-0 flex items-center justify-center z-50">
                                     <input
+                                        ref={timeInputRef}
                                         type="text"
                                         value={editTimeDisplay}
                                         onChange={(e) => setEditTimeDisplay(e.target.value)}
@@ -283,7 +332,19 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                         </div>
 
                         {/* Title Section */}
-                        <div className="event-title flex justify-center items-center relative" style={{ minHeight: '1.2em' }}>
+                        <div
+                            className="event-title flex justify-center items-center relative select-none cursor-pointer"
+                            style={{ minHeight: '1.2em' }}
+                            onPointerDown={(e) => {
+                                const now = Date.now();
+                                if (now - lastTitleClickRef.current < 300) {
+                                    e.stopPropagation();
+                                    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                                    setIsEditingTitle(true);
+                                }
+                                lastTitleClickRef.current = now;
+                            }}
+                        >
                             <div className={`relative inline-block group-title-wrapper ${isEditingTitle ? 'invisible' : ''}`}>
                                 <span>{event.title}</span>
                                 {!isInteracting && (
@@ -305,6 +366,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                             {isEditingTitle && (
                                 <div className="absolute inset-0 flex items-center justify-center z-50">
                                     <input
+                                        ref={titleInputRef}
                                         type="text"
                                         value={editTitle}
                                         onChange={(e) => setEditTitle(e.target.value)}
@@ -326,42 +388,49 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                     </div>
 
                     {/* Compact View (1 line) */}
-                    <div className="event-content-compact flex items-center gap-1 group/compact">
-                        <span className="event-time-compact">{timeLabel.split('-')[0]}</span> -
-                        {isEditingTitle ? (
-                            <input
-                                type="text"
-                                value={editTitle}
-                                onChange={(e) => setEditTitle(e.target.value)}
-                                onBlur={handleSaveTitle}
-                                onKeyDown={handleKeyDownTitle}
-                                onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
-                                autoFocus
-                                onPointerDown={(e) => e.stopPropagation()}
-                                className="glass-input-event"
-                                style={{
-                                    '--event-color': event.color,
-                                    padding: '0 2px',
-                                    fontSize: 'inherit'
-                                } as React.CSSProperties}
-                            />
-                        ) : (
-                            <>
-                                <span>{event.title}</span>
-                                {!isInteracting && (
-                                    <button
-                                        className="opacity-0 group-hover/compact:opacity-100 transition-opacity duration-200 p-0.5 rounded hover:bg-black/10"
-                                        onPointerDown={(e) => e.stopPropagation()}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsEditingTitle(true);
-                                        }}
-                                    >
-                                        <Edit2 size={10} className="text-current opacity-70" />
-                                    </button>
-                                )}
-                            </>
-                        )}
+                    <div className="event-content-compact flex items-center gap-1 group/compact select-none cursor-pointer">
+                        <span
+                            className="event-time-compact hover:text-blue-600 transition-colors"
+                            onPointerDown={(e) => {
+                                const now = Date.now();
+                                if (now - lastTimeClickRef.current < 300) {
+                                    e.stopPropagation();
+                                    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                                    setEditTimeDisplay(event.timeDisplay || defaultTimeLabel);
+                                    setIsEditingTime(true);
+                                }
+                                lastTimeClickRef.current = now;
+                            }}
+                        >
+                            {timeLabel.split('-')[0]}
+                        </span> -
+                        {/* Compact View (1 line) */}
+                        <span
+                            className="flex-1 truncate hover:text-blue-600 transition-colors"
+                            onPointerDown={(e) => {
+                                const now = Date.now();
+                                if (now - lastTitleClickRef.current < 300) {
+                                    e.stopPropagation();
+                                    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                                    setIsEditingTitle(true);
+                                }
+                                lastTitleClickRef.current = now;
+                            }}
+                        >
+                            <span>{event.title}</span>
+                            {!isInteracting && (
+                                <button
+                                    className="opacity-0 group-hover/compact:opacity-100 transition-opacity duration-200 p-0.5 rounded hover:bg-black/10 ml-1"
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsEditingTitle(true);
+                                    }}
+                                >
+                                    <Edit2 size={10} className="text-current opacity-70" />
+                                </button>
+                            )}
+                        </span>
                     </div>
                 </div>
 
