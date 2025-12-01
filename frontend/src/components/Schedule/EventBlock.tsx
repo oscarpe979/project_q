@@ -39,22 +39,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
         setEditTimeDisplay(event.timeDisplay || defaultTimeLabel);
     }, [event.title, event.timeDisplay, defaultTimeLabel]);
 
-    // Focus management
-    React.useEffect(() => {
-        if (isEditingTitle && titleInputRef.current) {
-            setTimeout(() => {
-                titleInputRef.current?.focus();
-            }, 10);
-        }
-    }, [isEditingTitle]);
 
-    React.useEffect(() => {
-        if (isEditingTime && timeInputRef.current) {
-            setTimeout(() => {
-                timeInputRef.current?.focus();
-            }, 10);
-        }
-    }, [isEditingTime]);
 
     React.useEffect(() => {
         return () => {
@@ -216,13 +201,27 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
             const previewEnd = new Date(event.end.getTime() + minutesShift * 60 * 1000);
             return { start: previewStart, end: previewEnd };
         } else if (isResizingTop) {
-            // Resizing from top: Apply delta to start time
-            const minutesShift = pixelsToMinutes(snappedResizeTopTransformY);
+            // Resizing from top: Apply delta to start time, but clamp to min duration
+            let minutesShift = pixelsToMinutes(snappedResizeTopTransformY);
+            const currentDurationMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
+
+            // Ensure new duration is at least 15 mins
+            if (currentDurationMinutes - minutesShift < 15) {
+                minutesShift = currentDurationMinutes - 15;
+            }
+
             const previewStart = new Date(event.start.getTime() + minutesShift * 60 * 1000);
             return { start: previewStart, end: event.end };
         } else if (isResizingBottom) {
-            // Resizing from bottom: Apply delta to end time
-            const minutesShift = pixelsToMinutes(snappedResizeTransformY);
+            // Resizing from bottom: Apply delta to end time, but clamp to min duration
+            let minutesShift = pixelsToMinutes(snappedResizeTransformY);
+            const currentDurationMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
+
+            // Ensure new duration is at least 15 mins
+            if (currentDurationMinutes + minutesShift < 15) {
+                minutesShift = 15 - currentDurationMinutes;
+            }
+
             const previewEnd = new Date(event.end.getTime() + minutesShift * 60 * 1000);
             return { start: event.start, end: previewEnd };
         }
@@ -247,15 +246,15 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                 "event-block",
                 isDragging && "dragging",
                 (isResizingBottom || isResizingTop) && "resizing",
-                "group"
+                "group",
+                isSmallDuration && "is-compact"
             )}
         >
             <div
                 className={clsx(
                     "event-box w-full h-full relative rounded",
                     (!isEditingTitle && !isEditingTime) ? "overflow-hidden" : "overflow-visible",
-                    getEventClass(),
-                    (isSmallDuration && !isEditingTitle && !isEditingTime) && "is-compact"
+                    getEventClass()
                 )}
                 style={visualStyle}
             >
@@ -308,17 +307,19 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                                     </span>
                                 )}
                             </div>
-                            {isEditingTime && (
+                            {isEditingTime && !isSmallDuration && (
                                 <div className="absolute inset-0 flex items-center justify-center z-50">
                                     <input
-                                        ref={timeInputRef}
+                                        ref={(el) => {
+                                            timeInputRef.current = el;
+                                            if (el) setTimeout(() => el.focus(), 0);
+                                        }}
                                         type="text"
                                         value={editTimeDisplay}
                                         onChange={(e) => setEditTimeDisplay(e.target.value)}
                                         onBlur={handleSaveTime}
                                         onKeyDown={handleKeyDownTime}
                                         onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
-                                        autoFocus
                                         onPointerDown={(e) => e.stopPropagation()}
                                         className="glass-input-event"
                                         style={{
@@ -363,17 +364,19 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                                     </span>
                                 )}
                             </div>
-                            {isEditingTitle && (
+                            {isEditingTitle && !isSmallDuration && (
                                 <div className="absolute inset-0 flex items-center justify-center z-50">
                                     <input
-                                        ref={titleInputRef}
+                                        ref={(el) => {
+                                            titleInputRef.current = el;
+                                            if (el) setTimeout(() => el.focus(), 0);
+                                        }}
                                         type="text"
                                         value={editTitle}
                                         onChange={(e) => setEditTitle(e.target.value)}
                                         onBlur={handleSaveTitle}
                                         onKeyDown={handleKeyDownTitle}
                                         onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
-                                        autoFocus
                                         onPointerDown={(e) => e.stopPropagation()}
                                         className="glass-input-event"
                                         style={{
@@ -388,50 +391,121 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                     </div>
 
                     {/* Compact View (1 line) */}
-                    <div className="event-content-compact flex items-center gap-1 group/compact select-none cursor-pointer">
-                        <span
-                            className="event-time-compact hover:text-blue-600 transition-colors"
-                            onPointerDown={(e) => {
-                                const now = Date.now();
-                                if (now - lastTimeClickRef.current < 300) {
-                                    e.stopPropagation();
-                                    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                                    setEditTimeDisplay(event.timeDisplay || defaultTimeLabel);
-                                    setIsEditingTime(true);
-                                }
-                                lastTimeClickRef.current = now;
+                    {isSmallDuration && (
+                        <div
+                            className="event-content-compact group/compact select-none cursor-pointer relative"
+                            style={{
+                                overflow: 'visible',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                height: '100%',
+                                width: '100%',
+                                padding: 0,
+                                margin: 0,
+                                gap: '0.25rem'
                             }}
                         >
-                            {timeLabel.split('-')[0]}
-                        </span> -
-                        {/* Compact View (1 line) */}
-                        <span
-                            className="flex-1 truncate hover:text-blue-600 transition-colors"
-                            onPointerDown={(e) => {
-                                const now = Date.now();
-                                if (now - lastTitleClickRef.current < 300) {
-                                    e.stopPropagation();
-                                    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                                    setIsEditingTitle(true);
-                                }
-                                lastTitleClickRef.current = now;
-                            }}
-                        >
-                            <span>{event.title}</span>
-                            {!isInteracting && (
-                                <button
-                                    className="opacity-0 group-hover/compact:opacity-100 transition-opacity duration-200 p-0.5 rounded hover:bg-black/10 ml-1"
-                                    onPointerDown={(e) => e.stopPropagation()}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsEditingTitle(true);
+                            {!isEditingTime && !isEditingTitle && (
+                                <>
+                                    <span
+                                        className="event-time-compact hover:text-blue-600 transition-colors relative"
+                                        onPointerDown={(e) => {
+                                            const now = Date.now();
+                                            if (now - lastTimeClickRef.current < 300) {
+                                                e.stopPropagation();
+                                                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                                                setEditTimeDisplay(event.timeDisplay || defaultTimeLabel);
+                                                setIsEditingTime(true);
+                                            }
+                                            lastTimeClickRef.current = now;
+                                        }}
+                                    >
+                                        {timeLabel.split('-')[0]}
+                                    </span>
+                                    <span>-</span>
+                                    <span
+                                        className="truncate hover:text-blue-600 transition-colors relative"
+                                        onPointerDown={(e) => {
+                                            const now = Date.now();
+                                            if (now - lastTitleClickRef.current < 300) {
+                                                e.stopPropagation();
+                                                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                                                setIsEditingTitle(true);
+                                            }
+                                            lastTitleClickRef.current = now;
+                                        }}
+                                    >
+                                        <span>{event.title}</span>
+                                    </span>
+                                </>
+                            )}
+
+                            {/* Shared Centered Overlay for Editing */}
+                            {(isEditingTime || isEditingTitle) && (
+                                <div
+                                    className="absolute inset-0 z-50"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        height: '100%',
+                                        width: '100%'
                                     }}
                                 >
-                                    <Edit2 size={10} className="text-current opacity-70" />
-                                </button>
+                                    {isEditingTime ? (
+                                        <input
+                                            ref={(el) => {
+                                                timeInputRef.current = el;
+                                                if (el) setTimeout(() => el.focus(), 0);
+                                            }}
+                                            type="text"
+                                            value={editTimeDisplay}
+                                            onChange={(e) => setEditTimeDisplay(e.target.value)}
+                                            onBlur={handleSaveTime}
+                                            onKeyDown={handleKeyDownTime}
+                                            onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            className="glass-input-event text-center font-medium"
+                                            style={{
+                                                '--event-color': event.color,
+                                                width: '100%',
+                                                height: '100%',
+                                                fontSize: 'inherit',
+                                                padding: '0',
+                                                margin: '0',
+                                                color: getContrastColor(event.color)
+                                            } as React.CSSProperties}
+                                        />
+                                    ) : (
+                                        <input
+                                            ref={(el) => {
+                                                titleInputRef.current = el;
+                                                if (el) setTimeout(() => el.focus(), 0);
+                                            }}
+                                            type="text"
+                                            value={editTitle}
+                                            onChange={(e) => setEditTitle(e.target.value)}
+                                            onBlur={handleSaveTitle}
+                                            onKeyDown={handleKeyDownTitle}
+                                            onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            className="glass-input-event text-center font-medium"
+                                            style={{
+                                                '--event-color': event.color,
+                                                width: '100%',
+                                                height: '100%',
+                                                fontSize: 'inherit',
+                                                padding: '0',
+                                                margin: '0',
+                                                color: getContrastColor(event.color)
+                                            } as React.CSSProperties}
+                                        />
+                                    )}
+                                </div>
                             )}
-                        </span>
-                    </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Bottom Resize Handle */}
