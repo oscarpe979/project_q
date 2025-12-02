@@ -106,19 +106,41 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
             <div className="header-row-day-number">DAY {info ? info.day : index + 1}</div>
             <div className="header-row-day-name">{format(day, 'EEEE')}</div>
             <div className="header-row-date relative group/date">
-                <span>{format(day, 'd-MMM-yy')}</span>
+                {isOpen ? (
+                    <input
+                        type="text"
+                        className="glass-input text-center cursor-pointer force-focus"
+                        value={format(day, 'd-MMM-yy')}
+                        readOnly
+                        style={{ textTransform: 'none' }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            // Keep calendar open if clicking input
+                        }}
+                    />
+                ) : (
+                    <span
+                        onDoubleClick={handleDateClick}
+                        className={onDateChange ? "cursor-pointer select-none" : ""}
+                        title="Double-click to change date"
+                    >
+                        {format(day, 'd-MMM-yy')}
+                    </span>
+                )}
                 {onDateChange && (
                     <>
-                        <span className="pencil-spacer">
-                            <span
-                                role="button"
-                                className="edit-icon-btn"
-                                onPointerDown={(e) => e.stopPropagation()}
-                                onClick={handleDateClick}
-                            >
-                                <Edit2 size={10} className="edit-icon-svg" />
+                        {!isOpen && (
+                            <span className="pencil-spacer">
+                                <span
+                                    role="button"
+                                    className="edit-icon-btn"
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onClick={handleDateClick}
+                                >
+                                    <Edit2 size={10} className="edit-icon-svg" />
+                                </span>
                             </span>
-                        </span>
+                        )}
                         {isOpen && (
                             <DatePicker
                                 value={day}
@@ -143,7 +165,13 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
                     />
                 ) : (
                     <>
-                        <span>{info ? info.location : 'AT SEA'}</span>
+                        <span
+                            onDoubleClick={handleLocationClick}
+                            className={onLocationChange ? "cursor-pointer select-none" : ""}
+                            title="Double-click to edit"
+                        >
+                            {info ? info.location : 'AT SEA'}
+                        </span>
                         {onLocationChange && (
                             <span className="pencil-spacer">
                                 <span

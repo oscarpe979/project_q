@@ -576,13 +576,33 @@ function App() {
       };
     });
 
+    // 4. Shift Other Venue Shows
+    const newOtherVenueShows = otherVenueShows.map(venue => ({
+      ...venue,
+      shows: venue.shows.map(show => {
+        const [y, m, d] = show.date.split('-').map(Number);
+        const date = new Date(y, m - 1, d);
+        date.setDate(date.getDate() + diffDays);
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+
+        return {
+          ...show,
+          date: `${year}-${month}-${day}`
+        };
+      })
+    }));
+
     setItinerary(newItinerary);
     setEvents(newEvents);
+    setOtherVenueShows(newOtherVenueShows);
 
     addToHistory({
       events: JSON.parse(JSON.stringify(newEvents)),
       itinerary: JSON.parse(JSON.stringify(newItinerary)),
-      otherVenueShows: JSON.parse(JSON.stringify(otherVenueShows))
+      otherVenueShows: JSON.parse(JSON.stringify(newOtherVenueShows))
     });
   };
 
