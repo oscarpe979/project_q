@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Calendar, Search } from 'lucide-react';
+import { ChevronDown, Calendar, Search, RotateCcw, RotateCw } from 'lucide-react';
 import clsx from 'clsx';
 
 interface Voyage {
@@ -14,9 +14,23 @@ interface VoyageSelectorProps {
     onSelect: (voyageNumber: string) => void;
     title: string;
     status?: 'live' | 'draft' | 'modified';
+    undo?: () => void;
+    redo?: () => void;
+    canUndo?: boolean;
+    canRedo?: boolean;
 }
 
-export const VoyageSelector: React.FC<VoyageSelectorProps> = ({ voyages, currentVoyageNumber, onSelect, title, status = 'draft' }) => {
+export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
+    voyages,
+    currentVoyageNumber,
+    onSelect,
+    title,
+    status = 'draft',
+    undo: onUndo,
+    redo: onRedo,
+    canUndo = false,
+    canRedo = false
+}) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -58,7 +72,7 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({ voyages, current
     };
 
     return (
-        <div className="voyage-selector" ref={dropdownRef} style={{ position: 'relative', zIndex: 50 }}>
+        <div className="voyage-selector" ref={dropdownRef} style={{ position: 'relative', zIndex: 50, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button
                 className={clsx(
                     "voyage-selector-btn",
@@ -130,6 +144,59 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({ voyages, current
                     }}
                 />
             </button>
+
+            <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <button
+                    onClick={onUndo}
+                    disabled={!canUndo}
+                    title="Undo (Ctrl+Z)"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(216, 212, 212, 0.54)',
+                        background: 'rgba(255, 255, 255, 0.83)',
+                        backdropFilter: 'blur(12px)',
+                        cursor: canUndo ? 'pointer' : 'not-allowed',
+                        color: canUndo ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                        opacity: canUndo ? 1 : 0.5,
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.03)'
+                    }}
+                    onMouseEnter={(e) => { if (canUndo) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)' }}
+                    onMouseLeave={(e) => { if (canUndo) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.83)' }}
+                >
+                    <RotateCcw size={14} />
+                </button>
+                <button
+                    onClick={onRedo}
+                    disabled={!canRedo}
+                    title="Redo (Ctrl+Y)"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(216, 212, 212, 0.54)',
+                        background: 'rgba(255, 255, 255, 0.83)',
+                        backdropFilter: 'blur(12px)',
+                        cursor: canRedo ? 'pointer' : 'not-allowed',
+                        color: canRedo ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                        opacity: canRedo ? 1 : 0.5,
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.03)'
+                    }}
+                    onMouseEnter={(e) => { if (canRedo) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)' }}
+                    onMouseLeave={(e) => { if (canRedo) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.83)' }}
+                >
+                    <RotateCw size={14} />
+                </button>
+            </div>
 
             {isOpen && (
                 <div className="voyage-dropdown" style={{

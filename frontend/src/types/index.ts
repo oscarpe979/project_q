@@ -26,3 +26,9 @@ export interface OtherVenueShow {
         time: string; // Display string e.g. "8:00 pm & 10:00 pm"
     }[];
 }
+
+export interface HistoryState {
+    events: Event[];
+    itinerary: ItineraryItem[];
+    otherVenueShows: OtherVenueShow[];
+}

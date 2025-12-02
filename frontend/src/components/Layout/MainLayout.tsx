@@ -16,6 +16,10 @@ interface MainLayoutProps {
     onVoyageSelect?: (voyageNumber: string) => void;
     onNewSchedule?: () => void;
     isModified?: boolean;
+    undo?: () => void;
+    redo?: () => void;
+    canUndo?: boolean;
+    canRedo?: boolean;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = (props) => {
@@ -260,6 +264,10 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                                     onSelect={props.onVoyageSelect}
                                     title={ship ? `${ship} ${venue}` : venue}
                                     status={!currentVoyageNumber ? 'draft' : props.isModified ? 'modified' : 'live'}
+                                    undo={props.undo}
+                                    redo={props.redo}
+                                    canUndo={props.canUndo}
+                                    canRedo={props.canRedo}
                                 />
                             ) : (
                                 <h2 className="header-title">

@@ -9,7 +9,7 @@ import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import { authService } from './services/authService';
 import { scheduleService } from './services/scheduleService';
 import { assignEventColors } from './utils/eventColors';
-import type { Event, ItineraryItem, OtherVenueShow } from './types';
+import type { Event, ItineraryItem, OtherVenueShow, HistoryState } from './types';
 
 function formatTimeDisplay(arrival?: string, departure?: string): string {
   const formatSingleTime = (t?: string) => {
@@ -70,35 +70,130 @@ function App() {
 
   const [originalEvents, setOriginalEvents] = useState<Event[]>([]);
   const [originalItinerary, setOriginalItinerary] = useState<ItineraryItem[]>([]);
+  const [originalOtherVenueShows, setOriginalOtherVenueShows] = useState<OtherVenueShow[]>([]);
   const [isModified, setIsModified] = useState(false);
+
+  // Undo/Redo State
+  const [history, setHistory] = useState<HistoryState[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const MAX_HISTORY = 30;
+
+  // Helper to add to history
+  const addToHistory = (newState: HistoryState) => {
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      const updatedHistory = [...newHistory, newState];
+      if (updatedHistory.length > MAX_HISTORY) {
+        updatedHistory.shift();
+      }
+      return updatedHistory;
+    });
+    setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
+  };
+
+  // Initialize history when data is loaded or reset
+  const initializeHistory = (initialEvents: Event[], initialItinerary: ItineraryItem[], initialShows: OtherVenueShow[]) => {
+    const initialState: HistoryState = {
+      events: JSON.parse(JSON.stringify(initialEvents)),
+      itinerary: JSON.parse(JSON.stringify(initialItinerary)),
+      otherVenueShows: JSON.parse(JSON.stringify(initialShows))
+    };
+    setHistory([initialState]);
+    setHistoryIndex(0);
+  };
+
+  // Effect to initialize history on first load if empty
+  useEffect(() => {
+    if (history.length === 0 && events.length > 0) {
+      initializeHistory(events, itinerary, otherVenueShows);
+    }
+  }, []); // Run once on mount, but we also handle resets manually in load functions
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      const prevState = history[historyIndex - 1];
+      // Restore state without triggering addToHistory
+      // We need to be careful not to trigger effects that might add to history again if we were using a different pattern
+      // But here we will manually set state.
+      // NOTE: Dates need to be reconstructed from JSON if we used JSON.stringify/parse for deep copy, 
+      // but here we might need a better deep copy or just handle dates.
+      // Let's fix the Date objects for events.
+      const restoredEvents = prevState.events.map(e => ({
+        ...e,
+        start: new Date(e.start),
+        end: new Date(e.end)
+      }));
+
+      setEvents(restoredEvents);
+      setItinerary(prevState.itinerary);
+      setOtherVenueShows(prevState.otherVenueShows);
+      setHistoryIndex(prev => prev - 1);
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      const nextState = history[historyIndex + 1];
+      const restoredEvents = nextState.events.map(e => ({
+        ...e,
+        start: new Date(e.start),
+        end: new Date(e.end)
+      }));
+
+      setEvents(restoredEvents);
+      setItinerary(nextState.itinerary);
+      setOtherVenueShows(nextState.otherVenueShows);
+      setHistoryIndex(prev => prev + 1);
+    }
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [history, historyIndex]); // Re-bind when history changes
 
   // Check for modifications
   // Check for modifications
   useEffect(() => {
-    const areEventsEqual = (arr1: Event[], arr2: Event[]) => {
-      if (arr1.length !== arr2.length) return false;
-      const sorted1 = [...arr1].sort((a, b) => a.id.localeCompare(b.id));
-      const sorted2 = [...arr2].sort((a, b) => a.id.localeCompare(b.id));
-
-      return sorted1.every((e1, i) => {
-        const e2 = sorted2[i];
-        return (
-          e1.id === e2.id &&
-          e1.title === e2.title &&
-          e1.start.getTime() === e2.start.getTime() &&
-          e1.end.getTime() === e2.end.getTime() &&
-          e1.type === e2.type &&
-          e1.color === e2.color &&
-          e1.notes === e2.notes &&
-          (e1.timeDisplay === e2.timeDisplay || (!e1.timeDisplay && !e2.timeDisplay))
-        );
-      });
-    };
-
     const eventsChanged = !areEventsEqual(events, originalEvents);
     const itineraryChanged = JSON.stringify(itinerary) !== JSON.stringify(originalItinerary);
-    setIsModified(eventsChanged || itineraryChanged);
-  }, [events, itinerary, originalEvents, originalItinerary]);
+    const otherShowsChanged = JSON.stringify(otherVenueShows) !== JSON.stringify(originalOtherVenueShows);
+    setIsModified(eventsChanged || itineraryChanged || otherShowsChanged);
+  }, [events, itinerary, otherVenueShows, originalEvents, originalItinerary, originalOtherVenueShows]);
+
+  // Helper to check if events are equal
+  const areEventsEqual = (arr1: Event[], arr2: Event[]) => {
+    if (arr1.length !== arr2.length) return false;
+    // Sort by ID to ensure order doesn't matter for comparison
+    const sorted1 = [...arr1].sort((a, b) => a.id.localeCompare(b.id));
+    const sorted2 = [...arr2].sort((a, b) => a.id.localeCompare(b.id));
+
+    return sorted1.every((e1, i) => {
+      const e2 = sorted2[i];
+      return (
+        e1.id === e2.id &&
+        e1.title === e2.title &&
+        e1.start.getTime() === e2.start.getTime() &&
+        e1.end.getTime() === e2.end.getTime() &&
+        e1.type === e2.type &&
+        e1.color === e2.color &&
+        e1.notes === e2.notes &&
+        (e1.timeDisplay === e2.timeDisplay || (!e1.timeDisplay && !e2.timeDisplay))
+      );
+    });
+  };
 
   const loadShipVenues = async () => {
     try {
@@ -245,8 +340,10 @@ function App() {
       shows: grouped[venue]
     }));
     setOtherVenueShows(newOtherShows);
+    setOriginalOtherVenueShows(JSON.parse(JSON.stringify(newOtherShows)));
 
     setIsModified(false);
+    initializeHistory(processedEvents, processedItinerary, newOtherShows);
   };
 
   const clearSchedule = () => {
@@ -263,6 +360,7 @@ function App() {
       shows: []
     }));
     setOtherVenueShows(templateShows);
+    initializeHistory([], [], templateShows);
   };
 
   const handleLogout = () => {
@@ -390,6 +488,7 @@ function App() {
       // Update original state to match current state (reset modified status)
       setOriginalEvents(events);
       setOriginalItinerary(itinerary);
+      setOriginalOtherVenueShows(otherVenueShows);
       setIsModified(false);
 
       loadVoyages();
@@ -403,6 +502,29 @@ function App() {
     // Optionally clear events or reload
     clearSchedule();
     loadVoyages();
+  };
+
+
+
+  // Wrapped Setters
+  const handleEventsChange = (newEvents: Event[] | ((prev: Event[]) => Event[])) => {
+    // Calculate new state based on current 'events' from closure
+    // This avoids side effects inside the setState updater
+    const updatedEvents = typeof newEvents === 'function' ? newEvents(events) : newEvents;
+
+    // Check if events actually changed
+    if (areEventsEqual(events, updatedEvents)) {
+      return;
+    }
+
+    setEvents(updatedEvents);
+
+    // Add to history
+    addToHistory({
+      events: JSON.parse(JSON.stringify(updatedEvents)), // Deep copy to avoid reference issues
+      itinerary: JSON.parse(JSON.stringify(itinerary)),
+      otherVenueShows: JSON.parse(JSON.stringify(otherVenueShows))
+    });
   };
 
   const handleDateChange = (dayIndex: number, newDate: Date) => {
@@ -456,6 +578,12 @@ function App() {
 
     setItinerary(newItinerary);
     setEvents(newEvents);
+
+    addToHistory({
+      events: JSON.parse(JSON.stringify(newEvents)),
+      itinerary: JSON.parse(JSON.stringify(newItinerary)),
+      otherVenueShows: JSON.parse(JSON.stringify(otherVenueShows))
+    });
   };
 
   const handleLocationChange = (dayIndex: number, newLocation: string) => {
@@ -466,33 +594,58 @@ function App() {
         location: newLocation
       };
       setItinerary(newItinerary);
+
+      addToHistory({
+        events: JSON.parse(JSON.stringify(events)),
+        itinerary: JSON.parse(JSON.stringify(newItinerary)),
+        otherVenueShows: JSON.parse(JSON.stringify(otherVenueShows))
+      });
     }
   };
 
   const handleOtherVenueShowUpdate = (venue: string, date: string, title: string, time: string) => {
-    setOtherVenueShows(prevShows => {
-      const newShows = [...prevShows];
-      const venueIndex = newShows.findIndex(v => v.venue === venue);
+    const newShows = [...otherVenueShows];
+    const venueIndex = newShows.findIndex(v => v.venue === venue);
 
-      if (venueIndex !== -1) {
-        const showIndex = newShows[venueIndex].shows.findIndex(s => s.date === date);
+    if (venueIndex !== -1) {
+      const currentShows = newShows[venueIndex].shows;
+      const showIndex = currentShows.findIndex(s => s.date === date);
+      const existingShow = showIndex !== -1 ? currentShows[showIndex] : null;
 
-        if (title.trim() === '' && time.trim() === '') {
-          // Delete if both empty
-          if (showIndex !== -1) {
-            newShows[venueIndex].shows.splice(showIndex, 1);
-          }
+      // Check if values actually changed
+      const currentTitle = existingShow ? existingShow.title : '';
+      const currentTime = existingShow ? existingShow.time : '';
+
+      if (currentTitle === title && currentTime === time) {
+        return; // No change, do nothing
+      }
+
+      // Deep copy the venue object we are modifying
+      newShows[venueIndex] = { ...newShows[venueIndex], shows: [...newShows[venueIndex].shows] };
+
+      if (title.trim() === '' && time.trim() === '') {
+        // Delete if both empty
+        if (showIndex !== -1) {
+          newShows[venueIndex].shows.splice(showIndex, 1);
+        }
+      } else {
+        // Update or Add
+        if (showIndex !== -1) {
+          newShows[venueIndex].shows[showIndex] = { date, title, time };
         } else {
-          // Update or Add
-          if (showIndex !== -1) {
-            newShows[venueIndex].shows[showIndex] = { date, title, time };
-          } else {
-            newShows[venueIndex].shows.push({ date, title, time });
-          }
+          newShows[venueIndex].shows.push({ date, title, time });
         }
       }
-      return newShows;
+    }
+
+    setOtherVenueShows(newShows);
+
+    addToHistory({
+      events: JSON.parse(JSON.stringify(events)),
+      itinerary: JSON.parse(JSON.stringify(itinerary)),
+      otherVenueShows: JSON.parse(JSON.stringify(newShows))
     });
+
     setIsModified(true);
   };
 
@@ -518,10 +671,14 @@ function App() {
               clearSchedule();
               alert('Started a new schedule draft.');
             }}
+            undo={undo}
+            redo={redo}
+            canUndo={historyIndex > 0}
+            canRedo={historyIndex < history.length - 1}
           >
             <ScheduleGrid
               events={events}
-              setEvents={setEvents}
+              setEvents={handleEventsChange}
               itinerary={itinerary}
               onDateChange={handleDateChange}
               onLocationChange={handleLocationChange}
