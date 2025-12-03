@@ -52,7 +52,7 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
 
     // Helper to format 24h time to 12h for display
     const formatTo12Hour = (time: string | null | undefined) => {
-        if (!time) return '--:--';
+        if (!time || time.trim().toLowerCase() === 'null') return '--:--';
         // If already has AM/PM, return as is
         if (time.match(/am|pm/i)) return time;
 

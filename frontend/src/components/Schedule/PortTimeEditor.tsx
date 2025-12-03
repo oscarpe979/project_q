@@ -35,7 +35,7 @@ export const PortTimeEditor: React.FC<PortTimeEditorProps> = ({
 
     // Parse initial time
     const parseTime = (timeStr: string | null) => {
-        if (!timeStr) return { hour: '', minute: '', period: 'AM' as Period };
+        if (!timeStr || timeStr.trim().toLowerCase() === 'null') return { hour: '', minute: '', period: 'AM' as Period };
         // Handle "8:00 am" or "8:00" format
         const cleanStr = timeStr.toLowerCase().replace(/\s/g, '');
         const isPM = cleanStr.includes('pm');

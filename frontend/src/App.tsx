@@ -13,7 +13,7 @@ import type { Event, ItineraryItem, OtherVenueShow, HistoryState } from './types
 
 function formatTimeDisplay(arrival?: string, departure?: string): string {
   const formatSingleTime = (t?: string) => {
-    if (!t || t.toLowerCase() === 'null') return null;
+    if (!t || t.trim().toLowerCase() === 'null') return null;
     // Try parsing 24h time "17:00" -> "5:00 pm"
     const [hours, minutes] = t.split(':').map(Number);
     if (!isNaN(hours) && !isNaN(minutes)) {
@@ -38,11 +38,12 @@ function App() {
   const [user, setUser] = useState<{ name: string; role: string; username: string; venueName?: string } | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
+
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [currentVoyageNumber, setCurrentVoyageNumber] = useState<string>('');
   const [shipVenues, setShipVenues] = useState<{ id: number; name: string }[]>([]);
+  const [processingTime, setProcessingTime] = useState<string | null>(null);
 
   const [itinerary, setItinerary] = useState<ItineraryItem[]>([
     { day: 1, date: '2025-11-17', location: 'SHANGHAI', time: '7:00 am - 4:30 pm' },
@@ -307,8 +308,8 @@ function App() {
         date: day.date,
         location: day.location,
         time: formatTimeDisplay(day.arrival_time, day.departure_time) || day.port_times || '',
-        arrival: day.arrival_time,
-        departure: day.departure_time
+        arrival: (day.arrival_time && day.arrival_time.trim().toLowerCase() !== 'null') ? day.arrival_time : null,
+        departure: (day.departure_time && day.departure_time.trim().toLowerCase() !== 'null') ? day.departure_time : null
       }));
     }
     setItinerary(processedItinerary);
@@ -382,6 +383,8 @@ function App() {
   const handleFileSelect = async (file: File) => {
     setIsUploading(true);
     setUploadSuccess(false);
+    setProcessingTime(null);
+    const startTime = Date.now();
     const formData = new FormData();
     formData.append('file', file);
 
@@ -425,8 +428,8 @@ function App() {
           date: day.date,
           location: day.port,
           time: formatTimeDisplay(day.arrival_time, day.departure_time),
-          arrival: day.arrival_time,
-          departure: day.departure_time
+          arrival: (day.arrival_time && day.arrival_time.trim().toLowerCase() !== 'null') ? day.arrival_time : null,
+          departure: (day.departure_time && day.departure_time.trim().toLowerCase() !== 'null') ? day.departure_time : null
         }));
         setItinerary(newItinerary);
         setItinerary(newItinerary);
@@ -459,6 +462,14 @@ function App() {
 
       setEvents(prev => [...prev, ...coloredEvents]);
       setUploadSuccess(true);
+
+      const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+      const mins = Math.floor(durationSeconds / 60);
+      const secs = durationSeconds % 60;
+      const formattedTime = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+      setProcessingTime(formattedTime);
+      setIsUploading(false);
     } catch (error) {
       console.error('Error uploading file:', error);
       alert('Failed to upload file. Please try again.');
@@ -474,7 +485,6 @@ function App() {
 
   const handlePublishSchedule = async (voyageNumber: string) => {
     try {
-      setIsPublishing(true);
       await scheduleService.publishSchedule(voyageNumber, events, itinerary, otherVenueShows);
       setUploadSuccess(true);
       // Update current voyage number if it's new
@@ -492,7 +502,6 @@ function App() {
       setIsModified(false);
 
       loadVoyages();
-      setIsPublishing(false);
     }
   };
 
@@ -708,7 +717,12 @@ function App() {
         <Route path="/schedule" element={
           <ProtectedRoute user={user}>
             <MainLayout
-              onImportClick={() => setIsImportOpen(true)}
+              onImportClick={() => {
+                setUploadSuccess(false);
+                setProcessingTime(null);
+                setIsUploading(false);
+                setIsImportOpen(true);
+              }}
               onLogout={handleLogout}
               user={user}
               onPublish={handlePublishSchedule}
@@ -760,6 +774,7 @@ function App() {
             <h3 className="success-title">Import Successful!</h3>
             <p className="success-message">
               Schedule for Voyage {currentVoyageNumber} has been successfully imported and processed.
+              {processingTime && <span style={{ display: 'block', marginTop: '8px', fontSize: '0.9em', opacity: 0.8 }}>Processed in {processingTime}</span>}
             </p>
             <button
               className="view-schedule-btn"
