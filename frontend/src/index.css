@@ -593,6 +593,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
 }
 
 .header-row-time {
@@ -603,6 +604,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
 }
 
 .grid-body {
@@ -916,6 +918,8 @@ body {
 .group-title-wrapper:hover .edit-icon-btn,
 .group-time-wrapper:hover .edit-icon-btn,
 .header-row-date:hover .edit-icon-btn,
+.header-row-location:hover .edit-icon-btn,
+.header-row-time:hover .edit-icon-btn,
 .edit-icon-btn:hover {
   opacity: 1;
 }
@@ -1371,4 +1375,432 @@ body {
 
 .view-schedule-btn:active {
   transform: translateY(0);
+}
+
+/* Port Time Editor Modal (M3) */
+.port-time-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.port-time-modal-content {
+  background-color: #ECE6F0;
+  border-radius: 28px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  width: 320px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: zoomIn 0.2s ease-out;
+}
+
+.port-time-header {
+  padding: 24px 24px 0 24px;
+}
+
+.port-time-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #49454F;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.port-time-tabs {
+  display: flex;
+  background-color: #E6E0E9;
+  padding: 4px;
+  border-radius: 999px;
+  margin-bottom: 24px;
+  border: 1px solid #CAC4D0;
+}
+
+.port-time-tab {
+  flex: 1;
+  padding: 6px 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+  color: #49454F;
+}
+
+.port-time-tab.active {
+  background-color: #6750A4;
+  color: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.port-time-tab:hover:not(.active) {
+  background-color: rgba(29, 25, 43, 0.05);
+}
+
+.port-time-display-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+
+.port-time-display {
+  background-color: #E6E0E9;
+  border-radius: 8px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  border-bottom: 2px solid #6750A4;
+}
+
+.port-time-digit {
+  font-size: 45px;
+  line-height: 52px;
+  font-weight: 400;
+  color: #1D1B20;
+  font-family: 'Roboto', sans-serif;
+}
+
+.port-time-ampm {
+  display: flex;
+  flex-direction: column;
+  margin-left: 12px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ampm-btn {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #79747E;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  color: #49454F;
+}
+
+.ampm-btn.active {
+  background-color: #E8DEF8;
+  color: #1D192B;
+  border-color: #E8DEF8;
+}
+
+.port-time-clock {
+  display: flex;
+  justify-content: center;
+  background-color: #ECE6F0;
+}
+
+.port-time-actions {
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.port-time-clear-btn {
+  padding: 8px;
+  color: #49454F;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.port-time-clear-btn:hover {
+  background-color: rgba(29, 25, 43, 0.1);
+}
+
+.port-time-btn {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6750A4;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.port-time-btn:hover {
+  background-color: rgba(29, 25, 43, 0.1);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes zoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* M3 Glassy Digital Time Editor */
+.glass-time-editor-popup {
+  background: rgba(255, 255, 255, 0.95);
+  /* Pure white base */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 28px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  padding: 24px;
+  width: auto;
+  min-width: 320px;
+  animation: zoomIn 0.15s ease-out;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.glass-time-input {
+  width: 96px;
+  height: 80px;
+  background: #f8f9fa;
+  /* Very light grey instead of blue */
+  color: #1f1f1f;
+  font-size: 57px;
+  line-height: 64px;
+  text-align: center;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  /* font-family: 'Roboto', sans-serif; Removed to match site font */
+  caret-color: #1a73e8;
+  /* Google Blue */
+}
+
+.glass-time-input:focus {
+  outline: none;
+  background: #ffffff;
+  border-color: #1a73e8;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.glass-time-input::placeholder {
+  color: rgba(0, 0, 0, 0.2);
+}
+
+.glass-time-separator {
+  font-size: 57px;
+  line-height: 64px;
+  color: #1f1f1f;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  /* Center vertically */
+  justify-content: center;
+  padding-bottom: 8px;
+  /* Slight offset to match font baseline visually */
+}
+
+.glass-time-toggle-group {
+  display: flex;
+  flex-direction: column;
+  height: 80px;
+  width: 48px;
+  /* Fixed width to prevent layout shift */
+  /* Removed border and background for cleaner look */
+  border: none;
+  background: transparent;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.glass-time-toggle-btn {
+  flex: 1;
+  width: 100%;
+  /* Ensure full width */
+  padding: 0 8px;
+  font-size: 18px;
+  /* Slightly larger */
+  font-weight: 500;
+  color: #9ca3af;
+  /* Greyed out by default */
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s;
+  /* Only animate color to prevent font-weight jitter */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glass-time-toggle-btn.active {
+  background: transparent;
+  color: #000000;
+  /* Black highlight as requested */
+  font-weight: 800;
+  /* transform: scale(1.1); Removed to prevent jitter */
+}
+
+/* ... (hover state remains same) ... */
+
+.glass-time-label {
+  font-size: 12px;
+  color: #444746;
+  margin-top: 4px;
+  /* margin-left removed for center alignment */
+}
+
+.glass-time-tabs {
+  background: #f0f4f8;
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.glass-time-tab-btn {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #444746;
+  background: transparent;
+}
+
+.glass-time-tab-btn.active {
+  background: #FFFFFF;
+  color: #1a73e8;
+  /* Google Blue */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.glass-time-tab-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.glass-time-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Center label with input */
+}
+
+.glass-time-action-btn {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  /* Match site font weight */
+  color: #1a73e8;
+  /* Google Blue */
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.glass-time-action-btn:hover {
+  background-color: rgba(26, 115, 232, 0.08);
+  /* Blue hover state */
+}
+
+.glass-time-icon-btn {
+  padding: 8px;
+  color: #444746;
+  /* Google dark grey */
+  border-radius: 50%;
+  border: none;
+  /* Removed border as requested */
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glass-time-icon-btn:hover {
+  background-color: rgba(26, 115, 232, 0.08);
+  color: #1a73e8;
+}
+
+.glass-time-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.glass-time-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.glass-time-port-name {
+  font-size: 22px;
+  /* Larger Title */
+  font-weight: 700;
+  /* Bold as requested */
+  color: #1f1f1f;
+  line-height: 28px;
+}
+
+/* ... (subtitle remains same) ... */
+
+.glass-time-subtitle {
+  font-size: 14px;
+  /* Smaller Label */
+  font-weight: 500;
+  color: #444746;
+  text-transform: none;
+  /* Keep natural case */
+}
+
+.glass-time-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  /* Reduced spacing as requested */
+}
+
+.glass-time-inputs-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  /* Reduced gap as requested */
+  margin-bottom: 0;
+  /* Handled by footer margin-top */
 }

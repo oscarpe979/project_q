@@ -9,6 +9,7 @@ import { DayColumn } from './DayColumn';
 import { EventBlock } from './EventBlock';
 import { DatePicker } from '../UI/DatePicker';
 import { FooterHighlightCell } from './FooterHighlightCell';
+import { PortTimeEditor } from './PortTimeEditor';
 import type { Event, ItineraryItem, OtherVenueShow } from '../../types';
 
 interface ScheduleGridProps {
@@ -17,6 +18,7 @@ interface ScheduleGridProps {
     itinerary?: ItineraryItem[];
     onDateChange?: (dayIndex: number, newDate: Date) => void;
     onLocationChange?: (dayIndex: number, newLocation: string) => void;
+    onTimeChange?: (dayIndex: number, arrival: string | null, departure: string | null) => void;
     otherVenueShows?: OtherVenueShow[];
     onOtherVenueShowUpdate?: (venue: string, date: string, title: string, time: string) => void;
 }
@@ -33,15 +35,37 @@ interface DayHeaderCellProps {
     index: number;
     onDateChange?: (dayIndex: number, newDate: Date) => void;
     onLocationChange?: (dayIndex: number, newLocation: string) => void;
-    isOpen: boolean;
-    onToggle: () => void;
+    onTimeChange?: (dayIndex: number, arrival: string | null, departure: string | null) => void;
 }
 
-const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateChange, onLocationChange, isOpen, onToggle }) => {
+const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateChange, onLocationChange, onTimeChange }) => {
+    const [isOpen, setIsOpen] = React.useState(false);
     const [isEditingLocation, setIsEditingLocation] = React.useState(false);
+    const [isEditingTime, setIsEditingTime] = React.useState(false);
+    const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
+    const [activeTimeTab, setActiveTimeTab] = React.useState<'arrival' | 'departure'>('arrival');
     const [locationInput, setLocationInput] = React.useState(info ? info.location : '');
     const inputRef = React.useRef<HTMLInputElement>(null);
     const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const onToggle = () => setIsOpen(!isOpen);
+
+    // Helper to format 24h time to 12h for display
+    const formatTo12Hour = (time: string | null | undefined) => {
+        if (!time) return '--:--';
+        // If already has AM/PM, return as is
+        if (time.match(/am|pm/i)) return time;
+
+        const [h, m] = time.split(':');
+        if (h === undefined || m === undefined) return time;
+
+        let hour = parseInt(h, 10);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        hour = hour % 12;
+        hour = hour ? hour : 12;
+
+        return `${hour}:${m} ${ampm}`;
+    };
 
     React.useEffect(() => {
         if (info) {
@@ -102,8 +126,8 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
     };
 
     return (
-        <div className="day-header-cell">
-            <div className="header-row-day-number">DAY {info ? info.day : index + 1}</div>
+        <div className="day-header-cell relative group">
+            <div className="header-row-day-number">DAY {index + 1}</div>
             <div className="header-row-day-name">{format(day, 'EEEE')}</div>
             <div className="header-row-date relative group/date">
                 {isOpen ? (
@@ -187,13 +211,91 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
                     </>
                 )}
             </div>
-            <div className="header-row-time">{info ? info.time : '\u00A0'}</div>
+            <div
+                className="header-row-time relative group/time"
+                ref={(el) => {
+                    // Store ref for anchoring
+                    if (el && isEditingTime && !anchorEl) {
+                        setAnchorEl(el);
+                    }
+                }}
+            >
+                <span
+                    onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (onTimeChange) {
+                            setAnchorEl(e.currentTarget.parentElement as HTMLElement);
+                            setIsEditingTime(true);
+                            setActiveTimeTab('arrival'); // Reset to arrival on open
+                        }
+                    }}
+                    className={onTimeChange ? "cursor-pointer select-none" : ""}
+                    title="Double-click to edit times"
+                >
+                    {isEditingTime && info ? (
+                        <>
+                            <span style={{
+                                fontWeight: activeTimeTab === 'arrival' ? '800' : 'normal',
+                                color: activeTimeTab === 'arrival' ? '#1a73e8' : 'inherit'
+                            }}>
+                                {formatTo12Hour(info.arrival)}
+                            </span>
+                            {' - '}
+                            <span style={{
+                                fontWeight: activeTimeTab === 'departure' ? '800' : 'normal',
+                                color: activeTimeTab === 'departure' ? '#1a73e8' : 'inherit'
+                            }}>
+                                {formatTo12Hour(info.departure)}
+                            </span>
+                        </>
+                    ) : (
+                        info ? info.time : '\u00A0'
+                    )}
+                </span>
+                {onTimeChange && !isEditingTime && (
+                    <span className="pencil-spacer">
+                        <span
+                            role="button"
+                            className="edit-icon-btn"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setAnchorEl(e.currentTarget.closest('.header-row-time') as HTMLElement);
+                                setIsEditingTime(true);
+                                setActiveTimeTab('arrival');
+                            }}
+                        >
+                            <Edit2 size={10} className="edit-icon-svg" />
+                        </span>
+                    </span>
+                )}
+            </div>
+
+            {/* M3 Port Time Editor Modal */}
+            <PortTimeEditor
+                isOpen={isEditingTime}
+                onClose={() => {
+                    setIsEditingTime(false);
+                    setAnchorEl(null);
+                }}
+                onSave={(arrival, departure) => {
+                    if (onTimeChange) {
+                        onTimeChange(index, arrival, departure);
+                    }
+                }}
+                initialArrival={info?.arrival || null}
+                initialDeparture={info?.departure || null}
+                portName={info?.location || 'Port Time'}
+                anchorEl={anchorEl}
+                onTabChange={setActiveTimeTab}
+                activeTab={activeTimeTab}
+            />
         </div>
     );
 };
 
-export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [], onDateChange, onLocationChange, otherVenueShows = [], onOtherVenueShowUpdate }) => {
-    const [activeDatePickerIndex, setActiveDatePickerIndex] = React.useState<number | null>(null);
+export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [], onDateChange, onLocationChange, onTimeChange, otherVenueShows = [], onOtherVenueShowUpdate }) => {
+
 
     const days = useMemo(() => {
         if (itinerary.length > 0) {
@@ -360,8 +462,8 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
                             index={i}
                             onDateChange={onDateChange}
                             onLocationChange={onLocationChange}
-                            isOpen={activeDatePickerIndex === i}
-                            onToggle={() => setActiveDatePickerIndex(activeDatePickerIndex === i ? null : i)}
+                            onTimeChange={onTimeChange}
+
                         />
                     ))}
                 </div>
