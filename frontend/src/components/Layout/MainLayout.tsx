@@ -64,9 +64,7 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
     }, []);
 
     const handlePublishClick = () => {
-        if (currentVoyageNumber) {
-            setVoyageNumber(currentVoyageNumber);
-        }
+        setVoyageNumber(currentVoyageNumber || '');
         setIsPublishModalOpen(true);
     };
 
@@ -316,7 +314,7 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                                     backgroundColor: 'white',
                                     minWidth: '200px',
                                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                                    zIndex: 50,
+                                    zIndex: 120,
                                     padding: '0.5rem',
                                     borderRadius: '8px',
                                     border: '1px solid rgba(0,0,0,0.05)',
@@ -380,10 +378,11 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                         <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Enter the Voyage Number to publish this schedule.</p>
                         <input
                             type="text"
-                            placeholder="Voyage Number (e.g., WN-2025-11-17)"
+                            placeholder=""
                             value={voyageNumber}
                             onChange={(e) => setVoyageNumber(e.target.value)}
-                            style={{ width: '100%', padding: '0.5rem', marginBottom: '1rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                            className="voyage-input"
+                            autoFocus={!currentVoyageNumber}
                         />
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                             <button className="btn btn-secondary" onClick={() => setIsPublishModalOpen(false)}>Cancel</button>

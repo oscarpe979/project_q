@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { format, addDays, startOfWeek, setMinutes } from 'date-fns';
 import { DndContext, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
+import { NewDraftOverlay } from './NewDraftOverlay';
 import { Edit2 } from 'lucide-react';
 import type { DragEndEvent } from '@dnd-kit/core';
 
@@ -21,6 +22,9 @@ interface ScheduleGridProps {
     onTimeChange?: (dayIndex: number, arrival: string | null, departure: string | null) => void;
     otherVenueShows?: OtherVenueShow[];
     onOtherVenueShowUpdate?: (venue: string, date: string, title: string, time: string) => void;
+    isNewDraft?: boolean;
+    onImportClick?: () => void;
+    onStartClick?: () => void;
 }
 
 const PIXELS_PER_HOUR = 100;
@@ -294,14 +298,31 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
     );
 };
 
-export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, itinerary = [], onDateChange, onLocationChange, onTimeChange, otherVenueShows = [], onOtherVenueShowUpdate }) => {
+export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
+    events,
+    setEvents,
+    itinerary = [],
+    onDateChange,
+    onLocationChange,
+    onTimeChange,
+    otherVenueShows = [],
+    onOtherVenueShowUpdate,
+    isNewDraft,
+    onImportClick,
+    onStartClick
+}) => {
 
 
     const days = useMemo(() => {
         if (itinerary.length > 0) {
-            return itinerary.map(item => {
+            return itinerary.map((item, index) => {
+                if (!item.date) {
+                    // Fallback for new drafts with empty dates
+                    return addDays(new Date(), index);
+                }
                 const [year, month, day] = item.date.split('-').map(Number);
-                return new Date(year, month - 1, day);
+                const date = new Date(year, month - 1, day);
+                return isNaN(date.getTime()) ? addDays(new Date(), index) : date;
             });
         }
         const startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -443,160 +464,168 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({ events, setEvents, i
 
     return (
         <div className="schedule-container custom-scrollbar">
-            <div className="days-header">
-                <div className="time-spacer">
-                    <div className="spacer-label spacer-day">DAY</div>
-                    <div className="spacer-label spacer-date">DATE</div>
-                    <div className="spacer-label spacer-port">PORT</div>
-                    <div className="spacer-label spacer-empty"></div>
-                </div>
-                <div
-                    className="days-grid"
-                    style={{ gridTemplateColumns: `repeat(${days.length}, ${COLUMN_WIDTH_DEF})` }}
-                >
-                    {days.map((day, i) => (
-                        <DayHeaderCell
-                            key={i}
-                            day={day}
-                            info={itinerary[i]}
-                            index={i}
-                            onDateChange={onDateChange}
-                            onLocationChange={onLocationChange}
-                            onTimeChange={onTimeChange}
-
-                        />
-                    ))}
-                </div>
-                <div className="time-spacer-right">
-                    <div className="spacer-label spacer-day">DAY</div>
-                    <div className="spacer-label spacer-date">DATE</div>
-                    <div className="spacer-label spacer-port">PORT</div>
-                    <div className="spacer-label spacer-empty"></div>
-                </div>
-            </div>
-
-            <div className="grid-body">
-                <div
-                    className="grid-content"
-                    style={{ height: `${HOURS_COUNT * PIXELS_PER_HOUR}px` }}
-                >
-                    <div className="time-column">
-                        <TimeColumn />
+            <div style={{ position: 'relative', width: 'fit-content' }}>
+                {isNewDraft && (
+                    <NewDraftOverlay
+                        onImportClick={onImportClick || (() => { })}
+                        onStartClick={onStartClick || (() => { })}
+                    />
+                )}
+                <div className="days-header">
+                    <div className="time-spacer">
+                        <div className="spacer-label spacer-day">DAY</div>
+                        <div className="spacer-label spacer-date">DATE</div>
+                        <div className="spacer-label spacer-port">PORT</div>
+                        <div className="spacer-label spacer-empty"></div>
                     </div>
-
                     <div
-                        className="events-grid"
+                        className="days-grid"
                         style={{ gridTemplateColumns: `repeat(${days.length}, ${COLUMN_WIDTH_DEF})` }}
                     >
-                        <div className="grid-lines">
-                            {Array.from({ length: HOURS_COUNT }).map((_, i) => (
-                                <div key={i} className="grid-line-hour">
-                                    {Array.from({ length: 11 }).map((_, j) => {
-                                        const minutes = (j + 1) * 5;
-                                        const top = (minutes / 60) * PIXELS_PER_HOUR - 1;
-                                        const is15Min = minutes % 15 === 0;
-                                        return (
-                                            <div
-                                                key={j}
-                                                className={is15Min ? "grid-line-15" : "grid-line-5"}
-                                                style={{ top: `${top}px` }}
-                                            ></div>
-                                        );
-                                    })}
-                                </div>
-                            ))}
+                        {days.map((day, i) => (
+                            <DayHeaderCell
+                                key={i}
+                                day={day}
+                                info={itinerary[i]}
+                                index={i}
+                                onDateChange={onDateChange}
+                                onLocationChange={onLocationChange}
+                                onTimeChange={onTimeChange}
+
+                            />
+                        ))}
+                    </div>
+                    <div className="time-spacer-right">
+                        <div className="spacer-label spacer-day">DAY</div>
+                        <div className="spacer-label spacer-date">DATE</div>
+                        <div className="spacer-label spacer-port">PORT</div>
+                        <div className="spacer-label spacer-empty"></div>
+                    </div>
+                </div>
+
+                <div className="grid-body">
+                    <div
+                        className="grid-content"
+                        style={{ height: `${HOURS_COUNT * PIXELS_PER_HOUR}px` }}
+                    >
+                        <div className="time-column">
+                            <TimeColumn />
                         </div>
 
-                        <DndContext
-                            sensors={sensors}
-                            onDragEnd={handleDragEnd}
+                        <div
+                            className="events-grid"
+                            style={{ gridTemplateColumns: `repeat(${days.length}, ${COLUMN_WIDTH_DEF})` }}
                         >
-                            {days.map((day) => (
-                                <DayColumn key={day.toISOString()} date={day} id={day.toISOString()}>
-                                    {allEventsWithLayout
-                                        .filter(item => {
-                                            const eventStart = item.event.start;
-                                            const nextDay = addDays(day, 1);
-                                            const startsToday = eventStart >= day && eventStart < nextDay && eventStart.getHours() >= 4;
-                                            const startsTomorrowEarly = eventStart >= nextDay && eventStart < addDays(nextDay, 1) && eventStart.getHours() < 4;
-                                            return startsToday || startsTomorrowEarly;
-                                        })
-                                        .map(({ event, style, isLate }) => {
-                                            let finalStyle = { ...style };
-                                            let finalIsLate = isLate;
-                                            if (event.start.getDate() !== day.getDate()) {
-                                                const startHour = event.start.getHours() + event.start.getMinutes() / 60;
-                                                const adjustedHour = startHour + 24;
-                                                const newTop = (adjustedHour - START_HOUR) * PIXELS_PER_HOUR;
-                                                finalStyle.top = `${newTop}px`;
-                                                const maxGridHeight = HOURS_COUNT * PIXELS_PER_HOUR;
-                                                const durationMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
-                                                const heightVal = (durationMinutes / 60) * PIXELS_PER_HOUR;
-                                                if (newTop + heightVal > maxGridHeight) {
-                                                    const newHeight = maxGridHeight - newTop;
-                                                    finalStyle.height = `${Math.max(0, newHeight)}px`;
-                                                    finalIsLate = true;
-                                                } else {
-                                                    finalStyle.height = `${heightVal}px`;
-                                                    finalIsLate = false;
-                                                }
-                                            }
+                            <div className="grid-lines">
+                                {Array.from({ length: HOURS_COUNT }).map((_, i) => (
+                                    <div key={i} className="grid-line-hour">
+                                        {Array.from({ length: 11 }).map((_, j) => {
+                                            const minutes = (j + 1) * 5;
+                                            const top = (minutes / 60) * PIXELS_PER_HOUR - 1;
+                                            const is15Min = minutes % 15 === 0;
                                             return (
-                                                <EventBlock
-                                                    key={event.id}
-                                                    event={event}
-                                                    style={finalStyle}
-                                                    isLate={finalIsLate}
-                                                    onUpdate={handleUpdateEvent}
+                                                <div
+                                                    key={j}
+                                                    className={is15Min ? "grid-line-15" : "grid-line-5"}
+                                                    style={{ top: `${top}px` }}
+                                                ></div>
+                                            );
+                                        })}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <DndContext
+                                sensors={sensors}
+                                onDragEnd={handleDragEnd}
+                            >
+                                {days.map((day) => (
+                                    <DayColumn key={day.toISOString()} date={day} id={day.toISOString()}>
+                                        {allEventsWithLayout
+                                            .filter(item => {
+                                                const eventStart = item.event.start;
+                                                const nextDay = addDays(day, 1);
+                                                const startsToday = eventStart >= day && eventStart < nextDay && eventStart.getHours() >= 4;
+                                                const startsTomorrowEarly = eventStart >= nextDay && eventStart < addDays(nextDay, 1) && eventStart.getHours() < 4;
+                                                return startsToday || startsTomorrowEarly;
+                                            })
+                                            .map(({ event, style, isLate }) => {
+                                                let finalStyle = { ...style };
+                                                let finalIsLate = isLate;
+                                                if (event.start.getDate() !== day.getDate()) {
+                                                    const startHour = event.start.getHours() + event.start.getMinutes() / 60;
+                                                    const adjustedHour = startHour + 24;
+                                                    const newTop = (adjustedHour - START_HOUR) * PIXELS_PER_HOUR;
+                                                    finalStyle.top = `${newTop}px`;
+                                                    const maxGridHeight = HOURS_COUNT * PIXELS_PER_HOUR;
+                                                    const durationMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
+                                                    const heightVal = (durationMinutes / 60) * PIXELS_PER_HOUR;
+                                                    if (newTop + heightVal > maxGridHeight) {
+                                                        const newHeight = maxGridHeight - newTop;
+                                                        finalStyle.height = `${Math.max(0, newHeight)}px`;
+                                                        finalIsLate = true;
+                                                    } else {
+                                                        finalStyle.height = `${heightVal}px`;
+                                                        finalIsLate = false;
+                                                    }
+                                                }
+                                                return (
+                                                    <EventBlock
+                                                        key={event.id}
+                                                        event={event}
+                                                        style={finalStyle}
+                                                        isLate={finalIsLate}
+                                                        onUpdate={handleUpdateEvent}
+                                                    />
+                                                );
+                                            })}
+                                    </DayColumn>
+                                ))}
+                            </DndContext>
+                        </div>
+
+                        <div className="time-column-right">
+                            <TimeColumn />
+                        </div>
+                    </div>
+
+                    {/* Other Venue Shows Section */}
+                    {otherVenueShows.length > 0 && (
+                        <div className="other-venues-section">
+                            {otherVenueShows.map((venueData, vIndex) => (
+                                <div key={vIndex} className="venue-row">
+                                    {/* Venue Name Label (Left) */}
+                                    <div className="venue-label left">
+                                        {venueData.venue}
+                                    </div>
+
+                                    {/* Days Grid */}
+                                    <div className="venue-days-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${days.length}, ${COLUMN_WIDTH_DEF})` }}>
+                                        {days.map((day, dIndex) => {
+                                            const dateStr = format(day, 'yyyy-MM-dd');
+                                            const show = venueData.shows.find(s => s.date === dateStr);
+
+                                            return (
+                                                <FooterHighlightCell
+                                                    key={dIndex}
+                                                    venue={venueData.venue}
+                                                    date={day}
+                                                    show={show}
+                                                    onUpdate={onOtherVenueShowUpdate || (() => { })}
                                                 />
                                             );
                                         })}
-                                </DayColumn>
+                                    </div>
+
+                                    {/* Venue Name Label (Right) */}
+                                    <div className="venue-label right">
+                                        {venueData.venue}
+                                    </div>
+                                </div>
                             ))}
-                        </DndContext>
-                    </div>
-
-                    <div className="time-column-right">
-                        <TimeColumn />
-                    </div>
+                        </div>
+                    )}
                 </div>
-
-                {/* Other Venue Shows Section */}
-                {otherVenueShows.length > 0 && (
-                    <div className="other-venues-section">
-                        {otherVenueShows.map((venueData, vIndex) => (
-                            <div key={vIndex} className="venue-row">
-                                {/* Venue Name Label (Left) */}
-                                <div className="venue-label left">
-                                    {venueData.venue}
-                                </div>
-
-                                {/* Days Grid */}
-                                <div className="venue-days-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${days.length}, ${COLUMN_WIDTH_DEF})` }}>
-                                    {days.map((day, dIndex) => {
-                                        const dateStr = format(day, 'yyyy-MM-dd');
-                                        const show = venueData.shows.find(s => s.date === dateStr);
-
-                                        return (
-                                            <FooterHighlightCell
-                                                key={dIndex}
-                                                venue={venueData.venue}
-                                                date={day}
-                                                show={show}
-                                                onUpdate={onOtherVenueShowUpdate || (() => { })}
-                                            />
-                                        );
-                                    })}
-                                </div>
-
-                                {/* Venue Name Label (Right) */}
-                                <div className="venue-label right">
-                                    {venueData.venue}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
             </div>
         </div>
     );

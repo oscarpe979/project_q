@@ -9,6 +9,7 @@ import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import { authService } from './services/authService';
 import { scheduleService } from './services/scheduleService';
 import { assignEventColors } from './utils/eventColors';
+
 import type { Event, ItineraryItem, OtherVenueShow, HistoryState } from './types';
 
 function formatTimeDisplay(arrival?: string, departure?: string): string {
@@ -33,10 +34,19 @@ function formatTimeDisplay(arrival?: string, departure?: string): string {
   return '';
 }
 
+const DEFAULT_ITINERARY: ItineraryItem[] = [
+  { day: 1, date: '', location: 'MIAMI', time: '' },
+  { day: 2, date: '', location: 'PERFECT DAY COCO CAY', time: '' },
+  { day: 3, date: '', location: 'NASSAU', time: '' },
+  { day: 4, date: '', location: 'CRUISING', time: '' },
+];
+
 function App() {
   const navigate = useNavigate();
   const [user, setUser] = useState<{ name: string; role: string; username: string; venueName?: string } | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isPublishSuccessOpen, setIsPublishSuccessOpen] = useState(false);
+  const [isNewDraft, setIsNewDraft] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
   const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -272,6 +282,8 @@ function App() {
     try {
       const data = await scheduleService.getScheduleByVoyage(voyageNumber);
       processScheduleData(data);
+      setCurrentVoyageNumber(voyageNumber);
+      setIsNewDraft(false); // Hide overlay when loading an existing schedule
     } catch (error) {
       console.error("Failed to load schedule", error);
       alert('Failed to load schedule');
@@ -349,11 +361,12 @@ function App() {
 
   const clearSchedule = () => {
     setEvents([]);
-    setItinerary([]);
+    setItinerary(DEFAULT_ITINERARY);
     setOriginalEvents([]);
-    setOriginalItinerary([]);
+    setOriginalItinerary(DEFAULT_ITINERARY);
     setCurrentVoyageNumber('');
     setIsModified(false);
+    setIsNewDraft(true);
 
     // Reset footer to template (empty rows for all venues)
     const templateShows: OtherVenueShow[] = shipVenues.map(v => ({
@@ -432,7 +445,9 @@ function App() {
           departure: (day.departure_time && day.departure_time.trim().toLowerCase() !== 'null') ? day.departure_time : null
         }));
         setItinerary(newItinerary);
-        setItinerary(newItinerary);
+        setIsNewDraft(false); // Disable new draft overlay on import
+      } else {
+        setItinerary([]);
       }
 
       // Process other venue shows
@@ -490,7 +505,7 @@ function App() {
       // Update current voyage number if it's new
       setCurrentVoyageNumber(voyageNumber);
       setIsModified(false);
-      alert('Schedule published successfully!');
+      setIsPublishSuccessOpen(true);
     } catch (error) {
       console.error("Failed to publish schedule", error);
       alert('Failed to publish schedule. Please try again.');
@@ -749,6 +764,14 @@ function App() {
                 onTimeChange={handleTimeChange}
                 otherVenueShows={otherVenueShows}
                 onOtherVenueShowUpdate={handleOtherVenueShowUpdate}
+                isNewDraft={isNewDraft}
+                onImportClick={() => {
+                  setUploadSuccess(false);
+                  setProcessingTime(null);
+                  setIsUploading(false);
+                  setIsImportOpen(true);
+                }}
+                onStartClick={() => setIsNewDraft(false)}
               />
             </MainLayout>
           </ProtectedRoute>
@@ -773,7 +796,7 @@ function App() {
             </div>
             <h3 className="success-title">Import Successful!</h3>
             <p className="success-message">
-              Schedule for Voyage {currentVoyageNumber} has been successfully imported and processed.
+              The grid has been successfully imported and processed.
               {processingTime && <span style={{ display: 'block', marginTop: '8px', fontSize: '0.9em', opacity: 0.8 }}>Processed in {processingTime}</span>}
             </p>
             <button
@@ -791,6 +814,32 @@ function App() {
             isLoading={isUploading}
           />
         )}
+      </Modal>
+
+      {/* Publish Success Modal */}
+      <Modal
+        isOpen={isPublishSuccessOpen}
+        onClose={() => setIsPublishSuccessOpen(false)}
+        title="Schedule Saved"
+      >
+        <div className="processing-status-container success">
+          <div className="success-icon-wrapper">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M22 4L12 14.01l-3-3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <h3 className="success-title">Schedule Saved!</h3>
+          <p className="success-message">
+            Schedule for <strong>Voyage {currentVoyageNumber}</strong> has been successfully saved.
+          </p>
+          <button
+            className="view-schedule-btn"
+            onClick={() => setIsPublishSuccessOpen(false)}
+          >
+            Continue
+          </button>
+        </div>
       </Modal>
     </div>
   );
