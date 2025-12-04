@@ -393,6 +393,17 @@ function App() {
     initializeHistory([], generateDefaultItinerary(), templateShows);
   };
 
+  const resetUIState = () => {
+    setIsImportOpen(false);
+    setIsPublishSuccessOpen(false);
+    setIsPublishModalOpen(false);
+    setIsUnsavedModalOpen(false);
+    setPendingAction(null);
+    setProcessingTime(null);
+    setIsUploading(false);
+    setUploadSuccess(false);
+  };
+
   const handleLogout = () => {
     authService.logout();
     setUser(null);
@@ -400,8 +411,7 @@ function App() {
     setVoyages([]);
     setShipVenues([]);
     setOtherVenueShows([]);
-    setIsUploading(false);
-    setUploadSuccess(false);
+    resetUIState();
     navigate('/login');
   };
 
@@ -814,7 +824,7 @@ function App() {
 
       <Routes>
         <Route path="/login" element={
-          user ? <Navigate to="/schedule" replace /> : <Login onLogin={(u) => { setUser(u); loadLatestSchedule(); loadSchedules(); loadShipVenues(); }} />
+          user ? <Navigate to="/schedule" replace /> : <Login onLogin={(u) => { setUser(u); loadLatestSchedule(); loadSchedules(); loadShipVenues(); resetUIState(); }} />
         } />
 
         <Route path="/schedule" element={
