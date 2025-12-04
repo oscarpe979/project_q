@@ -15,7 +15,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         <div className="modal-overlay">
             {/* Backdrop click handler */}
             <div
-                style={{ position: 'absolute', inset: 0 }}
+                className="modal-backdrop-click"
                 onClick={onClose}
             ></div>
 

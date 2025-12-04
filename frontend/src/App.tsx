@@ -391,6 +391,7 @@ function App() {
       shows: []
     }));
     setOtherVenueShows(templateShows);
+    setOriginalOtherVenueShows(templateShows);
     initializeHistory([], generateDefaultItinerary(), templateShows);
   };
 
@@ -532,19 +533,18 @@ function App() {
       setUploadSuccess(true);
       // Update current voyage number if it's new
       setCurrentVoyageNumber(voyageNumber);
-      setIsModified(false);
-      setIsPublishSuccessOpen(true);
-    } catch (error) {
-      console.error("Failed to publish schedule", error);
-      alert('Failed to publish schedule. Please try again.');
-    } finally {
+
       // Update original state to match current state (reset modified status)
       setOriginalEvents(events);
       setOriginalItinerary(itinerary);
       setOriginalOtherVenueShows(otherVenueShows);
       setIsModified(false);
 
+      setIsPublishSuccessOpen(true);
       loadSchedules();
+    } catch (error) {
+      console.error("Failed to publish schedule", error);
+      alert('Failed to publish schedule. Please try again.');
     }
   };
 
@@ -833,7 +833,10 @@ function App() {
         <Route path="/schedule" element={
           <ProtectedRoute user={user}>
             <MainLayout
-              onImportClick={() => setIsImportOpen(true)}
+              onImportClick={() => {
+                setUploadSuccess(false);
+                setIsImportOpen(true);
+              }}
               onLogout={handleLogout}
               user={user}
               onPublish={handlePublishSchedule}

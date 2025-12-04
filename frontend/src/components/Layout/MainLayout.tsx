@@ -217,8 +217,8 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                         <LayoutGrid size={20} strokeWidth={2.5} />
                     </div>
                     <div>
-                        <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', letterSpacing: '-0.025em' }}>VenueSched</h1>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Royal Caribbean</p>
+                        <h1 className="brand-title">VenueSched</h1>
+                        <p className="brand-subtitle">Royal Caribbean</p>
                     </div>
                 </div>
 
@@ -228,7 +228,7 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                     <NavItem icon={<Calendar size={20} />} label="Schedule" active />
                     <NavItem icon={<Upload size={20} />} label="Import Grid" onClick={onImportClick} />
 
-                    <div style={{ marginTop: '1.5rem' }}>
+                    <div className="nav-divider">
                         <div className="nav-section-label">System</div>
                         <NavItem icon={<Settings size={20} />} label="Settings" />
                     </div>
@@ -240,9 +240,9 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                         <div className="user-avatar">
                             {user?.username ? user.username.split('_')[0].toUpperCase() : (user?.name.charAt(0) || 'U')}
                         </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: '0.875rem', fontWeight: 'bold', lineHeight: '1.2', margin: 0 }}>{user?.name || 'User'}</p>
-                            <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0px', marginBottom: 0 }}>Role: {user?.role?.toUpperCase() || 'STAFF'}</p>
+                        <div className="user-info">
+                            <p className="user-name">{user?.name || 'User'}</p>
+                            <p className="user-role">Role: {user?.role?.toUpperCase() || 'STAFF'}</p>
                         </div>
                         <button
                             onClick={onLogout}
@@ -259,7 +259,7 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
             <main className="main-content">
                 {/* Header */}
                 <header className="top-header glass-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                    <div className="header-left">
                         <div>
                             {props.voyages && props.onVoyageSelect ? (
                                 <VoyageSelector
@@ -283,51 +283,20 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                        <div className="dropdown" ref={viewOptionsRef} style={{ position: 'relative', display: 'inline-block' }}>
+                    <div className="header-right">
+                        <div className="dropdown view-options-container" ref={viewOptionsRef}>
                             <button
                                 onClick={() => setIsViewOptionsOpen(!isViewOptionsOpen)}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    padding: '0.5rem 1rem',
-                                    background: isViewOptionsOpen ? 'rgba(0, 0, 0, 0.05)' : 'transparent',
-                                    border: '1px solid transparent',
-                                    borderRadius: '8px',
-                                    fontSize: '0.875rem',
-                                    fontWeight: 500,
-                                    color: 'var(--text-primary)',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease'
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.05)'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isViewOptionsOpen ? 'rgba(0, 0, 0, 0.05)' : 'transparent'}
+                                className={`view-options-btn ${isViewOptionsOpen ? 'active' : ''}`}
                             >
                                 View Options
                                 <ChevronDown
                                     size={16}
-                                    style={{
-                                        transform: isViewOptionsOpen ? 'rotate(180deg)' : 'none',
-                                        transition: 'transform 0.2s ease',
-                                        color: 'var(--text-secondary)'
-                                    }}
+                                    className={`view-options-icon ${isViewOptionsOpen ? 'open' : ''}`}
                                 />
                             </button>
                             {isViewOptionsOpen && (
-                                <div className="dropdown-content" style={{
-                                    position: 'absolute',
-                                    right: 0,
-                                    top: 'calc(100% + 4px)',
-                                    backgroundColor: 'white',
-                                    minWidth: '200px',
-                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                                    zIndex: 120,
-                                    padding: '0.5rem',
-                                    borderRadius: '8px',
-                                    border: '1px solid rgba(0,0,0,0.05)',
-                                    animation: 'fadeIn 0.1s ease-out'
-                                }}>
+                                <div className="dropdown-menu">
                                     <MenuItem
                                         onClick={() => {
                                             if (props.onNewSchedule) {
@@ -336,17 +305,8 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                                             }
                                         }}
                                         icon={
-                                            <div style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                width: '24px',
-                                                height: '24px',
-                                                borderRadius: '50%',
-                                                background: props.isNewDraft ? '#e5e7eb' : '#e0e7ff',
-                                                color: props.isNewDraft ? '#9ca3af' : '#6366f1'
-                                            }}>
-                                                <span style={{ fontSize: '16px', lineHeight: 1, fontWeight: 'bold' }}>+</span>
+                                            <div className={`new-schedule-icon ${props.isNewDraft ? 'draft' : 'active'}`}>
+                                                <span className="new-schedule-plus">+</span>
                                             </div>
                                         }
                                         label="New Schedule"
@@ -358,7 +318,7 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                                         label={isExporting ? "Exporting..." : "Export to Excel"}
                                         disabled={!currentVoyageNumber}
                                     />
-                                    <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }}></div>
+                                    <div className="dropdown-divider"></div>
                                     <MenuItem
                                         onClick={handleDeleteClick}
                                         icon={<LogOut size={16} />}
@@ -370,15 +330,9 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                             )}
                         </div>
                         <button
-                            className="btn btn-primary"
+                            className="btn btn-primary publish-btn"
                             onClick={handlePublishClick}
                             disabled={props.isNewDraft}
-                            style={{
-                                opacity: props.isNewDraft ? 0.5 : 1,
-                                cursor: props.isNewDraft ? 'not-allowed' : 'pointer',
-                                background: props.isNewDraft ? '#9ca3af' : undefined,
-                                borderColor: props.isNewDraft ? 'transparent' : undefined
-                            }}
                         >
                             Publish Schedule
                         </button>
@@ -394,9 +348,9 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
             {/* Publish Modal */}
             {isPublishModalOpen && (
                 <div className="modal-overlay">
-                    <div className="modal-content" style={{ width: '400px' }}>
-                        <h3 style={{ marginBottom: '1rem' }}>Publish Schedule</h3>
-                        <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Enter the Voyage Number to publish this schedule.</p>
+                    <div className="modal-content publish-modal-content">
+                        <h3 className="publish-modal-header">Publish Schedule</h3>
+                        <p className="publish-modal-text">Enter the Voyage Number to publish this schedule.</p>
                         <input
                             type="text"
                             placeholder=""
@@ -405,7 +359,7 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                             className="voyage-input"
                             autoFocus={!currentVoyageNumber}
                         />
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                        <div className="publish-modal-actions">
                             <button className="btn btn-secondary" onClick={() => setIsPublishModalOpen(false)}>Cancel</button>
                             <button className="btn btn-primary" onClick={handlePublishConfirm} disabled={isPublishing}>
                                 {isPublishing ? 'Publishing...' : 'Publish'}
@@ -418,9 +372,9 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
             {/* Delete Modal */}
             {isDeleteModalOpen && (
                 <div className="modal-overlay">
-                    <div className="modal-content" style={{ width: '400px' }}>
-                        <h3 style={{ marginBottom: '1rem', color: 'red' }}>Delete Schedule</h3>
-                        <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+                    <div className="modal-content modal-content-delete">
+                        <h3 className="delete-modal-header">Delete Schedule</h3>
+                        <p className="delete-modal-text">
                             You are about to delete the <strong>{currentVoyageNumber || 'current'}</strong> schedule.
                             <br />
                             Please confirm the Voyage Number to proceed.
@@ -430,13 +384,12 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                             placeholder=""
                             value={voyageNumber}
                             onChange={(e) => setVoyageNumber(e.target.value)}
-                            className="voyage-input"
-                            style={{ marginBottom: '1rem', borderColor: 'var(--error)' }}
+                            className="delete-voyage-input"
                             autoFocus
                         />
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                        <div className="modal-actions">
                             <button className="btn btn-secondary" onClick={() => setIsDeleteModalOpen(false)}>Cancel</button>
-                            <button className="btn btn-primary" style={{ backgroundColor: 'red' }} onClick={handleDeleteConfirm} disabled={isDeleting}>
+                            <button className="btn btn-primary btn-danger" onClick={handleDeleteConfirm} disabled={isDeleting}>
                                 {isDeleting ? 'Deleting...' : 'Delete'}
                             </button>
                         </div>
@@ -448,32 +401,11 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
 };
 
 const MenuItem = ({ icon, label, onClick, danger = false, disabled = false }: { icon: React.ReactNode, label: string, onClick: () => void, danger?: boolean, disabled?: boolean }) => {
-    const [isHovered, setIsHovered] = React.useState(false);
-
     return (
         <button
             onClick={disabled ? undefined : onClick}
-            onMouseEnter={() => !disabled && setIsHovered(true)}
-            onMouseLeave={() => !disabled && setIsHovered(false)}
             disabled={disabled}
-            style={{
-                color: disabled ? 'var(--text-tertiary)' : danger ? 'var(--error)' : 'var(--text-primary)',
-                width: '100%',
-                textAlign: 'left',
-                border: 'none',
-                background: isHovered && !disabled ? 'var(--bg-secondary)' : 'transparent',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                padding: '0.5rem 0.75rem',
-                borderRadius: '4px',
-                fontSize: '0.875rem',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                marginBottom: '0.25rem',
-                transition: 'background-color 0.2s',
-                opacity: disabled ? 0.5 : 1,
-            }}
+            className={`menu-item ${danger ? 'danger' : ''}`}
         >
             {icon}
             {label}
@@ -487,7 +419,7 @@ const NavItem = ({ icon, label, active = false, onClick }: { icon: React.ReactNo
             onClick={onClick}
             className={clsx("nav-item", active && "active")}
         >
-            <span style={{ transition: 'transform 0.2s', transform: active ? 'scale(1.1)' : 'none' }}>{icon}</span>
+            <span className="nav-icon-wrapper">{icon}</span>
             <span>{label}</span>
         </button>
     );
