@@ -845,16 +845,19 @@ def export_schedule(
             # If slots == 1:
             #   Row 0: Title (Time implied by grid or too small to fit both)
             
-            start_t_str = event.start_time.strftime('%-I:%M%p').lower()
-            end_t_str = event.end_time.strftime('%-I:%M%p').lower()
-            
-            # Handle "late" text
-            # If end time is between 1:00 AM and 7:00 AM, show "late"
-            # Note: time comparison works on hour/minute. 
-            if time(1, 0) < event.end_time.time() < time(7, 0):
-                end_t_str = "late"
-            
-            time_str = f"{start_t_str} - {end_t_str}"
+            if event.time_display:
+                time_str = event.time_display
+            else:
+                start_t_str = event.start_time.strftime('%-I:%M%p').lower()
+                end_t_str = event.end_time.strftime('%-I:%M%p').lower()
+                
+                # Handle "late" text
+                # If end time is between 1:00 AM and 7:00 AM, show "late"
+                # Note: time comparison works on hour/minute. 
+                if time(1, 0) < event.end_time.time() < time(7, 0):
+                    end_t_str = "late"
+                
+                time_str = f"{start_t_str} - {end_t_str}"
             
             # Determine title row offset (relative to event start)
             # User requested centering, specifically for odd rows to be in the middle (or "inner closest to top" which implies middle for 3).
@@ -889,7 +892,7 @@ def export_schedule(
                 if slots > 1:
                     if i == title_row_offset - 1:
                         cell.value = time_str
-                        cell.font = Font(name='Arial', size=11, color=text_color) # Smaller font for time
+                        cell.font = Font(name='Arial', size=11, bold=True, color=text_color) # Smaller font for time
                     elif i == title_row_offset: 
                         cell.value = event.title
                         cell.font = Font(name='Arial', size=11, bold=True, color=text_color) # Reduced size to 10
@@ -979,6 +982,10 @@ def export_schedule(
             row_b = current_row + 1
             last_col = len(itinerary_items) + 2
             
+            # Set row height to 25px (approx 18.75 points)
+            ws.row_dimensions[row_a].height = 18.75
+            ws.row_dimensions[row_b].height = 18.75
+            
             # Venue Name (Left Col)
             ws.merge_cells(start_row=row_a, start_column=1, end_row=row_b, end_column=1)
             cell_left = ws.cell(row=row_a, column=1, value=venue)
@@ -1045,7 +1052,7 @@ def export_schedule(
     wb.save(output)
     output.seek(0)
 
-    filename = f"{ship_code}_{venue_name.replace(' ', '_')}_{voyage_number}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    filename = f"{ship_code} {venue_name} Schedule - VY{voyage_number} - {datetime.now().strftime('%Y.%m.%d')}.xlsx"
     
     return StreamingResponse(
         output, 

@@ -135,8 +135,8 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
         try {
             // Generate filename locally to open picker immediately
             const { ship, venue } = getHeaderInfo();
-            const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
-            const filename = `${ship}_${venue.replace(/\s+/g, '_')}_${currentVoyageNumber}_${dateStr}.xlsx`;
+            const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '.');
+            const filename = `${ship} ${venue} Schedule - VY${currentVoyageNumber} - ${dateStr}.xlsx`;
 
             let fileHandle: any = null;
 
