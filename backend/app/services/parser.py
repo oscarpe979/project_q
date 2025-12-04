@@ -176,21 +176,4 @@ def parse_venue_schedule_excel(file_path: str) -> List[Dict[str, Any]]:
         
     return events
 
-def parse_cd_grid_pdf(file_path: str) -> Dict[str, Any]:
-    """
-    Parse CD Grid PDF using GenAI.
-    
-    Args:
-        file_path: Path to PDF file
-    
-    Returns:
-        {
-            "itinerary": List[Dict],
-            "events": List[Dict]
-        }
-    """
-    if settings.GEMINI_API_KEY:
-        parser = GenAIParser(settings.GEMINI_API_KEY)
-        return parser.parse_cd_grid(file_path)
-    else:
-        raise ValueError("GEMINI_API_KEY not configured. Please set it in your .env file.")
+

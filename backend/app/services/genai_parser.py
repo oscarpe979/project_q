@@ -4,6 +4,8 @@ import json
 from datetime import datetime, timedelta
 import pypdfium2 as pdfium
 import os
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 
 class GenAIParser:
@@ -13,64 +15,61 @@ class GenAIParser:
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model_name)
     
-    def parse_cd_grid(self, file_path: str, target_venue: str, other_venues: List[str] = []) -> Dict[str, Any]:
+
+
+    async def parse_cd_grid(self, file_path: str, target_venue: str, other_venues: List[str] = []) -> Dict[str, Any]:
         """
-        Parse CD Grid (PDF, Image, or Excel) and extract itinerary + events.
-        
-        Returns:
-            {
-                "itinerary": [...],
-                "events": [...]
-            }
+        Async version of parse_cd_grid.
         """
         # Determine file type and prepare content for Gemini
         content_to_send = []
         
-
-        temp_files_to_cleanup = [] # Renamed from temp_images for clarity, as it can contain CSVs too
-        upload_path = file_path # Default to original file path
-
-        if file_path.lower().endswith('.pdf'):
-            print("DEBUG: Converting PDF to image for better vision analysis...")
-            try:
-                # Convert first page to image (assuming grid is on page 1)
-                image_path = self._convert_pdf_to_image(file_path)
-                upload_path = image_path
-                temp_files_to_cleanup.append(image_path)
-            except Exception as e:
-                print(f"Warning: PDF to Image conversion failed ({e}). Falling back to raw PDF.")
-                upload_path = file_path
-        
-        elif file_path.lower().endswith(('.xls', '.xlsx')):
-            print("DEBUG: Converting Excel to CSV for Gemini analysis...")
-            try:
-                # Convert Excel to CSV
-                import pandas as pd
-                df = pd.read_excel(file_path)
-                csv_path = file_path + ".csv"
-                df.to_csv(csv_path, index=False)
-                upload_path = csv_path
-                temp_files_to_cleanup.append(csv_path) # Add to cleanup list
-            except Exception as e:
-                print(f"Warning: Excel to CSV conversion failed ({e}).")
-                # If conversion fails, try uploading the raw Excel file.
-                # Gemini might still be able to process it, or it will fail gracefully.
-                upload_path = file_path
-        else:
-            # Assume Image or other direct uploadable file type
-            upload_path = file_path
+        temp_files_to_cleanup = [] 
+        upload_path = file_path 
 
         try:
+            if file_path.lower().endswith('.pdf'):
+                print("DEBUG: Converting PDF to image for better vision analysis...")
+                try:
+                    # Run blocking conversion in thread
+                    image_path = await asyncio.to_thread(self._convert_pdf_to_image, file_path)
+                    upload_path = image_path
+                    temp_files_to_cleanup.append(image_path)
+                except Exception as e:
+                    print(f"Warning: PDF to Image conversion failed ({e}). Falling back to raw PDF.")
+                    upload_path = file_path
+            
+            elif file_path.lower().endswith(('.xls', '.xlsx')):
+                print("DEBUG: Converting Excel to CSV for Gemini analysis...")
+                try:
+                    # Run blocking conversion in thread
+                    def convert_excel():
+                        import pandas as pd
+                        df = pd.read_excel(file_path)
+                        csv_path = file_path + ".csv"
+                        df.to_csv(csv_path, index=False)
+                        return csv_path
+
+                    csv_path = await asyncio.to_thread(convert_excel)
+                    upload_path = csv_path
+                    temp_files_to_cleanup.append(csv_path) 
+                except Exception as e:
+                    print(f"Warning: Excel to CSV conversion failed ({e}).")
+                    upload_path = file_path
+            else:
+                upload_path = file_path
+
             print(f"DEBUG: Uploading {upload_path} to Gemini...")
-            uploaded_file = genai.upload_file(upload_path)
+            # Run blocking upload in thread
+            uploaded_file = await asyncio.to_thread(genai.upload_file, upload_path)
             content_to_send.append(uploaded_file)
 
             # Create structured prompt
             prompt = self._create_parsing_prompt(target_venue, other_venues)
             content_to_send.append(prompt)
             
-            # Generate response with JSON schema
-            response = self.model.generate_content(
+            # Generate response with JSON schema (ASYNC)
+            response = await self.model.generate_content_async(
                 content_to_send,
                 generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
@@ -81,14 +80,6 @@ class GenAIParser:
             
             # Parse and validate response
             result = json.loads(response.text)
-
-            # DEBUG: Save raw response to file
-            # try:
-            #     with open("debug_llm_response.json", "w") as f:
-            #         json.dump(result, f, indent=2)
-            #     print("DEBUG: Saved LLM response to debug_llm_response.json")
-            # except Exception as e:
-            #     print(f"DEBUG: Failed to save debug file: {e}")
             
             # Log debug info
             if "debug_info" in result:
@@ -100,7 +91,10 @@ class GenAIParser:
             # Cleanup temporary files
             for f in temp_files_to_cleanup:
                 if os.path.exists(f):
-                    os.remove(f)
+                    try:
+                        os.remove(f)
+                    except:
+                        pass
 
     def _convert_pdf_to_image(self, pdf_path: str) -> str:
         """Convert the first page of a PDF to a high-res image."""

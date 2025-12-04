@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { MainLayout } from './components/Layout/MainLayout';
 import { ScheduleGrid } from './components/Schedule/ScheduleGrid';
@@ -69,6 +69,7 @@ function App() {
   const [currentVoyageNumber, setCurrentVoyageNumber] = useState<string>('');
   const [shipVenues, setShipVenues] = useState<{ id: number; name: string }[]>([]);
   const [processingTime, setProcessingTime] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const [itinerary, setItinerary] = useState<ItineraryItem[]>(generateDefaultItinerary);
 
@@ -430,6 +431,9 @@ function App() {
     const formData = new FormData();
     formData.append('file', file);
 
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
       const headers = authService.getAuthHeaders();
 
@@ -437,6 +441,7 @@ function App() {
         method: 'POST',
         headers: headers,
         body: formData,
+        signal: abortController.signal,
       });
 
       if (response.status === 401) {
@@ -514,11 +519,27 @@ function App() {
 
       setProcessingTime(formattedTime);
       setIsUploading(false);
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('Upload cancelled');
+        return;
+      }
       console.error('Error uploading file:', error);
       alert('Failed to upload file. Please try again.');
       setIsUploading(false);
+    } finally {
+      abortControllerRef.current = null;
     }
+  };
+
+  const handleCancelImport = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setIsUploading(false);
+    setUploadSuccess(false);
+    setProcessingTime(null);
+    setIsImportOpen(false);
   };
 
   const handleViewSchedule = () => {
@@ -889,7 +910,7 @@ function App() {
 
       <Modal
         isOpen={isImportOpen}
-        onClose={() => !isUploading && setIsImportOpen(false)}
+        onClose={handleCancelImport}
         title="Import Schedule"
       >
         {uploadSuccess ? (

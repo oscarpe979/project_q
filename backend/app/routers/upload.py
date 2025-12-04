@@ -46,7 +46,7 @@ async def upload_cd_grid(
                     other_venues = [v.name for v in venues if v.name != target_venue]
 
                 print(f"DEBUG: Parsing CD Grid with target_venue='{target_venue}', other_venues={other_venues}")
-                result = parser.parse_cd_grid(file_path, target_venue=target_venue, other_venues=other_venues)
+                result = await parser.parse_cd_grid(file_path, target_venue=target_venue, other_venues=other_venues)
                 return result
             except Exception as e:
                 print(f"GenAI parsing failed: {e}")

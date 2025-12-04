@@ -1990,13 +1990,13 @@ body {
   padding: 2rem;
   border-radius: 1rem;
   box-shadow: var(--shadow-lg);
-  width: 400px;
+  width: 450px;
   max-width: 90vw;
   animation: modalSlideIn 0.3s ease-out;
 }
 
 .modal-content-delete {
-  width: 400px;
+  /* Inherits width from modal-content */
 }
 
 .delete-modal-header {
@@ -2292,6 +2292,7 @@ body {
     transform: translateY(0);
   }
 }
+
 /* Nav Item Active State */
 .nav-item.active .nav-icon-wrapper {
   transform: scale(1.1);
