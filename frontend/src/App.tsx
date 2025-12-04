@@ -59,6 +59,7 @@ function App() {
   const [user, setUser] = useState<{ name: string; role: string; username: string; venueName?: string } | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isPublishSuccessOpen, setIsPublishSuccessOpen] = useState(false);
+  const [isDeleteSuccessOpen, setIsDeleteSuccessOpen] = useState(false);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isNewDraft, setIsNewDraft] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -396,6 +397,7 @@ function App() {
   const resetUIState = () => {
     setIsImportOpen(false);
     setIsPublishSuccessOpen(false);
+    setIsDeleteSuccessOpen(false);
     setIsPublishModalOpen(false);
     setIsUnsavedModalOpen(false);
     setPendingAction(null);
@@ -548,7 +550,8 @@ function App() {
 
   const handleDeleteSchedule = async (voyageNumber: string) => {
     await scheduleService.deleteSchedule(voyageNumber);
-    alert(`Schedule for Voyage ${voyageNumber} deleted successfully.`);
+    // alert(`Schedule for Voyage ${voyageNumber} deleted successfully.`);
+    setIsDeleteSuccessOpen(true);
     // Optionally clear events or reload
     clearSchedule();
     loadSchedules();
@@ -938,6 +941,33 @@ function App() {
             onClick={() => setIsPublishSuccessOpen(false)}
           >
             Continue
+          </button>
+        </div>
+      </Modal>
+
+      {/* Delete Success Modal */}
+      <Modal
+        isOpen={isDeleteSuccessOpen}
+        onClose={() => setIsDeleteSuccessOpen(false)}
+        title="Schedule Deleted"
+      >
+        <div className="processing-status-container success">
+          <div className="success-icon-wrapper" style={{ color: 'var(--error)', backgroundColor: '#fee2e2' }}>
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 6h18" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <h3 className="success-title" style={{ color: 'var(--error)' }}>Schedule Deleted</h3>
+          <p className="success-message">
+            Schedule for <strong>Voyage {currentVoyageNumber}</strong> has been successfully deleted.
+          </p>
+          <button
+            className="view-schedule-btn"
+            onClick={() => setIsDeleteSuccessOpen(false)}
+            style={{ backgroundColor: 'var(--error)' }}
+          >
+            Close
           </button>
         </div>
       </Modal>

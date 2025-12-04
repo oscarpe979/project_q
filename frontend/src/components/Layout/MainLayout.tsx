@@ -427,10 +427,12 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                         </p>
                         <input
                             type="text"
-                            placeholder="Voyage Number to Delete"
+                            placeholder=""
                             value={voyageNumber}
                             onChange={(e) => setVoyageNumber(e.target.value)}
-                            style={{ width: '100%', padding: '0.5rem', marginBottom: '1rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                            className="voyage-input"
+                            style={{ marginBottom: '1rem', borderColor: 'var(--error)' }}
+                            autoFocus
                         />
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                             <button className="btn btn-secondary" onClick={() => setIsDeleteModalOpen(false)}>Cancel</button>
