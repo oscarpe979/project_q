@@ -365,6 +365,13 @@ body {
   margin-left: 16px;
 }
 
+.schedule-wrapper {
+  position: relative;
+  width: fit-content;
+  border: 1px solid var(--border-medium);
+  border-radius: 8px;
+}
+
 
 
 .days-header {
@@ -1850,8 +1857,8 @@ body {
   /* Glassy distortion */
   -webkit-backdrop-filter: blur(12px) saturate(150%);
   z-index: 100;
-  border-radius: 24px;
-  /* Reverted to standard roundness */
+  border-radius: 8px;
+  /* Match schedule container */
 
   animation: fadeIn 0.3s ease-out;
 }

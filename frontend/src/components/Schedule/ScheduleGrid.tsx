@@ -464,7 +464,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
 
     return (
         <div className="schedule-container custom-scrollbar">
-            <div style={{ position: 'relative', width: 'fit-content' }}>
+            <div className="schedule-wrapper">
                 {isNewDraft && (
                     <NewDraftOverlay
                         onImportClick={onImportClick || (() => { })}
