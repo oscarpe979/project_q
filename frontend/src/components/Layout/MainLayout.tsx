@@ -23,6 +23,7 @@ interface MainLayoutProps {
     canRedo?: boolean;
     isPublishModalOpen?: boolean;
     setIsPublishModalOpen?: (isOpen: boolean) => void;
+    startDate?: string;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = (props) => {
@@ -141,7 +142,8 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
         try {
             // Generate filename locally to open picker immediately
             const { ship, venue } = getHeaderInfo();
-            const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '.');
+            // Use provided startDate or fallback to today
+            const dateStr = props.startDate ? props.startDate.replace(/-/g, '.') : new Date().toISOString().split('T')[0].replace(/-/g, '.');
             const filename = `${ship} ${venue} Schedule - VY${currentVoyageNumber} - ${dateStr}.xlsx`;
 
             let fileHandle: any = null;

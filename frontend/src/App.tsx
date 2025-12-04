@@ -874,6 +874,7 @@ function App() {
               canRedo={historyIndex < history.length - 1}
               isPublishModalOpen={isPublishModalOpen}
               setIsPublishModalOpen={setIsPublishModalOpen}
+              startDate={itinerary.length > 0 ? itinerary[0].date : undefined}
             >
               <ScheduleGrid
                 events={events}
