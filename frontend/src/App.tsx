@@ -35,18 +35,31 @@ function formatTimeDisplay(arrival?: string, departure?: string): string {
   return '';
 }
 
-const DEFAULT_ITINERARY: ItineraryItem[] = [
-  { day: 1, date: '', location: 'MIAMI', time: '' },
-  { day: 2, date: '', location: 'PERFECT DAY COCO CAY', time: '' },
-  { day: 3, date: '', location: 'NASSAU', time: '' },
-  { day: 4, date: '', location: 'CRUISING', time: '' },
-];
+const generateDefaultItinerary = (): ItineraryItem[] => {
+  const today = new Date();
+  const getFormattedDate = (offset: number) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() + offset);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  return [
+    { day: 1, date: getFormattedDate(0), location: 'MIAMI', time: '' },
+    { day: 2, date: getFormattedDate(1), location: 'PERFECT DAY COCO CAY', time: '' },
+    { day: 3, date: getFormattedDate(2), location: 'NASSAU', time: '' },
+    { day: 4, date: getFormattedDate(3), location: 'CRUISING', time: '' },
+  ];
+};
 
 function App() {
   const navigate = useNavigate();
   const [user, setUser] = useState<{ name: string; role: string; username: string; venueName?: string } | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isPublishSuccessOpen, setIsPublishSuccessOpen] = useState(false);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isNewDraft, setIsNewDraft] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -56,25 +69,9 @@ function App() {
   const [shipVenues, setShipVenues] = useState<{ id: number; name: string }[]>([]);
   const [processingTime, setProcessingTime] = useState<string | null>(null);
 
-  const [itinerary, setItinerary] = useState<ItineraryItem[]>([
-    { day: 1, date: '2025-11-17', location: 'SHANGHAI', time: '7:00 am - 4:30 pm' },
-    { day: 2, date: '2025-11-18', location: 'AT SEA', time: '' },
-    { day: 3, date: '2025-11-19', location: 'BUSAN', time: '7:00 am - 7:00 pm' },
-    { day: 4, date: '2025-11-20', location: 'FUKUOKA', time: '7:00 am - 6:00 pm' },
-    { day: 5, date: '2025-11-21', location: 'AT SEA', time: '' },
-    { day: 6, date: '2025-11-22', location: 'NAGASAKI', time: '7:00 am - 5:00 pm' },
-    { day: 7, date: '2025-11-23', location: 'AT SEA', time: '' },
-  ]);
+  const [itinerary, setItinerary] = useState<ItineraryItem[]>(generateDefaultItinerary);
 
-  const [events, setEvents] = useState<Event[]>([
-    {
-      id: '1',
-      title: 'Oceanaria',
-      start: new Date(2025, 10, 18, 0, 0), // Nov 17, 2025 at 2:00 PM
-      end: new Date(2025, 10, 18, 1, 0),   // Nov 17, 2025 at 3:45 PM
-      type: 'show',
-    },
-  ]);
+  const [events, setEvents] = useState<Event[]>([]);
 
   const [otherVenueShows, setOtherVenueShows] = useState<OtherVenueShow[]>([]);
 
@@ -251,7 +248,7 @@ function App() {
       const currentUser = await authService.validateToken();
       setUser(currentUser);
       if (currentUser) {
-        loadVoyages();
+        loadSchedules();
         loadLatestSchedule();
         loadShipVenues();
       }
@@ -264,12 +261,12 @@ function App() {
 
 
 
-  const loadVoyages = async () => {
+  const loadSchedules = async () => {
     try {
-      const data = await scheduleService.getVoyages();
+      const data = await scheduleService.getSchedules();
       setVoyages(data);
     } catch (error) {
-      console.error("Failed to load voyages", error);
+      console.error("Failed to load schedules", error);
     }
   };
 
@@ -277,6 +274,9 @@ function App() {
     try {
       const data = await scheduleService.getLatestSchedule();
       processScheduleData(data);
+      // If we loaded a schedule with a voyage number, it's not a new draft
+      // If it has no voyage number, it's a draft
+      setIsNewDraft(!data.voyage_number);
     } catch (error) {
       console.error("Failed to load latest schedule", error);
       clearSchedule();
@@ -337,6 +337,8 @@ function App() {
         arrival: (day.arrival_time && day.arrival_time.trim().toLowerCase() !== 'null') ? day.arrival_time : null,
         departure: (day.departure_time && day.departure_time.trim().toLowerCase() !== 'null') ? day.departure_time : null
       }));
+    } else {
+      processedItinerary = generateDefaultItinerary();
     }
     setItinerary(processedItinerary);
     setOriginalItinerary(processedItinerary);
@@ -375,9 +377,9 @@ function App() {
 
   const clearSchedule = () => {
     setEvents([]);
-    setItinerary(DEFAULT_ITINERARY);
+    setItinerary(generateDefaultItinerary());
     setOriginalEvents([]);
-    setOriginalItinerary(DEFAULT_ITINERARY);
+    setOriginalItinerary(generateDefaultItinerary());
     setCurrentVoyageNumber('');
     setIsModified(false);
     setIsNewDraft(true);
@@ -388,7 +390,7 @@ function App() {
       shows: []
     }));
     setOtherVenueShows(templateShows);
-    initializeHistory([], [], templateShows);
+    initializeHistory([], generateDefaultItinerary(), templateShows);
   };
 
   const handleLogout = () => {
@@ -530,7 +532,7 @@ function App() {
       setOriginalOtherVenueShows(otherVenueShows);
       setIsModified(false);
 
-      loadVoyages();
+      loadSchedules();
     }
   };
 
@@ -539,7 +541,7 @@ function App() {
     alert(`Schedule for Voyage ${voyageNumber} deleted successfully.`);
     // Optionally clear events or reload
     clearSchedule();
-    loadVoyages();
+    loadSchedules();
   };
 
 
@@ -570,6 +572,32 @@ function App() {
 
     // 1. Calculate the difference in days
     const oldDateStr = itinerary[dayIndex].date;
+
+    // If old date is empty (new draft), just populate from the new date
+    if (!oldDateStr) {
+      const newItinerary = itinerary.map((item, index) => {
+        const date = new Date(newDate);
+        date.setDate(date.getDate() + (index - dayIndex));
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+
+        return {
+          ...item,
+          date: `${year} -${month} -${day} `
+        };
+      });
+
+      setItinerary(newItinerary);
+      addToHistory({
+        events: JSON.parse(JSON.stringify(events)),
+        itinerary: JSON.parse(JSON.stringify(newItinerary)),
+        otherVenueShows: JSON.parse(JSON.stringify(otherVenueShows))
+      });
+      return;
+    }
+
     const [oldYear, oldMonth, oldDay] = oldDateStr.split('-').map(Number);
     const oldDate = new Date(oldYear, oldMonth - 1, oldDay);
 
@@ -595,7 +623,7 @@ function App() {
 
       return {
         ...item,
-        date: `${year}-${month}-${day}`
+        date: `${year} -${month} -${day} `
       };
     });
 
@@ -628,7 +656,7 @@ function App() {
 
         return {
           ...show,
-          date: `${year}-${month}-${day}`
+          date: `${year} -${month} -${day} `
         };
       })
     }));
@@ -749,30 +777,8 @@ function App() {
 
   const handlePublishAndProceed = async () => {
     if (!currentVoyageNumber) {
-      // If no voyage number, we can't auto-publish easily without prompting.
-      // But user asked to "Publish", so we should try.
-      // However, the publish modal requires interaction.
-      // For now, let's just close the unsaved modal and open the publish modal?
-      // Or we can just say "Please publish first".
-      // Actually, the requirement says "Publish & Proceed".
-      // Let's try to reuse handlePublishSchedule logic but it's bound to UI.
-      // Simplest: Close unsaved modal, open publish modal, and keep pending action?
-      // Too complex. Let's assume "Publish" means "Open Publish Modal".
-      // But wait, the user said "Publish, not publish or cancel".
-      // If I open publish modal, the user might cancel there.
-      // Let's just trigger the publish flow.
       setIsUnsavedModalOpen(false);
-      // We need to know if publish succeeded to proceed.
-      // This is tricky with current architecture.
-      // Let's just open the publish modal and let the user handle it?
-      // No, "Publish & Proceed" implies automation.
-      // Let's trigger the publish modal and set a flag "proceedAfterPublish"?
-      // Let's stick to the requested behavior: "Publish" button.
-      // If I click Publish, I expect it to save.
-      // If I don't have a voyage number, I can't save.
-      // Let's just alert for now if no voyage number, or open the modal.
-      alert("Please publish your schedule manually using the 'Publish Schedule' button.");
-      setIsUnsavedModalOpen(false);
+      setIsPublishModalOpen(true);
     } else {
       // Try to publish
       try {
@@ -808,31 +814,28 @@ function App() {
 
       <Routes>
         <Route path="/login" element={
-          user ? <Navigate to="/schedule" replace /> : <Login onLogin={(u) => { setUser(u); loadLatestSchedule(); loadVoyages(); loadShipVenues(); }} />
+          user ? <Navigate to="/schedule" replace /> : <Login onLogin={(u) => { setUser(u); loadLatestSchedule(); loadSchedules(); loadShipVenues(); }} />
         } />
 
         <Route path="/schedule" element={
           <ProtectedRoute user={user}>
             <MainLayout
-              onImportClick={() => {
-                setUploadSuccess(false);
-                setProcessingTime(null);
-                setIsUploading(false);
-                setIsImportOpen(true);
-              }}
+              onImportClick={() => setIsImportOpen(true)}
               onLogout={handleLogout}
               user={user}
               onPublish={handlePublishSchedule}
               onDelete={handleDeleteSchedule}
               currentVoyageNumber={currentVoyageNumber}
               voyages={voyages}
-              isModified={isModified}
               onVoyageSelect={loadScheduleByVoyage}
               onNewSchedule={handleNewSchedule}
+              isModified={isModified}
               undo={undo}
               redo={redo}
               canUndo={historyIndex > 0}
               canRedo={historyIndex < history.length - 1}
+              isPublishModalOpen={isPublishModalOpen}
+              setIsPublishModalOpen={setIsPublishModalOpen}
             >
               <ScheduleGrid
                 events={events}

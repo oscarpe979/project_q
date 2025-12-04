@@ -110,14 +110,14 @@ export const scheduleService = {
         return response.json();
     },
 
-    async getVoyages() {
+    async getSchedules() {
         const headers = authService.getAuthHeaders();
-        const response = await fetch(`${API_URL}voyages`, {
+        const response = await fetch(`${API_URL}schedules`, {
             headers: headers,
         });
 
         if (!response.ok) {
-            throw new Error('Failed to fetch voyages');
+            throw new Error('Failed to fetch schedules');
         }
 
         return response.json();

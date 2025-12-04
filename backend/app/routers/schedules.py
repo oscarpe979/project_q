@@ -55,7 +55,7 @@ def parse_port_times(time_str: Optional[str]):
 
 from backend.app.database import get_session
 from backend.app.models import (
-    User, Voyage, VoyageItinerary, ScheduleItem, Venue, EventType, VenueHighlight
+    User, Voyage, VoyageItinerary, ScheduleItem, Venue, EventType, VenueHighlight, VenueSchedule
 )
 from backend.app.routers.auth import get_current_user
 from pydantic import BaseModel
@@ -122,10 +122,18 @@ def publish_schedule(
         if request.itinerary:
             try:
                 sorted_itinerary = sorted(request.itinerary, key=lambda x: x.day)
-                start_date = datetime.strptime(sorted_itinerary[0].date, "%Y-%m-%d").date()
-                end_date = datetime.strptime(sorted_itinerary[-1].date, "%Y-%m-%d").date()
-            except ValueError:
-                pass # Keep defaults if parsing fails
+                # Try to parse start/end dates, fallback if empty
+                try:
+                    start_date = datetime.strptime(sorted_itinerary[0].date, "%Y-%m-%d").date()
+                except ValueError:
+                    start_date = datetime.now().date()
+                
+                try:
+                    end_date = datetime.strptime(sorted_itinerary[-1].date, "%Y-%m-%d").date()
+                except ValueError:
+                    end_date = datetime.now().date() + timedelta(days=sorted_itinerary[-1].day - 1)
+            except Exception:
+                pass # Keep defaults if anything fails
 
         voyage = Voyage(
             ship_id=current_user.ship_id,
@@ -143,7 +151,21 @@ def publish_schedule(
         session.add(voyage)
         session.commit()
 
-    # 2. Update Itinerary (Global for the Voyage)
+        # Ensure VenueSchedule exists
+        venue_schedule = session.exec(
+            select(VenueSchedule)
+            .where(VenueSchedule.venue_id == current_user.venue_id)
+            .where(VenueSchedule.voyage_id == voyage.id)
+        ).first()
+        
+        if not venue_schedule:
+            venue_schedule = VenueSchedule(
+                venue_id=current_user.venue_id,
+                voyage_id=voyage.id
+            )
+            session.add(venue_schedule)
+        
+    # 2. Update Itinerary (Shared)
     # Strategy: Delete existing for this voyage and re-insert. 
     # NOTE: This might affect other venues if they rely on the same itinerary. 
     # For now, we assume the itinerary is shared and the latest publish wins/updates it.
@@ -165,10 +187,16 @@ def publish_schedule(
                 # Fallback to parsing the 'time' string
                 arrival_time, departure_time = parse_port_times(item.time)
             
+            try:
+                itinerary_date = datetime.strptime(item.date, "%Y-%m-%d").date()
+            except ValueError:
+                # Fallback for empty or invalid dates: Use today + day offset
+                itinerary_date = datetime.now().date() + timedelta(days=item.day - 1)
+
             itinerary_entry = VoyageItinerary(
                 voyage_id=voyage.id,
                 day_number=item.day,
-                date=datetime.strptime(item.date, "%Y-%m-%d").date(),
+                date=itinerary_date,
                 location=item.location.title(),
                 arrival_time=arrival_time,
                 departure_time=departure_time
@@ -222,10 +250,16 @@ def publish_schedule(
             
         # Add new highlights
         for show in request.other_venue_shows:
+            try:
+                highlight_date = datetime.strptime(show.date, "%Y-%m-%d").date()
+            except ValueError:
+                # Skip invalid dates for highlights as we can't easily infer them
+                continue
+
             highlight = VenueHighlight(
                 voyage_id=voyage.id,
                 source_venue_id=current_user.venue_id,
-                date=datetime.strptime(show.date, "%Y-%m-%d").date(),
+                date=highlight_date,
                 highlight_venue_name=show.venue,
                 title=show.title,
                 time_text=show.time
@@ -327,21 +361,19 @@ def get_latest_schedule(
         "other_venue_shows": formatted_highlights
     }
 
-@router.get("/voyages")
-def list_voyages(
+@router.get("/schedules")
+def list_schedules(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     if not current_user.venue_id:
         raise HTTPException(status_code=400, detail="User must be assigned to a venue.")
     
-    # Find all voyages that have schedule items for this venue
-    # We join ScheduleItem -> Voyage to get voyage details
+    # Find all voyages for this ship that have a VenueSchedule for THIS venue
     statement = (
         select(Voyage)
-        .join(ScheduleItem)
-        .where(ScheduleItem.venue_id == current_user.venue_id)
-        .distinct()
+        .join(VenueSchedule)
+        .where(VenueSchedule.venue_id == current_user.venue_id)
         .order_by(Voyage.start_date.desc())
     )
     
@@ -485,15 +517,25 @@ def delete_schedule(
     for item in items_to_delete:
         session.delete(item)
         
-    session.commit() # Commit deletion of items first to check remaining
+    # Delete VenueSchedule for this venue
+    venue_schedule = session.exec(
+        select(VenueSchedule)
+        .where(VenueSchedule.venue_id == current_user.venue_id)
+        .where(VenueSchedule.voyage_id == voyage.id)
+    ).first()
     
-    # Check if any schedule items remain for this voyage (any venue)
-    remaining_items = session.exec(
-        select(ScheduleItem).where(ScheduleItem.voyage_id == voyage.id)
+    if venue_schedule:
+        session.delete(venue_schedule)
+
+    session.commit() # Commit deletion of items and schedule first
+    
+    # Check if any VenueSchedule remains for this voyage (any venue)
+    remaining_schedules = session.exec(
+        select(VenueSchedule).where(VenueSchedule.voyage_id == voyage.id)
     ).all()
     
-    if not remaining_items:
-        # No items left, delete the Voyage and its Itinerary
+    if not remaining_schedules:
+        # No venues are using this voyage anymore, delete the Voyage and its Itinerary
         itineraries = session.exec(
             select(VoyageItinerary).where(VoyageItinerary.voyage_id == voyage.id)
         ).all()
@@ -509,9 +551,9 @@ def delete_schedule(
             
         session.delete(voyage)
         session.commit()
-        return {"message": f"Deleted {count} schedule items and the Voyage {voyage_number} as it is now empty."}
+        return {"message": f"Deleted schedule and the Voyage {voyage_number} as it is now unused."}
     
-    return {"message": f"Deleted {count} schedule items for voyage {voyage_number}"}
+    return {"message": f"Deleted schedule for voyage {voyage_number}"}
 
 @router.get("/{voyage_number}/export")
 def export_schedule(

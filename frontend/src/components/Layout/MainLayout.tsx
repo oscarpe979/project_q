@@ -20,6 +20,8 @@ interface MainLayoutProps {
     redo?: () => void;
     canUndo?: boolean;
     canRedo?: boolean;
+    isPublishModalOpen?: boolean;
+    setIsPublishModalOpen?: (isOpen: boolean) => void;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = (props) => {
@@ -41,7 +43,10 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
     };
 
     const { ship, venue } = getHeaderInfo();
-    const [isPublishModalOpen, setIsPublishModalOpen] = React.useState(false);
+    // const [isPublishModalOpen, setIsPublishModalOpen] = React.useState(false); // Lifted to App.tsx
+    const isPublishModalOpen = props.isPublishModalOpen || false;
+    const setIsPublishModalOpen = props.setIsPublishModalOpen || (() => { });
+
     const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
     const [voyageNumber, setVoyageNumber] = React.useState('');
     const [isPublishing, setIsPublishing] = React.useState(false);
@@ -266,6 +271,7 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                                     redo={props.redo}
                                     canUndo={props.canUndo}
                                     canRedo={props.canRedo}
+                                    onNewSchedule={props.onNewSchedule}
                                 />
                             ) : (
                                 <h2 className="header-title">

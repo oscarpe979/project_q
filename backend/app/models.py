@@ -44,6 +44,7 @@ class Venue(SQLModel, table=True):
     schedule_items: List["ScheduleItem"] = Relationship(back_populates="venue")
     users: List["User"] = Relationship(back_populates="venue")
     highlights: List["VenueHighlight"] = Relationship(back_populates="source_venue", sa_relationship_kwargs={"foreign_keys": "VenueHighlight.source_venue_id"})
+    schedules: List["VenueSchedule"] = Relationship(back_populates="venue")
 
 class EventType(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -69,6 +70,7 @@ class Voyage(SQLModel, table=True):
     itineraries: List["VoyageItinerary"] = Relationship(back_populates="voyage", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     schedule_items: List["ScheduleItem"] = Relationship(back_populates="voyage", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
     highlights: List["VenueHighlight"] = Relationship(back_populates="voyage", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    venue_schedules: List["VenueSchedule"] = Relationship(back_populates="voyage", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
 class VoyageItinerary(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -118,3 +120,13 @@ class VenueHighlight(SQLModel, table=True):
     # Relationships
     voyage: Voyage = Relationship(back_populates="highlights")
     source_venue: Venue = Relationship(back_populates="highlights", sa_relationship_kwargs={"foreign_keys": "VenueHighlight.source_venue_id"})
+
+class VenueSchedule(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    venue_id: int = Field(foreign_key="venue.id")
+    voyage_id: int = Field(foreign_key="voyage.id")
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+    
+    venue: Venue = Relationship(back_populates="schedules")
+    voyage: Voyage = Relationship(back_populates="venue_schedules")
