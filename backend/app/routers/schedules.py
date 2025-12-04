@@ -114,27 +114,28 @@ def publish_schedule(
     # 1. Find or Create Voyage
     voyage = session.exec(select(Voyage).where(Voyage.voyage_number == request.voyage_number)).first()
     
-    if not voyage:
-        # Infer start/end date from itinerary if available, else use today (fallback)
-        start_date = datetime.now().date()
-        end_date = datetime.now().date()
-        
-        if request.itinerary:
+    # Calculate start/end dates from itinerary if available
+    start_date = datetime.now().date()
+    end_date = datetime.now().date()
+    
+    if request.itinerary:
+        try:
+            sorted_itinerary = sorted(request.itinerary, key=lambda x: x.day)
+            # Try to parse start/end dates
             try:
-                sorted_itinerary = sorted(request.itinerary, key=lambda x: x.day)
-                # Try to parse start/end dates, fallback if empty
-                try:
-                    start_date = datetime.strptime(sorted_itinerary[0].date, "%Y-%m-%d").date()
-                except ValueError:
-                    start_date = datetime.now().date()
-                
-                try:
-                    end_date = datetime.strptime(sorted_itinerary[-1].date, "%Y-%m-%d").date()
-                except ValueError:
-                    end_date = datetime.now().date() + timedelta(days=sorted_itinerary[-1].day - 1)
-            except Exception:
-                pass # Keep defaults if anything fails
+                start_date = datetime.strptime(sorted_itinerary[0].date, "%Y-%m-%d").date()
+            except ValueError:
+                start_date = datetime.now().date()
+            
+            try:
+                end_date = datetime.strptime(sorted_itinerary[-1].date, "%Y-%m-%d").date()
+            except ValueError:
+                # Fallback: use start_date + days
+                end_date = start_date + timedelta(days=sorted_itinerary[-1].day - 1)
+        except Exception:
+            pass # Keep defaults if anything fails
 
+    if not voyage:
         voyage = Voyage(
             ship_id=current_user.ship_id,
             voyage_number=request.voyage_number,
@@ -148,22 +149,30 @@ def publish_schedule(
         session.refresh(voyage)
     else:
         voyage.updated_at = datetime.now()
+        # Update dates if itinerary was provided
+        if request.itinerary:
+            voyage.start_date = start_date
+            voyage.end_date = end_date
+            
         session.add(voyage)
         session.commit()
 
-        # Ensure VenueSchedule exists
-        venue_schedule = session.exec(
-            select(VenueSchedule)
-            .where(VenueSchedule.venue_id == current_user.venue_id)
-            .where(VenueSchedule.voyage_id == voyage.id)
-        ).first()
-        
-        if not venue_schedule:
-            venue_schedule = VenueSchedule(
-                venue_id=current_user.venue_id,
-                voyage_id=voyage.id
-            )
-            session.add(venue_schedule)
+    # Ensure VenueSchedule exists (for both new and existing voyages)
+    venue_schedule = session.exec(
+        select(VenueSchedule)
+        .where(VenueSchedule.venue_id == current_user.venue_id)
+        .where(VenueSchedule.voyage_id == voyage.id)
+    ).first()
+    
+    if not venue_schedule:
+        venue_schedule = VenueSchedule(
+            venue_id=current_user.venue_id,
+            voyage_id=voyage.id
+        )
+        session.add(venue_schedule)
+    else:
+        venue_schedule.updated_at = datetime.now()
+        session.add(venue_schedule)
         
     # 2. Update Itinerary (Shared)
     # Strategy: Delete existing for this voyage and re-insert. 

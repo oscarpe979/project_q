@@ -585,7 +585,7 @@ function App() {
 
         return {
           ...item,
-          date: `${year} -${month} -${day} `
+          date: `${year}-${month}-${day}`
         };
       });
 
@@ -623,7 +623,7 @@ function App() {
 
       return {
         ...item,
-        date: `${year} -${month} -${day} `
+        date: `${year}-${month}-${day}`
       };
     });
 
@@ -656,7 +656,7 @@ function App() {
 
         return {
           ...show,
-          date: `${year} -${month} -${day} `
+          date: `${year}-${month}-${day}`
         };
       })
     }));
@@ -830,6 +830,7 @@ function App() {
               onVoyageSelect={loadScheduleByVoyage}
               onNewSchedule={handleNewSchedule}
               isModified={isModified}
+              isNewDraft={isNewDraft}
               undo={undo}
               redo={redo}
               canUndo={historyIndex > 0}

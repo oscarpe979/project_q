@@ -16,6 +16,7 @@ interface MainLayoutProps {
     onVoyageSelect?: (voyageNumber: string) => void;
     onNewSchedule?: () => void;
     isModified?: boolean;
+    isNewDraft?: boolean;
     undo?: () => void;
     redo?: () => void;
     canUndo?: boolean;
@@ -272,6 +273,7 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                                     canUndo={props.canUndo}
                                     canRedo={props.canRedo}
                                     onNewSchedule={props.onNewSchedule}
+                                    isNewDraft={props.isNewDraft}
                                 />
                             ) : (
                                 <h2 className="header-title">
@@ -341,18 +343,20 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                                                 width: '24px',
                                                 height: '24px',
                                                 borderRadius: '50%',
-                                                background: '#e0e7ff',
-                                                color: '#6366f1'
+                                                background: props.isNewDraft ? '#e5e7eb' : '#e0e7ff',
+                                                color: props.isNewDraft ? '#9ca3af' : '#6366f1'
                                             }}>
                                                 <span style={{ fontSize: '16px', lineHeight: 1, fontWeight: 'bold' }}>+</span>
                                             </div>
                                         }
                                         label="New Schedule"
+                                        disabled={props.isNewDraft}
                                     />
                                     <MenuItem
                                         onClick={handleExportClick}
                                         icon={<FileSpreadsheet size={16} />}
                                         label={isExporting ? "Exporting..." : "Export to Excel"}
+                                        disabled={!currentVoyageNumber}
                                     />
                                     <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }}></div>
                                     <MenuItem
@@ -360,11 +364,22 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
                                         icon={<LogOut size={16} />}
                                         label="Delete Schedule"
                                         danger
+                                        disabled={!currentVoyageNumber}
                                     />
                                 </div>
                             )}
                         </div>
-                        <button className="btn btn-primary" onClick={handlePublishClick}>
+                        <button
+                            className="btn btn-primary"
+                            onClick={handlePublishClick}
+                            disabled={props.isNewDraft}
+                            style={{
+                                opacity: props.isNewDraft ? 0.5 : 1,
+                                cursor: props.isNewDraft ? 'not-allowed' : 'pointer',
+                                background: props.isNewDraft ? '#9ca3af' : undefined,
+                                borderColor: props.isNewDraft ? 'transparent' : undefined
+                            }}
+                        >
                             Publish Schedule
                         </button>
                     </div>
@@ -430,21 +445,22 @@ export const MainLayout: React.FC<MainLayoutProps> = (props) => {
     );
 };
 
-const MenuItem = ({ icon, label, onClick, danger = false }: { icon: React.ReactNode, label: string, onClick: () => void, danger?: boolean }) => {
+const MenuItem = ({ icon, label, onClick, danger = false, disabled = false }: { icon: React.ReactNode, label: string, onClick: () => void, danger?: boolean, disabled?: boolean }) => {
     const [isHovered, setIsHovered] = React.useState(false);
 
     return (
         <button
-            onClick={onClick}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
+            onClick={disabled ? undefined : onClick}
+            onMouseEnter={() => !disabled && setIsHovered(true)}
+            onMouseLeave={() => !disabled && setIsHovered(false)}
+            disabled={disabled}
             style={{
-                color: danger ? 'var(--error)' : 'var(--text-primary)',
+                color: disabled ? 'var(--text-tertiary)' : danger ? 'var(--error)' : 'var(--text-primary)',
                 width: '100%',
                 textAlign: 'left',
                 border: 'none',
-                background: isHovered ? 'var(--bg-secondary)' : 'transparent',
-                cursor: 'pointer',
+                background: isHovered && !disabled ? 'var(--bg-secondary)' : 'transparent',
+                cursor: disabled ? 'not-allowed' : 'pointer',
                 padding: '0.5rem 0.75rem',
                 borderRadius: '4px',
                 fontSize: '0.875rem',
@@ -453,7 +469,8 @@ const MenuItem = ({ icon, label, onClick, danger = false }: { icon: React.ReactN
                 alignItems: 'center',
                 gap: '0.75rem',
                 marginBottom: '0.25rem',
-                transition: 'background-color 0.2s'
+                transition: 'background-color 0.2s',
+                opacity: disabled ? 0.5 : 1,
             }}
         >
             {icon}

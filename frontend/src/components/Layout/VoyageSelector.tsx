@@ -19,6 +19,7 @@ interface VoyageSelectorProps {
     canUndo?: boolean;
     canRedo?: boolean;
     onNewSchedule?: () => void;
+    isNewDraft?: boolean;
 }
 
 export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
@@ -31,7 +32,8 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
     redo: onRedo,
     canUndo = false,
     canRedo = false,
-    onNewSchedule
+    onNewSchedule,
+    isNewDraft
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -243,27 +245,31 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
                     <div style={{ padding: '0.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                         <button
                             onClick={() => {
-                                if (onNewSchedule) onNewSchedule();
-                                setIsOpen(false);
+                                if (!isNewDraft && onNewSchedule) {
+                                    onNewSchedule();
+                                    setIsOpen(false);
+                                }
                             }}
+                            disabled={isNewDraft}
                             style={{
                                 width: '100%',
                                 textAlign: 'left',
                                 padding: '0.75rem',
                                 borderRadius: '8px',
-                                border: '1px dashed #6366f1',
-                                background: 'rgba(99, 102, 241, 0.05)',
-                                cursor: 'pointer',
+                                border: isNewDraft ? '1px dashed #e5e7eb' : '1px dashed #6366f1',
+                                background: isNewDraft ? 'rgba(0,0,0,0.02)' : 'rgba(99, 102, 241, 0.05)',
+                                cursor: isNewDraft ? 'not-allowed' : 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.5rem',
-                                color: '#6366f1',
+                                color: isNewDraft ? '#9ca3af' : '#6366f1',
                                 fontWeight: 600,
                                 fontSize: '0.9rem',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.2s',
+                                opacity: isNewDraft ? 0.6 : 1
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.05)'}
+                            onMouseEnter={(e) => !isNewDraft && (e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)')}
+                            onMouseLeave={(e) => !isNewDraft && (e.currentTarget.style.background = 'rgba(99, 102, 241, 0.05)')}
                         >
                             <Calendar size={16} />
                             <span>New Schedule</span>
