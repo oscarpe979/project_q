@@ -1,6 +1,7 @@
 import google.generativeai as genai
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union, BinaryIO
 import json
+import io
 from datetime import datetime, timedelta
 import pypdfium2 as pdfium
 import os
@@ -17,51 +18,95 @@ class GenAIParser:
     
 
 
-    async def parse_cd_grid(self, file_path: str, target_venue: str, other_venues: List[str] = []) -> Dict[str, Any]:
+    async def parse_cd_grid(self, file_obj: Union[str, BinaryIO], filename: str, target_venue: str, other_venues: List[str] = []) -> Dict[str, Any]:
         """
         Async version of parse_cd_grid.
+        Supports file path (str) or file-like object (BinaryIO).
         """
         # Determine file type and prepare content for Gemini
         content_to_send = []
         
-        temp_files_to_cleanup = [] 
-        upload_path = file_path 
+        # If input is a path, read it into bytes first to unify processing, 
+        # OR handle path separately. 
+        # To support "no disk save", we expect file_obj to be bytes/BytesIO usually.
+        # But for backward compatibility or flexibility, let's handle both.
+        
+        upload_file_obj = None
+        mime_type = None
 
         try:
-            if file_path.lower().endswith('.pdf'):
+            if filename.lower().endswith('.pdf'):
                 print("DEBUG: Converting PDF to image for better vision analysis...")
                 try:
                     # Run blocking conversion in thread
-                    image_path = await asyncio.to_thread(self._convert_pdf_to_image, file_path)
-                    upload_path = image_path
-                    temp_files_to_cleanup.append(image_path)
+                    # We need to read the PDF bytes if it's a file_obj
+                    if isinstance(file_obj, str):
+                        pdf_bytes = await asyncio.to_thread(lambda: open(file_obj, 'rb').read())
+                    else:
+                        pdf_bytes = await asyncio.to_thread(file_obj.read)
+                        file_obj.seek(0) # Reset pointer just in case
+
+                    image_bytes = await asyncio.to_thread(self._convert_pdf_bytes_to_image_bytes, pdf_bytes)
+                    upload_file_obj = io.BytesIO(image_bytes)
+                    mime_type = "image/png"
                 except Exception as e:
                     print(f"Warning: PDF to Image conversion failed ({e}). Falling back to raw PDF.")
-                    upload_path = file_path
+                    if isinstance(file_obj, str):
+                         # If it was a path, we can just upload the path? No, we want to stream.
+                         # Let's read it into memory.
+                         upload_file_obj = await asyncio.to_thread(lambda: open(file_obj, 'rb'))
+                    else:
+                        upload_file_obj = file_obj
+                    mime_type = "application/pdf"
             
-            elif file_path.lower().endswith(('.xls', '.xlsx')):
+            elif filename.lower().endswith(('.xls', '.xlsx')):
                 print("DEBUG: Converting Excel to CSV for Gemini analysis...")
                 try:
                     # Run blocking conversion in thread
-                    def convert_excel():
+                    def convert_excel_bytes():
                         import pandas as pd
-                        df = pd.read_excel(file_path)
-                        csv_path = file_path + ".csv"
-                        df.to_csv(csv_path, index=False)
-                        return csv_path
+                        if isinstance(file_obj, str):
+                            df = pd.read_excel(file_obj)
+                        else:
+                            df = pd.read_excel(file_obj)
+                            file_obj.seek(0)
+                        
+                        output = io.StringIO()
+                        df.to_csv(output, index=False)
+                        return output.getvalue().encode('utf-8')
 
-                    csv_path = await asyncio.to_thread(convert_excel)
-                    upload_path = csv_path
-                    temp_files_to_cleanup.append(csv_path) 
+                    csv_bytes = await asyncio.to_thread(convert_excel_bytes)
+                    upload_file_obj = io.BytesIO(csv_bytes)
+                    mime_type = "text/csv"
                 except Exception as e:
                     print(f"Warning: Excel to CSV conversion failed ({e}).")
-                    upload_path = file_path
+                    if isinstance(file_obj, str):
+                        upload_file_obj = await asyncio.to_thread(lambda: open(file_obj, 'rb'))
+                    else:
+                        upload_file_obj = file_obj
+                    mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             else:
-                upload_path = file_path
+                # Image or other
+                if isinstance(file_obj, str):
+                    upload_file_obj = await asyncio.to_thread(lambda: open(file_obj, 'rb'))
+                else:
+                    upload_file_obj = file_obj
+                
+                # Infer mime type from extension
+                if filename.lower().endswith('.png'): mime_type = "image/png"
+                elif filename.lower().endswith(('.jpg', '.jpeg')): mime_type = "image/jpeg"
+                else: mime_type = "image/png" # Default fallback
 
-            print(f"DEBUG: Uploading {upload_path} to Gemini...")
+            print(f"DEBUG: Uploading to Gemini (Memory)...")
             # Run blocking upload in thread
-            uploaded_file = await asyncio.to_thread(genai.upload_file, upload_path)
+            # genai.upload_file supports file-like objects
+            # IMPORTANT: When uploading a file object, 'name' is optional but 'mime_type' is recommended/required?
+            # Documentation says: path: The path to the file or a file-like object
+            uploaded_file = await asyncio.to_thread(
+                genai.upload_file, 
+                upload_file_obj, 
+                mime_type=mime_type
+            )
             content_to_send.append(uploaded_file)
 
             # Create structured prompt
@@ -88,29 +133,26 @@ class GenAIParser:
             return self._validate_and_transform(result)
             
         finally:
-            # Cleanup temporary files
-            for f in temp_files_to_cleanup:
-                if os.path.exists(f):
-                    try:
-                        os.remove(f)
-                    except:
-                        pass
+            # Cleanup? 
+            # If we opened a file from path, we should close it.
+            if upload_file_obj and hasattr(upload_file_obj, 'close') and upload_file_obj != file_obj:
+                 upload_file_obj.close()
 
-    def _convert_pdf_to_image(self, pdf_path: str) -> str:
-        """Convert the first page of a PDF to a high-res image."""
-        pdf = pdfium.PdfDocument(pdf_path)
+    def _convert_pdf_bytes_to_image_bytes(self, pdf_bytes: bytes) -> bytes:
+        """Convert the first page of a PDF (bytes) to a high-res image (bytes)."""
+        pdf = pdfium.PdfDocument(pdf_bytes)
         page = pdf[0] # Load first page
         
         # Render to image (scale=2 for better resolution/OCR)
         bitmap = page.render(scale=2)
         pil_image = bitmap.to_pil()
         
-        # Save to temp file
-        base_name = os.path.splitext(pdf_path)[0]
-        image_path = f"{base_name}_converted.png"
-        pil_image.save(image_path)
-        
-        return image_path
+        # Save to bytes
+        img_byte_arr = io.BytesIO()
+        pil_image.save(img_byte_arr, format='PNG')
+        return img_byte_arr.getvalue()
+
+
     
     def _create_parsing_prompt(self, venue: str, other_venues: List[str]) -> str:
         other_venues_prompt = ""

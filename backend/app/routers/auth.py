@@ -34,7 +34,7 @@ class UserResponse(BaseModel):
     is_active: bool
     venue_name: Optional[str] = None
 
-async def get_current_user(
+def get_current_user(
     token: str = Depends(oauth2_scheme),
     session: Session = Depends(get_session)
 ) -> User:
@@ -62,7 +62,7 @@ async def get_current_user(
     return user
 
 @router.post("/login", response_model=Token)
-async def login(
+def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session)
 ):
@@ -91,7 +91,7 @@ async def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
+def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user information."""
     venue_name = current_user.venue.name if current_user.venue else None
     
