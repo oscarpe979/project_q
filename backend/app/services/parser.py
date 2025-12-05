@@ -5,7 +5,7 @@ import re
 from typing import List, Dict, Any
 
 from .genai_parser import GenAIParser
-from ..config import settings
+from backend.app.core.config import settings
 
 
 def parse_venue_schedule_pdf(file_path: str) -> List[Dict[str, Any]]:

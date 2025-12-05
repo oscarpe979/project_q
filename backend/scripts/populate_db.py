@@ -7,9 +7,9 @@ Usage: python -m backend.scripts.populate_db
 import csv
 import os
 from sqlmodel import Session, select
-from backend.app.database import engine, create_db_and_tables
-from backend.app.models import Ship, Venue, User
-from backend.app.security import get_password_hash
+from backend.app.db.session import engine, create_db_and_tables
+from backend.app.db.models import Ship, Venue, User
+from backend.app.core.security import get_password_hash
 
 CSV_FILE_PATH = "royal_caribbean_production_managers.csv"
 

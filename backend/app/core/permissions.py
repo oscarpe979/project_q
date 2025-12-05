@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from backend.app.models import User
+from backend.app.db.models import User
 
 def check_venue_access(user: User, target_venue_id: int):
     """

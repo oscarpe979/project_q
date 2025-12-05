@@ -5,9 +5,9 @@ Usage: python -m backend.scripts.create_user
 """
 
 from sqlmodel import Session, select
-from backend.app.database import engine
-from backend.app.models import User, Ship, Venue
-from backend.app.security import get_password_hash
+from backend.app.db.session import engine
+from backend.app.db.models import User, Ship, Venue
+from backend.app.core.security import get_password_hash
 from getpass import getpass
 
 def list_ships(session: Session):

@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.routers import upload, auth, schedules
+from backend.app.api.v1.api import api_router
 
 from contextlib import asynccontextmanager
-from backend.app.database import create_db_and_tables
-from backend.app import models # Import models to register them with SQLModel
-from backend.app.config import settings
+from backend.app.db.session import create_db_and_tables
+from backend.app.db import models # Import models to register them with SQLModel
+from backend.app.core.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,9 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router, prefix="/api/auth")
-app.include_router(upload.router, prefix="/api")
-app.include_router(schedules.router, prefix="/api")
+app.include_router(api_router, prefix="/api")
 
 @app.get("/")
 def read_root():

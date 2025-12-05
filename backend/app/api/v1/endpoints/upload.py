@@ -3,12 +3,12 @@ from typing import List
 import asyncio
 import io
 from sqlmodel import Session
-from ..services.parser import parse_venue_schedule_excel
-from ..services.genai_parser import GenAIParser
-from ..dependencies import get_genai_parser
-from ..database import get_session
-from ..models import User, Venue
-from .auth import get_current_user
+from backend.app.services.parser import parse_venue_schedule_excel
+from backend.app.services.genai_parser import GenAIParser
+from backend.app.core.dependencies import get_genai_parser
+from backend.app.db.session import get_session
+from backend.app.db.models import User, Venue
+from backend.app.api.v1.endpoints.auth import get_current_user
 
 router = APIRouter()
 

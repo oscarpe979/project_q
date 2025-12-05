@@ -4,35 +4,19 @@ from sqlmodel import Session, select
 from typing import Optional
 from datetime import timedelta
 
-from backend.app.database import get_session
-from backend.app.models import User
-from backend.app.security import (
+from backend.app.db.session import get_session
+from backend.app.db.models import User
+from backend.app.core.security import (
     verify_password,
     create_access_token,
     decode_access_token,
     ACCESS_TOKEN_EXPIRE_DAYS
 )
+from backend.app.schemas.auth import Token, UserResponse
 
 router = APIRouter(tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-
-# Pydantic models for request/response
-from pydantic import BaseModel
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class UserResponse(BaseModel):
-    id: int
-    username: str
-    full_name: str
-    role: str
-    ship_id: Optional[int]
-    venue_id: Optional[int]
-    is_active: bool
-    venue_name: Optional[str] = None
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),

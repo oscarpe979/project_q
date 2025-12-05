@@ -1,7 +1,7 @@
 from functools import lru_cache
 from fastapi import Depends
 from .config import Settings
-from .services.genai_parser import GenAIParser
+from backend.app.services.genai_parser import GenAIParser
 
 @lru_cache()
 def get_settings():

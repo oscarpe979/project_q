@@ -5,12 +5,12 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 try:
-    from backend.app.config import settings
+    from backend.app.core.config import settings
     print("✅ Settings loaded successfully")
     print(f"DATABASE_URL: {settings.DATABASE_URL}")
     print(f"CORS Origins: {settings.BACKEND_CORS_ORIGINS}")
     
-    from backend.app.dependencies import get_genai_parser
+    from backend.app.core.dependencies import get_genai_parser
     parser = get_genai_parser(settings)
     print("✅ GenAIParser initialized successfully")
     

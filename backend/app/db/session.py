@@ -1,7 +1,7 @@
 from sqlmodel import SQLModel, create_engine, Session
 from typing import Generator
 
-from .config import settings
+from backend.app.core.config import settings
 
 # sqlite_file_name = "scheduler.db"
 # sqlite_url = f"sqlite:///{sqlite_file_name}"
