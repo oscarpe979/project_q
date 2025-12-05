@@ -3,7 +3,7 @@ from typing import Generator
 
 from backend.app.core.config import settings
 
-# sqlite_file_name = "scheduler.db"
+# sqlite_file_name = "backend/app/db/scheduler.db"
 # sqlite_url = f"sqlite:///{sqlite_file_name}"
 sqlite_url = settings.DATABASE_URL
 

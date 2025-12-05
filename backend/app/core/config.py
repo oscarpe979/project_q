@@ -5,7 +5,7 @@ import os
 class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"
-    DATABASE_URL: str = "sqlite:///scheduler.db"
+    DATABASE_URL: str = "sqlite:///backend/app/db/scheduler.db"
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     JWT_SECRET_KEY: str = "your-secret-key-change-this-in-production"
     ALGORITHM: str = "HS256"
