@@ -42,6 +42,11 @@ interface DayHeaderCellProps {
     onTimeChange?: (dayIndex: number, arrival: string | null, departure: string | null) => void;
 }
 
+const isAtSea = (location: string) => {
+    const loc = location.toLowerCase().trim();
+    return loc === 'at sea' || loc === 'cruising' || loc === 'sea day' || loc.includes('crossing') || loc.includes('passage');
+};
+
 const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateChange, onLocationChange, onTimeChange }) => {
     const [isOpen, setIsOpen] = React.useState(false);
     const [isEditingLocation, setIsEditingLocation] = React.useState(false);
@@ -216,7 +221,7 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
                 )}
             </div>
             <div
-                className="header-row-time relative group/time"
+                className={`header-row-time relative group/time ${!info?.time && !isAtSea(info?.location || '') ? 'opacity-50 hover:opacity-100 transition-opacity' : ''}`}
                 ref={(el) => {
                     // Store ref for anchoring
                     if (el && isEditingTime && !anchorEl) {
@@ -224,55 +229,58 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
                     }
                 }}
             >
-                <span
-                    onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        if (onTimeChange) {
-                            setAnchorEl(e.currentTarget.parentElement as HTMLElement);
-                            setIsEditingTime(true);
-                            setActiveTimeTab('arrival'); // Reset to arrival on open
-                        }
-                    }}
-                    className={onTimeChange ? "cursor-pointer select-none" : ""}
-                    title="Double-click to edit times"
-                >
-                    {isEditingTime && info ? (
-                        <>
-                            <span style={{
-                                fontWeight: activeTimeTab === 'arrival' ? '800' : 'normal',
-                                color: activeTimeTab === 'arrival' ? '#1a73e8' : 'inherit'
-                            }}>
-                                {formatTo12Hour(info.arrival)}
-                            </span>
-                            {' - '}
-                            <span style={{
-                                fontWeight: activeTimeTab === 'departure' ? '800' : 'normal',
-                                color: activeTimeTab === 'departure' ? '#1a73e8' : 'inherit'
-                            }}>
-                                {formatTo12Hour(info.departure)}
-                            </span>
-                        </>
-                    ) : (
-                        info ? info.time : '\u00A0'
-                    )}
-                </span>
-                {onTimeChange && !isEditingTime && (
-                    <span className="pencil-spacer">
-                        <span
-                            role="button"
-                            className="edit-icon-btn"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                                e.stopPropagation();
+                <div className="relative inline-flex items-center justify-center gap-1">
+                    <span
+                        onDoubleClick={(e) => {
+                            if (isAtSea(info?.location || '')) return;
+                            e.stopPropagation();
+                            if (onTimeChange) {
                                 setAnchorEl(e.currentTarget.closest('.header-row-time') as HTMLElement);
                                 setIsEditingTime(true);
-                                setActiveTimeTab('arrival');
-                            }}
-                        >
-                            <Edit2 size={10} className="edit-icon-svg" />
-                        </span>
+                                setActiveTimeTab('arrival'); // Reset to arrival on open
+                            }
+                        }}
+                        className={onTimeChange && !isAtSea(info?.location || '') ? "cursor-pointer select-none" : ""}
+                        title={isAtSea(info?.location || '') ? "" : "Double-click to edit times"}
+                    >
+                        {isEditingTime && info ? (
+                            <>
+                                <span style={{
+                                    fontWeight: activeTimeTab === 'arrival' ? '800' : 'normal',
+                                    color: activeTimeTab === 'arrival' ? '#1a73e8' : 'inherit'
+                                }}>
+                                    {formatTo12Hour(info.arrival)}
+                                </span>
+                                {' - '}
+                                <span style={{
+                                    fontWeight: activeTimeTab === 'departure' ? '800' : 'normal',
+                                    color: activeTimeTab === 'departure' ? '#1a73e8' : 'inherit'
+                                }}>
+                                    {formatTo12Hour(info.departure)}
+                                </span>
+                            </>
+                        ) : (
+                            info?.time || (isAtSea(info?.location || '') ? '' : 'Add Time')
+                        )}
                     </span>
-                )}
+                    {onTimeChange && !isEditingTime && !isAtSea(info?.location || '') && (
+                        <span className="pencil-spacer">
+                            <span
+                                role="button"
+                                className="edit-icon-btn"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAnchorEl(e.currentTarget.closest('.header-row-time') as HTMLElement);
+                                    setIsEditingTime(true);
+                                    setActiveTimeTab('arrival');
+                                }}
+                            >
+                                <Edit2 size={10} className="edit-icon-svg" />
+                            </span>
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* M3 Port Time Editor Modal */}

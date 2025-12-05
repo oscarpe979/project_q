@@ -71,124 +71,16 @@ export const FooterHighlightCell: React.FC<FooterHighlightCellProps> = ({ venue,
         }
     };
 
-    const handleCreate = () => {
-        setIsEditingTime(true);
-        setIsEditingTitle(true);
-    };
 
-    if (!show || (!show.title && !show.time)) {
-        // Empty state: Show dash with a single pencil to "create"
-        if (isEditingTime || isEditingTitle) {
-            // If we are editing (e.g. just clicked create), show both inputs
-            return (
-                <div className="venue-day-cell group relative flex flex-col gap-1 justify-center items-center">
-                    {isEditingTime ? (
-                        <input
-                            type="text"
-                            className="glass-input"
-                            placeholder="Time"
-                            value={editTime}
-                            onChange={(e) => setEditTime(e.target.value)}
-                            onBlur={handleBlurTime}
-                            onKeyDown={handleKeyDownTime}
-                            onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
-                            autoFocus
-                            style={{
-                                width: `calc(${editTime.length}ch + 3rem)`,
-                                minWidth: '100%',
-                                textTransform: 'inherit',
-                                lineHeight: 'inherit',
-                                margin: 0,
-                                height: 'auto',
-                                boxSizing: 'border-box'
-                            } as React.CSSProperties}
-                        />
-                    ) : (
-                        <div
-                            className="venue-show-time select-none cursor-pointer"
-                            onClick={(e) => {
-                                if (e.detail === 2) {
-                                    e.stopPropagation();
-                                    setIsEditingTime(true);
-                                }
-                            }}
-                        >
-                            {editTime || 'Time'}
-                        </div>
-                    )}
 
-                    {isEditingTitle ? (
-                        <input
-                            type="text"
-                            className="glass-input"
-                            placeholder="Title"
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                            onBlur={handleBlurTitle}
-                            onKeyDown={handleKeyDownTitle}
-                            onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
-                            style={{
-                                width: `calc(${editTitle.length}ch + 3rem)`,
-                                minWidth: '100%',
-                                textTransform: 'inherit',
-                                lineHeight: 'inherit',
-                                margin: 0,
-                                height: 'auto',
-                                boxSizing: 'border-box'
-                            } as React.CSSProperties}
-                        />
-                    ) : (
-                        <div
-                            className="venue-show-title select-none cursor-pointer"
-                            onClick={(e) => {
-                                if (e.detail === 2) {
-                                    e.stopPropagation();
-                                    setIsEditingTitle(true);
-                                }
-                            }}
-                        >
-                            {editTitle || 'Title'}
-                        </div>
-                    )}
-                </div>
-            );
-        }
 
-        return (
-            <div
-                className="venue-day-cell group relative"
-                onClick={(e) => {
-                    if (e.detail === 2) {
-                        e.stopPropagation();
-                        handleCreate();
-                    }
-                }}
-            >
-                <div className="venue-no-show relative inline-block group-title-wrapper select-none cursor-pointer">
-                    <span>-</span>
-                    <span className="pencil-spacer">
-                        <span
-                            role="button"
-                            className="edit-icon-btn"
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleCreate();
-                            }}
-                        >
-                            <Edit2 size={10} className="edit-icon-svg" />
-                        </span>
-                    </span>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="venue-day-cell group relative flex flex-col justify-center items-center">
             {/* Time Section */}
             <div
-                className="venue-show-time relative flex justify-center items-center select-none cursor-pointer"
+                className={`venue-show-time relative flex justify-center items-center select-none cursor-pointer ${!show?.time ? 'opacity-50 hover:opacity-100 transition-opacity' : ''
+                    }`}
                 style={{ minHeight: '1.2em' }}
                 onClick={(e) => {
                     if (e.detail === 2) {
@@ -199,8 +91,9 @@ export const FooterHighlightCell: React.FC<FooterHighlightCellProps> = ({ venue,
             >
                 <div
                     className={`relative inline-block group-time-wrapper ${isEditingTime ? 'invisible' : ''}`}
+                    style={{ visibility: isEditingTime ? 'hidden' : 'visible' }}
                 >
-                    <span>{show.time}</span>
+                    <span>{show?.time || 'Add Time'}</span>
                     <span className="pencil-spacer">
                         <span
                             role="button"
@@ -242,7 +135,8 @@ export const FooterHighlightCell: React.FC<FooterHighlightCellProps> = ({ venue,
 
             {/* Title Section */}
             <div
-                className="venue-show-title relative flex justify-center items-center select-none cursor-pointer"
+                className={`venue-show-title relative flex justify-center items-center select-none cursor-pointer ${!show?.title ? 'opacity-50 hover:opacity-100 transition-opacity' : ''
+                    }`}
                 style={{ minHeight: '1.2em' }}
                 onClick={(e) => {
                     if (e.detail === 2) {
@@ -253,8 +147,9 @@ export const FooterHighlightCell: React.FC<FooterHighlightCellProps> = ({ venue,
             >
                 <div
                     className={`relative inline-block group-title-wrapper ${isEditingTitle ? 'invisible' : ''}`}
+                    style={{ visibility: isEditingTitle ? 'hidden' : 'visible' }}
                 >
-                    <span>{show.title}</span>
+                    <span>{show?.title || 'Add Title'}</span>
                     <span className="pencil-spacer">
                         <span
                             role="button"

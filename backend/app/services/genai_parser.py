@@ -214,6 +214,8 @@ RULES FOR TIME PARSING:
 - **Noon**: Convert "Noon" to "12:00".
 - **Multiple Showtimes**: If an event lists multiple times separated by '&', 'and', or '/' (e.g., "7:00 pm & 9:00 pm"), you MUST create TWO separate event entries. One event starting at 19:00 and another event starting at 21:00, both with the same title.
 - **Missing End Time**: If an event only lists a start time (e.g., "10:00 pm"), you MUST set `end_time` to `null`. Do NOT guess or fabricate an end time. NEVER use "00:00" as a default end time unless the text explicitly says "Midnight" or "12:00 am" for the end time.
+- **Port Naming**: Normalize port names that indicate navigation (e.g., 'Cruising', 'At Sea', 'Sea', 'Sea Day', 'Crossing', 'Passage') to "At Sea".
+- **At Sea Times**: For "At Sea" days, `arrival_time` and `departure_time` MUST be null.
 
 RULES IN GENERAL:
 - **Date Assignment**: Always use the date corresponding to the row where the event text is physically located.

@@ -289,7 +289,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                                 lastTimeClickRef.current = now;
                             }}
                         >
-                            <div className={`relative inline-block group-time-wrapper ${isEditingTime ? 'invisible' : ''}`}>
+                            <div className={`relative inline-block group-time-wrapper ${isEditingTime ? 'invisible' : ''}`} style={{ visibility: isEditingTime ? 'hidden' : 'visible' }}>
                                 <span>{timeLabel}</span>
                                 {!isInteracting && (
                                     <span className="pencil-spacer">
@@ -346,7 +346,7 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
                                 lastTitleClickRef.current = now;
                             }}
                         >
-                            <div className={`relative inline-block group-title-wrapper ${isEditingTitle ? 'invisible' : ''}`}>
+                            <div className={`relative inline-block group-title-wrapper ${isEditingTitle ? 'invisible' : ''}`} style={{ visibility: isEditingTitle ? 'hidden' : 'visible' }}>
                                 <span>{event.title}</span>
                                 {!isInteracting && (
                                     <span className="pencil-spacer">

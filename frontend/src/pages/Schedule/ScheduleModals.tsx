@@ -10,6 +10,7 @@ interface ScheduleModalsProps {
     currentVoyageNumber?: string;
     isPublishing: boolean;
     isDeleting: boolean;
+    deleteError?: string;
     onPublishConfirm: () => void;
     onDeleteConfirm: () => void;
 }
@@ -25,6 +26,7 @@ export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
         currentVoyageNumber,
         isPublishing,
         isDeleting,
+        deleteError,
         onPublishConfirm,
         onDeleteConfirm
     } = props;
@@ -73,6 +75,11 @@ export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
                             className="delete-voyage-input"
                             autoFocus
                         />
+                        {deleteError && (
+                            <div className="modal-error-text" style={{ color: 'var(--error)', marginTop: '0.5rem', fontSize: '0.9em' }}>
+                                {deleteError}
+                            </div>
+                        )}
                         <div className="modal-actions">
                             <button className="btn btn-secondary" onClick={() => setIsDeleteModalOpen(false)}>Cancel</button>
                             <button className="btn btn-primary btn-danger" onClick={onDeleteConfirm} disabled={isDeleting}>

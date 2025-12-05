@@ -81,6 +81,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
     const [voyageNumberInput, setVoyageNumberInput] = useState('');
     const [isPublishing, setIsPublishing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | undefined>(undefined);
 
     const [isUploading, setIsUploading] = useState(false);
     const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -205,6 +206,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
 
     const handleDeleteClick = () => {
         setVoyageNumberInput('');
+        setDeleteError(undefined);
         setIsDeleteModalOpen(true);
     };
 
@@ -247,7 +249,12 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
 
     const handleDeleteConfirm = async () => {
         if (!voyageNumberInput.trim()) {
-            alert('Please enter a Voyage Number to delete');
+            setDeleteError('Please enter a Voyage Number to delete');
+            return;
+        }
+
+        if (voyageNumberInput !== currentVoyageNumber) {
+            setDeleteError(`Voyage Number does not match. Please enter '${currentVoyageNumber}' to confirm deletion.`);
             return;
         }
 
@@ -384,6 +391,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
                 currentVoyageNumber={currentVoyageNumber}
                 isPublishing={isPublishing}
                 isDeleting={isDeleting}
+                deleteError={deleteError}
                 onPublishConfirm={handlePublishConfirm}
                 onDeleteConfirm={handleDeleteConfirm}
             />
