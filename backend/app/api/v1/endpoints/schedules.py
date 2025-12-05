@@ -342,7 +342,7 @@ def get_latest_schedule(
         "other_venue_shows": formatted_highlights
     }
 
-@router.get("/schedules")
+@router.get("/")
 def list_schedules(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),

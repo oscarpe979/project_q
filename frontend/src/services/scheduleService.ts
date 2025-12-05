@@ -112,7 +112,7 @@ export const scheduleService = {
 
     async getSchedules() {
         const headers = authService.getAuthHeaders();
-        const response = await fetch(`${API_URL}schedules`, {
+        const response = await fetch(`${API_URL}`, {
             headers: headers,
         });
 
