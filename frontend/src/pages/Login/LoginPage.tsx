@@ -7,7 +7,7 @@ interface LoginProps {
     onLogin: (user: { name: string; role: string; username: string; venueName?: string }) => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLogin }) => {
+export const LoginPage: React.FC<LoginProps> = ({ onLogin }) => {
     const navigate = useNavigate();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');

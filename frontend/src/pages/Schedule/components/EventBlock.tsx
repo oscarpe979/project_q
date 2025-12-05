@@ -3,8 +3,8 @@ import { useDraggable } from '@dnd-kit/core';
 import clsx from 'clsx';
 import { format } from 'date-fns';
 import { Edit2 } from 'lucide-react';
-import type { Event } from '../../types';
-import { getContrastColor } from '../../utils/eventColors';
+import type { Event } from '../../../types';
+import { getContrastColor } from '../../../utils/eventColors';
 
 interface EventBlockProps {
     event: Event;

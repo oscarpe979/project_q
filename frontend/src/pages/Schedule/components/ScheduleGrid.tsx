@@ -8,10 +8,10 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { TimeColumn } from './TimeColumn';
 import { DayColumn } from './DayColumn';
 import { EventBlock } from './EventBlock';
-import { DatePicker } from '../UI/DatePicker';
+import { DatePicker } from '../../../components/UI/DatePicker';
 import { FooterHighlightCell } from './FooterHighlightCell';
 import { PortTimeEditor } from './PortTimeEditor';
-import type { Event, ItineraryItem, OtherVenueShow } from '../../types';
+import type { Event, ItineraryItem, OtherVenueShow } from '../../../types';
 
 interface ScheduleGridProps {
     events: Event[];

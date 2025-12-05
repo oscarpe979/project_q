@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { Modal } from './Modal';
+import { BaseModal } from './BaseModal';
 
 interface UnsavedChangesModalProps {
     isOpen: boolean;
@@ -16,7 +16,7 @@ export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = ({
     onCancel
 }) => {
     return (
-        <Modal
+        <BaseModal
             isOpen={isOpen}
             onClose={onCancel}
             title="Unsaved Changes"
@@ -52,6 +52,6 @@ export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = ({
                     </button>
                 </div>
             </div>
-        </Modal>
+        </BaseModal>
     );
 };

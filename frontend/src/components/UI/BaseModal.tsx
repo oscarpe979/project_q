@@ -1,14 +1,14 @@
 import React from 'react';
 import { X } from 'lucide-react';
 
-interface ModalProps {
+interface BaseModalProps {
     isOpen: boolean;
     onClose: () => void;
     title: string;
     children: React.ReactNode;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+export const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, title, children }) => {
     if (!isOpen) return null;
 
     return (
