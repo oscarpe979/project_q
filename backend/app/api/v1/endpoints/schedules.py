@@ -84,7 +84,30 @@ def publish_schedule(
         raise HTTPException(status_code=400, detail="User must be assigned to a ship to publish a schedule.")
 
     # 1. Find or Create Voyage
-    voyage = session.exec(select(Voyage).where(Voyage.voyage_number == request.voyage_number)).first()
+    # First, checked if the target voyage number already exists
+    existing_voyage = session.exec(select(Voyage).where(Voyage.voyage_number == request.voyage_number)).first()
+
+    # STRICT VALIDATION Logic
+    if request.original_voyage_number:
+        # Update Mode: We are editing an existing schedule (or renaming it)
+        # Security Check: ideally we should check if original_voyage_number exists, but for now we trust the flow
+        # Conflict Check: If we are renaming (target != original), target must NOT exist.
+        if request.voyage_number != request.original_voyage_number:
+            if existing_voyage:
+                 raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, 
+                    detail=f"Cannot overwrite existing schedule '{request.voyage_number}' while renaming from '{request.original_voyage_number}'."
+                )
+    else:
+        # Creation Mode: We are creating a NEW draft/schedule
+        # Target must NOT exist.
+        if existing_voyage:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, 
+                detail=f"Voyage '{request.voyage_number}' already exists."
+            )
+            
+    voyage = existing_voyage
     
     # Calculate start/end dates from itinerary if available
     start_date = datetime.now().date()

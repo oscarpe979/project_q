@@ -9,6 +9,7 @@ interface ScheduleModalsProps {
     setVoyageNumber: (voyageNumber: string) => void;
     currentVoyageNumber?: string;
     isPublishing: boolean;
+    publishError?: string;
     isDeleting: boolean;
     deleteError?: string;
     onPublishConfirm: () => void;
@@ -25,6 +26,7 @@ export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
         setVoyageNumber,
         currentVoyageNumber,
         isPublishing,
+        publishError,
         isDeleting,
         deleteError,
         onPublishConfirm,
@@ -47,6 +49,11 @@ export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
                             className="voyage-input"
                             autoFocus={!currentVoyageNumber}
                         />
+                        {publishError && (
+                            <div className="modal-error-text" style={{ color: 'var(--error)', marginTop: '0.5rem', fontSize: '0.9em' }}>
+                                {publishError}
+                            </div>
+                        )}
                         <div className="publish-modal-actions">
                             <button className="btn btn-secondary" onClick={() => setIsPublishModalOpen(false)}>Cancel</button>
                             <button className="btn btn-primary" onClick={onPublishConfirm} disabled={isPublishing}>

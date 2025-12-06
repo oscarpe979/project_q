@@ -35,11 +35,12 @@ const toLocalISOString = (date: Date) => {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
 export const scheduleService = {
-    async publishSchedule(voyageNumber: string, events: Event[], itinerary: ItineraryItem[], otherVenueShows?: OtherVenueShow[]) {
+    async publishSchedule(voyageNumber: string, events: Event[], itinerary: ItineraryItem[], otherVenueShows?: OtherVenueShow[], originalVoyageNumber?: string) {
         const headers = authService.getAuthHeaders();
 
-        const payload: PublishScheduleRequest = {
+        const payload: PublishScheduleRequest & { original_voyage_number?: string } = {
             voyage_number: voyageNumber,
+            original_voyage_number: originalVoyageNumber,
             events: events.map(e => ({
                 title: e.title,
                 start: toLocalISOString(e.start),

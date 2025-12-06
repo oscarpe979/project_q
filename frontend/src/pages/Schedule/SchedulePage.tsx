@@ -80,6 +80,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [voyageNumberInput, setVoyageNumberInput] = useState('');
     const [isPublishing, setIsPublishing] = useState(false);
+    const [publishError, setPublishError] = useState<string | undefined>(undefined);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | undefined>(undefined);
 
@@ -201,6 +202,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
 
     const handlePublishClick = () => {
         setVoyageNumberInput(currentVoyageNumber || '');
+        setPublishError(undefined);
         setIsPublishModalOpen(true);
     };
 
@@ -212,23 +214,26 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
 
     const handlePublishConfirm = async () => {
         if (!voyageNumberInput.trim()) {
-            alert('Please enter a Voyage Number');
+            setPublishError('Please enter a Voyage Number');
             return;
         }
 
-        // Check for duplicate voyage number
-        const isDuplicate = voyages.some(
+        // --- SAFE PUBLISH CHECKS (Frontend UX) ---
+        // Backend raises 409, but we can give immediate feedback if we know the list.
+        const isCollision = voyages.some(
             v => v.voyage_number === voyageNumberInput && v.voyage_number !== currentVoyageNumber
         );
 
-        if (isDuplicate) {
-            alert(`Voyage Number "${voyageNumberInput}" already exists. Please use a unique number.`);
+        if (isCollision) {
+            setPublishError(`Voyage Number "${voyageNumberInput}" already exists. Cannot overwrite.`);
             return;
         }
 
         setIsPublishing(true);
         try {
-            await scheduleService.publishSchedule(voyageNumberInput, events, itinerary, otherVenueShows);
+            // Pass currentVoyageNumber as originalVoyageNumber to enforce Safe Publish
+            await scheduleService.publishSchedule(voyageNumberInput, events, itinerary, otherVenueShows, currentVoyageNumber);
+
             setUploadSuccess(true);
             setCurrentVoyageNumber(voyageNumberInput);
             setOriginalEvents(events);
@@ -239,9 +244,13 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
             setIsPublishModalOpen(false);
             setVoyageNumberInput('');
             loadSchedules();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to publish schedule", error);
-            alert('Failed to publish schedule. Please try again.');
+            if (error.message && error.message.includes('already exists')) {
+                setPublishError(error.message); // Display backend conflict message
+            } else {
+                alert('Failed to publish schedule. Please try again.');
+            }
         } finally {
             setIsPublishing(false);
         }
@@ -390,6 +399,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
                 setVoyageNumber={setVoyageNumberInput}
                 currentVoyageNumber={currentVoyageNumber}
                 isPublishing={isPublishing}
+                publishError={publishError}
                 isDeleting={isDeleting}
                 deleteError={deleteError}
                 onPublishConfirm={handlePublishConfirm}

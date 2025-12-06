@@ -27,6 +27,7 @@ class OtherVenueShowInput(BaseModel):
 
 class PublishScheduleRequest(BaseModel):
     voyage_number: str
+    original_voyage_number: Optional[str] = None
     events: List[EventInput]
     itinerary: List[ItineraryInput]
     other_venue_shows: Optional[List[OtherVenueShowInput]] = None
