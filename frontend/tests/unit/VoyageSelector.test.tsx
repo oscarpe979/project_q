@@ -4,10 +4,25 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { VoyageSelector } from '../../src/pages/Schedule/components/VoyageSelector';
 
 describe('VoyageSelector', () => {
+    // Mock react-virtuoso since JSDOM doesn't support layout/resize observers
+    vi.mock('react-virtuoso', () => ({
+        Virtuoso: ({ data, itemContent, endReached, components: _components }: any) => {
+            return (
+                <div data-testid="virtuoso-mock">
+                    {data.map((item: any, index: number) => (
+                        <div key={index}>
+                            {itemContent(index, item)}
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+    }));
+
     // Mock IntersectionObserver
     beforeAll(() => {
         vi.stubGlobal('IntersectionObserver', class IntersectionObserver {
-            constructor(callback: any, options: any) { }
+            constructor(_callback: any, _options: any) { }
             observe() { }
             unobserve() { }
             disconnect() { }

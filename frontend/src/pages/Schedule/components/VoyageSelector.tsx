@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Calendar, Search, RotateCcw, RotateCw, X } from 'lucide-react';
+import { Virtuoso } from 'react-virtuoso';
 import clsx from 'clsx';
 
 interface Voyage {
@@ -318,12 +319,13 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
                     borderRadius: '16px',
                     border: '1px solid rgba(255, 255, 255, 0.5)',
                     boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                    padding: '0.5rem 0.5rem 0 0.5rem', // No bottom padding for handle flush
+                    padding: '0.5rem', // Add bottom padding to prevent scrollbar hitting edge
                     overflow: 'hidden',
                     animation: 'fadeIn 0.2s ease-out',
                     display: 'flex',
                     flexDirection: 'column',
-                    maxHeight: `${dropdownHeight}px`
+                    maxHeight: isExpanded ? 'none' : '650px', // Comfortably fit 5 items + view more
+                    height: isExpanded ? `${dropdownHeight}px` : '450px', // Explicit height for Virtuoso
                 }}>
                     <div style={{
                         padding: '0.75rem',
@@ -428,11 +430,19 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
 
                     <div
                         className="custom-scrollbar"
-                        style={{ flex: 1, overflowY: 'auto' }}
+                        style={{ flex: 1, height: '100%', overflowY: isExpanded ? 'hidden' : 'auto' }}
                     >
                         {visibleVoyages.length > 0 ? (
-                            <>
-                                {visibleVoyages.map((voyage, index) => {
+                            <Virtuoso
+                                className="custom-scrollbar"
+                                style={{ height: '100%' }}
+                                data={visibleVoyages}
+                                endReached={() => {
+                                    if (isExpanded && hasMore && !isLoadingMore && onLoadMore) {
+                                        onLoadMore();
+                                    }
+                                }}
+                                itemContent={(index, voyage) => {
                                     const currentDate = new Date(voyage.start_date);
                                     const currentMonthYear = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
@@ -448,7 +458,7 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
                                     }
 
                                     return (
-                                        <React.Fragment key={`${voyage.voyage_number}-${index}`}>
+                                        <div style={{ paddingBottom: '2px' }}>
                                             {showHeader && (
                                                 <div style={{
                                                     padding: '0.75rem 1rem 0.25rem 1rem',
@@ -458,7 +468,7 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
                                                     textTransform: 'uppercase',
                                                     letterSpacing: '0.05em',
                                                     marginTop: index > 0 ? '0.5rem' : '0',
-                                                    borderTop: index > 0 ? '1px solid rgba(0,0,0,0.06)' : 'none', // Add separator line
+                                                    borderTop: index > 0 ? '1px solid rgba(0,0,0,0.06)' : 'none',
                                                     display: 'flex',
                                                     alignItems: 'center'
                                                 }}>
@@ -497,66 +507,90 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
                                                     {voyage.start_date}
                                                 </span>
                                             </button>
-                                        </React.Fragment>
+                                        </div>
                                     );
-                                })}
-                                {showLoadMore && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsExpanded(true);
-                                        }}
-                                        style={{
-                                            width: '100%',
-                                            padding: '0.75rem',
-                                            marginTop: '0.5rem',
-                                            border: '1px solid rgba(99, 102, 241, 0.1)', // Subtle solid border
-                                            background: '#f5f7ff', // Very light solid background
-                                            color: '#4f46e5',
-                                            fontSize: '0.85rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                            borderRadius: '8px',
-                                            transition: 'all 0.2s ease',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '0.5rem',
-                                            boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.backgroundColor = '#eef2ff';
-                                            e.currentTarget.style.borderColor = '#6366f1';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.backgroundColor = '#f5f7ff';
-                                            e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.1)';
-                                        }}
-                                    >
-                                        <ChevronDown size={14} />
-                                        View More
-                                    </button>
-                                )}
-                                {
-                                    // Sentinel for Infinite Scroll
-                                    isExpanded && hasMore && !isLoadingMore && (
-                                        <div ref={observerTarget} style={{ height: '20px', width: '100%' }} />
+                                }}
+                                components={{
+                                    Footer: () => (
+                                        <div style={{ padding: '0.1rem 0.5rem 0.5rem 0.5rem' }}>
+                                            {/* Show "View More" button in collapsed state */}
+                                            {showLoadMore && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setIsExpanded(true);
+                                                    }}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '0.7rem',
+                                                        marginTop: '0',
+                                                        border: 'none',
+                                                        background: 'transparent',
+                                                        color: '#4f46e5',
+                                                        fontSize: '0.85rem',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                        borderRadius: '8px',
+                                                        transition: 'all 0.2s ease',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '0.5rem',
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        e.currentTarget.style.color = '#3730a3';
+                                                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.05)';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        e.currentTarget.style.color = '#4f46e5';
+                                                        e.currentTarget.style.background = 'transparent';
+                                                    }}
+                                                >
+                                                    <ChevronDown size={14} />
+                                                    View More
+                                                </button>
+                                            )}
+
+                                            {/* Show manual Load More or Loading in expanded state */}
+                                            {isExpanded && hasMore && !isLoadingMore && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (onLoadMore) onLoadMore();
+                                                    }}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '0.75rem',
+                                                        background: 'rgba(99, 102, 241, 0.05)',
+                                                        color: '#6366f1',
+                                                        border: 'none',
+                                                        borderRadius: '8px',
+                                                        fontSize: '0.85rem',
+                                                        fontWeight: 600,
+                                                        cursor: 'pointer',
+                                                        marginBottom: '0.5rem'
+                                                    }}
+                                                >
+                                                    Load More Voyages
+                                                </button>
+                                            )}
+                                            {isLoadingMore && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', opacity: 0.5 }}>
+                                                    {[1, 2].map(i => (
+                                                        <div key={i} style={{
+                                                            height: '50px',
+                                                            borderRadius: '8px',
+                                                            background: 'linear-gradient(90deg, #f0f0f0 0%, #f8f8f8 50%, #f0f0f0 100%)',
+                                                            backgroundSize: '200% 100%',
+                                                            animation: 'shimmer 1.5s infinite'
+                                                        }}></div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     )
-                                }
-                                {isLoadingMore && (
-                                    <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', opacity: 0.5 }}>
-                                        {[1, 2].map(i => (
-                                            <div key={i} style={{
-                                                height: '50px',
-                                                borderRadius: '8px',
-                                                background: 'linear-gradient(90deg, #f0f0f0 0%, #f8f8f8 50%, #f0f0f0 100%)',
-                                                backgroundSize: '200% 100%',
-                                                animation: 'shimmer 1.5s infinite'
-                                            }}></div>
-                                        ))}
-                                    </div>
-                                )}
-                            </>
+                                }}
+                            />
                         ) : (
                             <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
                                 {isLoadingMore ? 'Loading...' : 'No voyages found'}
@@ -564,52 +598,45 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
                         )}
                     </div>
 
+                    {/* Styles remain same */}
                     <style>{`
                         @keyframes shimmer {
                             0% { background-position: 200% 0; }
                             100% { background-position: -200% 0; }
                         }
-                        .custom-scrollbar::-webkit-scrollbar {
-                            width: 6px;
-                        }
-                        .custom-scrollbar::-webkit-scrollbar-track {
-                            background: transparent;
-                        }
-                        .custom-scrollbar::-webkit-scrollbar-thumb {
-                            background-color: rgba(0, 0, 0, 0.1);
-                            border-radius: 20px;
-                        }
-                        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                            background-color: rgba(0, 0, 0, 0.2);
-                        }
+                        /* Scrollbar styles still apply if needed, but Virtuoso manages scrolling */
                     `}</style>
 
                     {/* Resize Handle */}
-                    <div
-                        onMouseDown={(e) => (resizeRef.current as any)(e)}
-                        style={{
-                            height: '16px',
-                            cursor: 'ns-resize',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            marginTop: 'auto', // Push to bottom
-                            paddingTop: '8px',
-                            paddingBottom: '2px' // Minimal bottom padding
-                        }}
-                    >
-                        <div style={{
-                            width: '40px',
-                            height: '4px',
-                            borderRadius: '2px',
-                            background: 'rgba(0,0,0,0.2)',
-                            transition: 'background 0.2s'
-                        }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.3)'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.2)'}
-                        />
-                    </div>
+                    {isExpanded && (
+                        <div
+                            onMouseDown={(e) => (resizeRef.current as any)(e)}
+                            style={{
+                                height: '16px',
+                                cursor: 'ns-resize',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                marginTop: 'auto',
+                                paddingTop: '8px',
+                                paddingBottom: '2px',
+                                background: '#fff', // Ensure handle has background over list
+                                zIndex: 10
+                            }}
+                        >
+                            <div style={{
+                                width: '40px',
+                                height: '4px',
+                                borderRadius: '2px',
+                                background: 'rgba(0,0,0,0.2)',
+                                transition: 'background 0.2s'
+                            }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.3)'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.2)'}
+                            />
+                        </div>
+                    )}
                 </div>
             )}
         </div>
