@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { scheduleService } from '../services/scheduleService';
 import { assignEventColors } from '../utils/eventColors';
 import type { Event, ItineraryItem, OtherVenueShow, HistoryState } from '../types';
@@ -293,14 +293,69 @@ export function useScheduleState() {
         initializeHistory([], generateDefaultItinerary(), templateShows);
     }, [shipVenues, initializeHistory]);
 
-    const loadSchedules = useCallback(async () => {
-        try {
-            const data = await scheduleService.getSchedules();
-            setVoyages(data);
-        } catch (error) {
-            console.error("Failed to load schedules", error);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [currentSearch, setCurrentSearch] = useState('');
+    const [offset, setOffset] = useState(0);
+    const LIMIT = 20;
+
+    const abortControllerRef = useRef<AbortController | null>(null);
+
+    const loadSchedules = useCallback(async (search?: string, isLoadMore = false) => {
+        // Prevent concurrent load-more requests
+        if (isLoadMore && isLoadingMore) return;
+
+        // Cancel previous request if searching (new search term)
+        if (!isLoadMore && abortControllerRef.current) {
+            abortControllerRef.current.abort();
         }
-    }, []);
+
+        const controller = new AbortController();
+        if (!isLoadMore) {
+            abortControllerRef.current = controller;
+        }
+
+        if (isLoadMore) {
+            setIsLoadingMore(true);
+        }
+
+        try {
+            const searchParams = search !== undefined ? search : currentSearch;
+            const skip = isLoadMore ? offset : 0;
+
+            // Standard Fetch
+            const data = await scheduleService.getSchedules(searchParams, skip, LIMIT, controller.signal);
+
+            if (isLoadMore) {
+                setVoyages(prev => [...prev, ...data]);
+                setOffset(prev => prev + data.length);
+                setHasMore(data.length === LIMIT);
+            } else {
+                setVoyages(data);
+                setOffset(data.length);
+                setHasMore(data.length === LIMIT);
+                setCurrentSearch(searchParams);
+                if (data.length < LIMIT) setHasMore(false);
+            }
+        } catch (error: any) {
+            if (error.name !== 'AbortError') {
+                console.error("Failed to load schedules", error);
+            }
+        } finally {
+            if (isLoadMore) {
+                setIsLoadingMore(false);
+            }
+            if (!isLoadMore && abortControllerRef.current === controller) {
+                abortControllerRef.current = null;
+            }
+        }
+    }, [currentSearch, offset, isLoadingMore]);
+
+    const loadMoreSchedules = useCallback(() => {
+        if (!isLoadingMore && hasMore) {
+            loadSchedules(undefined, true);
+        }
+    }, [isLoadingMore, hasMore, loadSchedules]);
 
     const loadLatestSchedule = useCallback(async () => {
         try {
@@ -503,6 +558,9 @@ export function useScheduleState() {
         historyIndex,
         history,
         loadSchedules,
+        loadMoreSchedules,
+        isLoadingMore,
+        hasMore,
         loadLatestSchedule,
         loadScheduleByVoyage,
         handleEventsChange,

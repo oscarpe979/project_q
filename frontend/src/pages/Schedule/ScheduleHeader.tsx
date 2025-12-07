@@ -18,6 +18,10 @@ interface ScheduleHeaderProps {
     onPublishClick: () => void;
     onDeleteClick: () => void;
     startDate?: string;
+    onSearch?: (term: string) => void;
+    onLoadMore?: () => void;
+    isLoadingMore?: boolean;
+    hasMore?: boolean;
 }
 
 export const ScheduleHeader: React.FC<ScheduleHeaderProps> = (props) => {
@@ -136,6 +140,10 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = (props) => {
                             canRedo={props.canRedo}
                             onNewSchedule={props.onNewSchedule}
                             isNewDraft={props.isNewDraft}
+                            onSearch={props.onSearch}
+                            onLoadMore={props.onLoadMore}
+                            isLoadingMore={props.isLoadingMore}
+                            hasMore={props.hasMore}
                         />
                     ) : (
                         <h2 className="header-title">

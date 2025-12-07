@@ -367,21 +367,19 @@ def get_latest_schedule(
 
 @router.get("/")
 def list_schedules(
+    search: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 20,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     if not current_user.venue_id:
         raise HTTPException(status_code=400, detail="User must be assigned to a venue.")
     
-    # Find all voyages for this ship that have a VenueSchedule for THIS venue
-    statement = (
-        select(Voyage)
-        .join(VenueSchedule)
-        .where(VenueSchedule.venue_id == current_user.venue_id)
-        .order_by(Voyage.start_date.desc())
-    )
+    from backend.app.services.search import SearchService
+    search_service = SearchService(session)
     
-    voyages = session.exec(statement).all()
+    voyages = search_service.search_schedules(search, current_user.venue_id, skip=skip, limit=limit)
     
     return [
         {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Calendar, Search, RotateCcw, RotateCw } from 'lucide-react';
+import { ChevronDown, Calendar, Search, RotateCcw, RotateCw, X } from 'lucide-react';
 import clsx from 'clsx';
 
 interface Voyage {
@@ -20,6 +20,10 @@ interface VoyageSelectorProps {
     canRedo?: boolean;
     onNewSchedule?: () => void;
     isNewDraft?: boolean;
+    onSearch?: (term: string) => void;
+    onLoadMore?: () => void;
+    isLoadingMore?: boolean;
+    hasMore?: boolean;
 }
 
 export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
@@ -33,11 +37,18 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
     canUndo = false,
     canRedo = false,
     onNewSchedule,
-    isNewDraft
+    isNewDraft,
+    onSearch,
+    onLoadMore,
+    isLoadingMore = false,
+    hasMore = false
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [dropdownHeight, setDropdownHeight] = useState(550);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const resizeRef = useRef<HTMLDivElement>(null);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -47,15 +58,109 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
             }
         };
 
+        const handleMouseUp = () => {
+            document.removeEventListener('mousemove', handleResize);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        const handleResize = (e: MouseEvent) => {
+            if (resizeRef.current && dropdownRef.current) {
+                const rect = dropdownRef.current.querySelector('.voyage-dropdown')?.getBoundingClientRect();
+                if (rect) {
+                    const newHeight = e.clientY - rect.top;
+                    setDropdownHeight(Math.max(200, Math.min(newHeight, 600))); // Min 200px, Max 600px
+                }
+            }
+        };
+
+        const handleMouseDownResize = (e: React.MouseEvent) => {
+            e.preventDefault();
+            document.addEventListener('mousemove', handleResize);
+            document.addEventListener('mouseup', handleMouseUp);
+        };
+
+        // Attach resize handler to ref for use in render
+        (resizeRef.current as any) = handleMouseDownResize;
+
         document.addEventListener('mousedown', handleClickOutside);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('mousemove', handleResize);
+            document.removeEventListener('mouseup', handleMouseUp);
         };
     }, []);
 
-    const filteredVoyages = voyages.filter(v =>
+    // Reset expanded state when closed
+    useEffect(() => {
+        if (!isOpen) {
+            setIsExpanded(false);
+        }
+    }, [isOpen]);
+
+    // Use ref to access latest onSearch without triggering effect re-runs
+    const onSearchRef = useRef(onSearch);
+    useEffect(() => {
+        onSearchRef.current = onSearch;
+    }, [onSearch]);
+
+    // Debounced Search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (onSearchRef.current) {
+                onSearchRef.current(searchTerm);
+            }
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [searchTerm]); // Only trigger when searchTerm changes
+
+    // Filter logic if needed (handled by backend if onSearch is present)
+    const filteredVoyages = onSearch ? voyages : voyages.filter(v =>
         v.voyage_number.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Visible Logic: Show everything if expanded or searching. Show 5 if collapsed.
+    // If searching (backend mode), we generally want to show results as they come for better UX,
+    // but preserving "initial 5" rule for consistency is fine.
+    const visibleVoyages = isExpanded ? filteredVoyages : filteredVoyages.slice(0, 5);
+
+    // Show "View More" if we have more local items hidden OR if backend has more pages
+    // AND we are not currently loading
+    const showLoadMore = !isLoadingMore && !isExpanded && (filteredVoyages.length > 5 || hasMore);
+
+    const observerTarget = useRef<any>(null);
+
+    const lastLoadCallRef = useRef(0);
+
+    // Intersection Observer for Infinite Scroll
+    useEffect(() => {
+        // Only attach observer if we are expanded.
+        // If not expanded, the "View More" button acts as a manual trigger to expand.
+        if (!isExpanded) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    const now = Date.now();
+                    // Throttle: Only call load more once every 1s to prevent loops
+                    if (now - lastLoadCallRef.current < 1000) return;
+
+                    // Trigger load more if backend has more
+                    if (onLoadMore && !isLoadingMore && hasMore) {
+                        lastLoadCallRef.current = now;
+                        onLoadMore();
+                    }
+                }
+            },
+            { threshold: 0.1, rootMargin: '100px' }
+        );
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
+        }
+
+        return () => observer.disconnect();
+    }, [isExpanded, onLoadMore, isLoadingMore, hasMore]);
 
     const getStatusText = () => {
         switch (status) {
@@ -213,36 +318,81 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
                     borderRadius: '16px',
                     border: '1px solid rgba(255, 255, 255, 0.5)',
                     boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                    padding: '0.5rem',
+                    padding: '0.5rem 0.5rem 0 0.5rem', // No bottom padding for handle flush
                     overflow: 'hidden',
-                    animation: 'fadeIn 0.2s ease-out'
+                    animation: 'fadeIn 0.2s ease-out',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    maxHeight: `${dropdownHeight}px`
                 }}>
                     <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '0.5rem',
+                        padding: '0.75rem',
                         borderBottom: '1px solid rgba(0,0,0,0.05)',
-                        marginBottom: '0.5rem'
+                        flexShrink: 0
                     }}>
-                        <Search size={14} style={{ color: 'var(--text-tertiary)', marginRight: '0.5rem' }} />
-                        <input
-                            type="text"
-                            placeholder="Search voyages..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            style={{
-                                border: 'none',
-                                background: 'transparent',
-                                width: '100%',
-                                fontSize: '0.875rem',
-                                outline: 'none',
-                                color: 'var(--text-primary)'
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            width: '100%',
+                            background: '#fff',
+                            border: '1px solid rgba(0,0,0,0.1)',
+                            borderRadius: '24px',
+                            padding: '0.5rem 1rem',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.06)',
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                        }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.06)';
+                                e.currentTarget.style.borderColor = 'rgba(0,0,0,0.05)';
                             }}
-                            autoFocus
-                        />
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.06)';
+                                e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)';
+                            }}
+                        >
+                            <Search size={16} style={{ color: '#9aa0a6', marginRight: '0.75rem' }} />
+                            <input
+                                type="text"
+                                placeholder={onSearch ? "Deep search voyages..." : "Search voyages..."}
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    width: '100%',
+                                    fontSize: '1rem', // Google uses slightly larger text
+                                    outline: 'none',
+                                    color: '#202124', // Google dark grey
+                                    height: '24px'
+                                }}
+                                autoFocus
+                            />
+                            {searchTerm && (
+                                <button
+                                    onClick={() => setSearchTerm('')}
+                                    aria-label="Clear search"
+                                    style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        padding: '4px',
+                                        cursor: 'pointer',
+                                        color: '#70757a',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        borderRadius: '50%',
+                                        marginLeft: '0.25rem'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f3f4'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                >
+                                    <X size={18} />
+                                </button>
+                            )}
+                        </div>
                     </div>
 
-                    <div style={{ padding: '0.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                    <div style={{ padding: '0.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)', flexShrink: 0 }}>
                         <button
                             onClick={() => {
                                 if (!isNewDraft && onNewSchedule) {
@@ -276,48 +426,189 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
                         </button>
                     </div>
 
-                    <div className="custom-scrollbar" style={{ maxHeight: '240px', overflowY: 'auto' }}>
-                        {filteredVoyages.length > 0 ? (
-                            filteredVoyages.map((voyage) => (
-                                <button
-                                    key={voyage.voyage_number}
-                                    onClick={() => {
-                                        onSelect(voyage.voyage_number);
-                                        setIsOpen(false);
-                                    }}
-                                    style={{
-                                        width: '100%',
-                                        textAlign: 'left',
-                                        padding: '0.75rem',
-                                        borderRadius: '8px',
-                                        border: 'none',
-                                        background: voyage.voyage_number === currentVoyageNumber ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '2px',
-                                        transition: 'background 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = voyage.voyage_number === currentVoyageNumber ? 'rgba(99, 102, 241, 0.15)' : 'rgba(0,0,0,0.03)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = voyage.voyage_number === currentVoyageNumber ? 'rgba(99, 102, 241, 0.1)' : 'transparent'}
-                                >
-                                    <span style={{
-                                        fontSize: '0.9rem',
-                                        fontWeight: 600,
-                                        color: voyage.voyage_number === currentVoyageNumber ? '#6366f1' : 'var(--text-primary)'
-                                    }}>
-                                        VY {voyage.voyage_number}
-                                    </span>
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                                        {voyage.start_date}
-                                    </span>
-                                </button>
-                            ))
+                    <div
+                        className="custom-scrollbar"
+                        style={{ flex: 1, overflowY: 'auto' }}
+                    >
+                        {visibleVoyages.length > 0 ? (
+                            <>
+                                {visibleVoyages.map((voyage, index) => {
+                                    const currentDate = new Date(voyage.start_date);
+                                    const currentMonthYear = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+                                    let showHeader = false;
+                                    if (index === 0) {
+                                        showHeader = true;
+                                    } else {
+                                        const prevDate = new Date(visibleVoyages[index - 1].start_date);
+                                        const prevMonthYear = prevDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+                                        if (currentMonthYear !== prevMonthYear) {
+                                            showHeader = true;
+                                        }
+                                    }
+
+                                    return (
+                                        <React.Fragment key={`${voyage.voyage_number}-${index}`}>
+                                            {showHeader && (
+                                                <div style={{
+                                                    padding: '0.75rem 1rem 0.25rem 1rem',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 700,
+                                                    color: 'var(--text-tertiary)',
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '0.05em',
+                                                    marginTop: index > 0 ? '0.5rem' : '0',
+                                                    borderTop: index > 0 ? '1px solid rgba(0,0,0,0.06)' : 'none', // Add separator line
+                                                    display: 'flex',
+                                                    alignItems: 'center'
+                                                }}>
+                                                    {currentMonthYear}
+                                                </div>
+                                            )}
+                                            <button
+                                                onClick={() => {
+                                                    onSelect(voyage.voyage_number);
+                                                    setIsOpen(false);
+                                                }}
+                                                style={{
+                                                    width: '100%',
+                                                    textAlign: 'left',
+                                                    padding: '0.75rem',
+                                                    borderRadius: '8px',
+                                                    border: 'none',
+                                                    background: voyage.voyage_number === currentVoyageNumber ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: '2px',
+                                                    transition: 'background 0.2s'
+                                                }}
+                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = voyage.voyage_number === currentVoyageNumber ? 'rgba(99, 102, 241, 0.15)' : 'rgba(0,0,0,0.03)'}
+                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = voyage.voyage_number === currentVoyageNumber ? 'rgba(99, 102, 241, 0.1)' : 'transparent'}
+                                            >
+                                                <span style={{
+                                                    fontSize: '0.9rem',
+                                                    fontWeight: 600,
+                                                    color: voyage.voyage_number === currentVoyageNumber ? '#6366f1' : 'var(--text-primary)'
+                                                }}>
+                                                    VY {voyage.voyage_number}
+                                                </span>
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                                                    {voyage.start_date}
+                                                </span>
+                                            </button>
+                                        </React.Fragment>
+                                    );
+                                })}
+                                {showLoadMore && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsExpanded(true);
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.75rem',
+                                            marginTop: '0.5rem',
+                                            border: '1px solid rgba(99, 102, 241, 0.1)', // Subtle solid border
+                                            background: '#f5f7ff', // Very light solid background
+                                            color: '#4f46e5',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            borderRadius: '8px',
+                                            transition: 'all 0.2s ease',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.5rem',
+                                            boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#eef2ff';
+                                            e.currentTarget.style.borderColor = '#6366f1';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#f5f7ff';
+                                            e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.1)';
+                                        }}
+                                    >
+                                        <ChevronDown size={14} />
+                                        View More
+                                    </button>
+                                )}
+                                {
+                                    // Sentinel for Infinite Scroll
+                                    isExpanded && hasMore && !isLoadingMore && (
+                                        <div ref={observerTarget} style={{ height: '20px', width: '100%' }} />
+                                    )
+                                }
+                                {isLoadingMore && (
+                                    <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', opacity: 0.5 }}>
+                                        {[1, 2].map(i => (
+                                            <div key={i} style={{
+                                                height: '50px',
+                                                borderRadius: '8px',
+                                                background: 'linear-gradient(90deg, #f0f0f0 0%, #f8f8f8 50%, #f0f0f0 100%)',
+                                                backgroundSize: '200% 100%',
+                                                animation: 'shimmer 1.5s infinite'
+                                            }}></div>
+                                        ))}
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
-                                No voyages found
+                                {isLoadingMore ? 'Loading...' : 'No voyages found'}
                             </div>
                         )}
+                    </div>
+
+                    <style>{`
+                        @keyframes shimmer {
+                            0% { background-position: 200% 0; }
+                            100% { background-position: -200% 0; }
+                        }
+                        .custom-scrollbar::-webkit-scrollbar {
+                            width: 6px;
+                        }
+                        .custom-scrollbar::-webkit-scrollbar-track {
+                            background: transparent;
+                        }
+                        .custom-scrollbar::-webkit-scrollbar-thumb {
+                            background-color: rgba(0, 0, 0, 0.1);
+                            border-radius: 20px;
+                        }
+                        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                            background-color: rgba(0, 0, 0, 0.2);
+                        }
+                    `}</style>
+
+                    {/* Resize Handle */}
+                    <div
+                        onMouseDown={(e) => (resizeRef.current as any)(e)}
+                        style={{
+                            height: '16px',
+                            cursor: 'ns-resize',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            marginTop: 'auto', // Push to bottom
+                            paddingTop: '8px',
+                            paddingBottom: '2px' // Minimal bottom padding
+                        }}
+                    >
+                        <div style={{
+                            width: '40px',
+                            height: '4px',
+                            borderRadius: '2px',
+                            background: 'rgba(0,0,0,0.2)',
+                            transition: 'background 0.2s'
+                        }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.3)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.2)'}
+                        />
                     </div>
                 </div>
             )}

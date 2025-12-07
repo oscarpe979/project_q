@@ -111,16 +111,22 @@ export const scheduleService = {
         return response.json();
     },
 
-    async getSchedules() {
+    async getSchedules(search?: string, skip: number = 0, limit: number = 20, signal?: AbortSignal) {
         const headers = authService.getAuthHeaders();
-        const response = await fetch(`${API_URL}`, {
-            headers: headers,
-        });
+        const url = new URL(API_URL);
+        if (search) {
+            url.searchParams.append('search', search);
+        }
+        url.searchParams.append('skip', skip.toString());
+        url.searchParams.append('limit', limit.toString());
 
+        const response = await fetch(url.toString(), {
+            headers: headers,
+            signal // Pass the signal to fetch
+        });
         if (!response.ok) {
             throw new Error('Failed to fetch schedules');
         }
-
         return response.json();
     },
 

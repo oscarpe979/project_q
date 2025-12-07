@@ -50,7 +50,10 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
         setOriginalEvents,
         setOriginalItinerary,
         setOriginalOtherVenueShows,
-        formatTimeDisplay
+        formatTimeDisplay,
+        loadMoreSchedules,
+        isLoadingMore,
+        hasMore
     } = useScheduleState();
 
     const initialized = useRef(false);
@@ -367,6 +370,10 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
                         onPublishClick={handlePublishClick}
                         onDeleteClick={handleDeleteClick}
                         startDate={itinerary.length > 0 ? itinerary[0].date : undefined}
+                        onSearch={loadSchedules}
+                        onLoadMore={loadMoreSchedules}
+                        isLoadingMore={isLoadingMore}
+                        hasMore={hasMore}
                     />
                 }
             >
