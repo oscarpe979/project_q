@@ -19,7 +19,7 @@ const PIXELS_PER_HOUR = 100;
 const SNAP_MINUTES = 5;
 const MIN_HEIGHT = 25; // Minimum 15 minutes
 
-export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerStyle, isLate, onUpdate, onDelete }) => {
+const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containerStyle, isLate, onUpdate, onDelete }) => {
     const defaultTimeLabel = `${format(event.start, 'h:mm a')} - ${isLate ? 'Late' : format(event.end, 'h:mm a')}`;
 
     // Separate edit states
@@ -377,3 +377,5 @@ export const EventBlock: React.FC<EventBlockProps> = ({ event, style: containerS
         </div>
     );
 };
+
+export const EventBlock = React.memo(EventBlockComponent);

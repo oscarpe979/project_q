@@ -309,7 +309,7 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
             </div>
 
             {isOpen && (
-                <div className="voyage-dropdown" style={{
+                <div className="voyage-dropdown interactive-overlay" style={{
                     position: 'absolute',
                     top: 'calc(100% + 8px)',
                     left: 0,

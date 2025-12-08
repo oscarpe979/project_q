@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { ChevronDown, FileSpreadsheet, LogOut } from 'lucide-react';
 import { VoyageSelector } from './components/VoyageSelector';
 import { authService } from '../../services/authService';
+import { Backdrop } from '../../components/UI/Backdrop';
 
 interface ScheduleHeaderProps {
     user?: { name: string; role: string; username: string; venueName?: string } | null;
@@ -43,17 +45,6 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = (props) => {
 
     const { ship, venue } = getHeaderInfo();
 
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (viewOptionsRef.current && !viewOptionsRef.current.contains(event.target as Node)) {
-                setIsViewOptionsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, []);
 
     const handleExportClick = async () => {
         if (!currentVoyageNumber) {
@@ -154,9 +145,13 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = (props) => {
             </div>
 
             <div className="header-right">
-                <div className="dropdown view-options-container" ref={viewOptionsRef}>
+                <div className="dropdown view-options-container" ref={viewOptionsRef} style={{ zIndex: 110 }}>
                     <button
-                        onClick={() => setIsViewOptionsOpen(!isViewOptionsOpen)}
+                        onPointerDown={(e) => {
+                            // Toggle, but prevent default to avoid immediate focus loss if needed
+                            // Actually standard button behavior is fine
+                            setIsViewOptionsOpen(!isViewOptionsOpen);
+                        }}
                         className={`view-options-btn ${isViewOptionsOpen ? 'active' : ''}`}
                     >
                         View Options
@@ -165,38 +160,58 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = (props) => {
                             className={`view-options-icon ${isViewOptionsOpen ? 'open' : ''}`}
                         />
                     </button>
-                    {isViewOptionsOpen && (
-                        <div className="dropdown-menu">
-                            <MenuItem
-                                onClick={() => {
-                                    if (props.onNewSchedule) {
-                                        props.onNewSchedule();
-                                        setIsViewOptionsOpen(false);
-                                    }
+                    {isViewOptionsOpen && ReactDOM.createPortal(
+                        <div style={{ position: 'relative', zIndex: 9999 }}>
+                            {/* Generic Backdrop */}
+                            <Backdrop onClose={() => setIsViewOptionsOpen(false)} zIndex={9998} />
+                            {/* Position the menu relative to the button (calculated or fixed) -> Simplified: CENTERED or Fixed for now? 
+                                Actually, existing code relied on relative positioning. 
+                                To use Portal, we need position state.
+                                Let's calculate rect from viewOptionsRef.
+                            */}
+                            <div
+                                className="dropdown-menu interactive-overlay"
+                                style={{
+                                    position: 'fixed',
+                                    top: viewOptionsRef.current ? viewOptionsRef.current.getBoundingClientRect().bottom + 4 : 0,
+                                    right: viewOptionsRef.current ? window.innerWidth - viewOptionsRef.current.getBoundingClientRect().right : 0,
+                                    left: 'auto', // Override any default and prevent stretching
+                                    minWidth: '200px',
+                                    zIndex: 9999
                                 }}
-                                icon={
-                                    <div className={`new-schedule-icon ${props.isNewDraft ? 'draft' : 'active'}`}>
-                                        <span className="new-schedule-plus">+</span>
-                                    </div>
-                                }
-                                label="New Schedule"
-                                disabled={props.isNewDraft}
-                            />
-                            <MenuItem
-                                onClick={handleExportClick}
-                                icon={<FileSpreadsheet size={16} />}
-                                label={isExporting ? "Exporting..." : "Export to Excel"}
-                                disabled={!currentVoyageNumber}
-                            />
-                            <div className="dropdown-divider"></div>
-                            <MenuItem
-                                onClick={props.onDeleteClick}
-                                icon={<LogOut size={16} />}
-                                label="Delete Schedule"
-                                danger
-                                disabled={!currentVoyageNumber}
-                            />
-                        </div>
+                            >
+                                <MenuItem
+                                    onClick={() => {
+                                        if (props.onNewSchedule) {
+                                            props.onNewSchedule();
+                                            setIsViewOptionsOpen(false);
+                                        }
+                                    }}
+                                    icon={
+                                        <div className={`new-schedule-icon ${props.isNewDraft ? 'draft' : 'active'}`}>
+                                            <span className="new-schedule-plus">+</span>
+                                        </div>
+                                    }
+                                    label="New Schedule"
+                                    disabled={props.isNewDraft}
+                                />
+                                <MenuItem
+                                    onClick={handleExportClick}
+                                    icon={<FileSpreadsheet size={16} />}
+                                    label={isExporting ? "Exporting..." : "Export to Excel"}
+                                    disabled={!currentVoyageNumber}
+                                />
+                                <div className="dropdown-divider"></div>
+                                <MenuItem
+                                    onClick={props.onDeleteClick}
+                                    icon={<LogOut size={16} />}
+                                    label="Delete Schedule"
+                                    danger
+                                    disabled={!currentVoyageNumber}
+                                />
+                            </div>
+                        </div>,
+                        document.body
                     )}
                 </div>
                 <button
@@ -206,8 +221,8 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = (props) => {
                 >
                     Publish Schedule
                 </button>
-            </div>
-        </header>
+            </div >
+        </header >
     );
 };
 

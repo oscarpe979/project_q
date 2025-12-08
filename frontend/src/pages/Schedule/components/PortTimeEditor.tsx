@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Clock } from 'lucide-react';
+import { Backdrop } from '../../../components/UI/Backdrop';
 
 interface PortTimeEditorProps {
     isOpen: boolean;
@@ -152,7 +153,7 @@ export const PortTimeEditor: React.FC<PortTimeEditorProps> = ({
     const popupContent = (
         <div
             ref={popupRef}
-            className="glass-time-editor-popup"
+            className="glass-time-editor-popup interactive-overlay"
             style={{
                 position: 'absolute',
                 top: `${top}px`,
@@ -271,5 +272,12 @@ export const PortTimeEditor: React.FC<PortTimeEditorProps> = ({
         </div>
     );
 
-    return ReactDOM.createPortal(popupContent, document.body);
+    return ReactDOM.createPortal(
+        <>
+            {/* Blocking Backdrop for Grid Protection - Sibling to Popup */}
+            <Backdrop onClose={onClose} zIndex={1299} />
+            {popupContent}
+        </>,
+        document.body
+    );
 };

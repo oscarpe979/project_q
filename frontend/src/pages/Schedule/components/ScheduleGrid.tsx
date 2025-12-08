@@ -1,9 +1,9 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { format, addDays, startOfWeek, setMinutes } from 'date-fns';
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import { format, addDays, startOfWeek, setMinutes, startOfDay } from 'date-fns';
 import { DndContext, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { NewDraftOverlay } from './NewDraftOverlay';
 import { Edit2 } from 'lucide-react';
-import type { DragEndEvent } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 
 import { TimeColumn } from './TimeColumn';
 import { DayColumn } from './DayColumn';
@@ -341,46 +341,21 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
         useSensor(PointerSensor)
     );
 
-    const handleUpdateEvent = (eventId: string, updates: { title?: string; timeDisplay?: string; type?: string }) => {
+    const handleUpdateEvent = useCallback((eventId: string, updates: { title?: string; timeDisplay?: string; color?: string }) => {
         setEvents(prev => prev.map(e => {
             if (e.id !== eventId) return e;
-            // Cast type back to any or specific union to avoid TS error since we know what we get from UI
-            // ideally we validate but for now direct cast
             return { ...e, ...updates } as Event;
         }));
-    };
+    }, [setEvents]);
 
-    const handleDeleteEvent = (eventId: string) => {
+    const handleDeleteEvent = useCallback((eventId: string) => {
         setEvents(prev => prev.filter(e => e.id !== eventId));
-    };
+    }, [setEvents]);
 
-    const handleAddEvent = (date: Date, yPosition: number) => {
-        // Calculate time from yPosition relative to grid content
-        // yPosition is relative to the DayColumn
-        const hourOffset = yPosition / PIXELS_PER_HOUR;
-        const totalHours = START_HOUR + hourOffset;
-
-        const hour = Math.floor(totalHours);
-        const minutes = Math.round((totalHours - hour) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
-
-        const start = new Date(date);
-        start.setHours(hour, minutes, 0, 0);
-
-        // Default duration 60 mins
-        const end = new Date(start.getTime() + 60 * 60 * 1000);
-
-        const newEvent: Event = {
-            id: `new-${Date.now()}`,
-            title: 'New Event',
-            start: start,
-            end: end,
-            color: '#e3ded3' // COLORS.OTHER
-        };
-
-        setEvents(prev => [...prev, newEvent]);
-    };
 
     const handleDragEnd = (event: DragEndEvent) => {
+        setActiveDragId(null);
+        // ... (existing drag logic)
         // ... (existing drag logic)
         const { active, delta, over } = event;
         const activeId = String(active.id);
@@ -456,53 +431,363 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
         }));
     };
 
-    const getVisualDay = (date: Date) => {
-        const d = new Date(date);
-        if (d.getHours() < 4) {
-            d.setDate(d.getDate() - 1);
-        }
-        d.setHours(0, 0, 0, 0);
-        return d.getTime();
+    // OPTIMIZATION: Pre-calculate layout and group by Visual Day
+    // This removes O(Days * Events) complexity from the render loop and ensures stable props for Memoization.
+    const eventsByDay = useMemo(() => {
+        // 1. Calculate base layout (overlaps)
+        const sortedEvents = [...events].sort((a, b) => {
+            if (a.start.getTime() === b.start.getTime()) {
+                // Sort by duration desc to optimize packing
+                return (b.end.getTime() - b.start.getTime()) - (a.end.getTime() - a.start.getTime());
+            }
+            return a.start.getTime() - b.start.getTime();
+        });
+
+        // Note: This is a simplified packing algorithm. 
+        // For full correctness with the previous logic, we can reuse the previous approach or assume simple column packing.
+        // Replicating previous generic overlap logic:
+        const eventsWithLayout = sortedEvents.map(event => {
+            // Find overlapping events
+            const overlapping = sortedEvents.filter(other =>
+                other.id !== event.id &&
+                other.start < event.end &&
+                other.end > event.start
+            );
+            // Basic naive column visual (same as before)
+            const totalOverlaps = overlapping.length + 1;
+            // Better: count how many start before
+            const predecessors = overlapping.filter(o => o.start.getTime() < event.start.getTime() || (o.start.getTime() === event.start.getTime() && o.id < event.id));
+            const overlapIndex = predecessors.length;
+
+            return {
+                event,
+                style: {
+                    width: `${100 / totalOverlaps}%`,
+                    left: `${(100 / totalOverlaps) * overlapIndex}%`
+                }
+            };
+        });
+
+        // 2. Group by Visual Day and Finalize Position
+        const groups: Record<string, { event: Event; style: React.CSSProperties; isLate: boolean }[]> = {};
+
+        eventsWithLayout.forEach(({ event, style: baseStyle }) => {
+            const startHour = event.start.getHours() + event.start.getMinutes() / 60;
+
+            // Determine Visual Day
+            // If < 4am, it belongs to Previous Day visually (late night event)
+            let visualDate: Date;
+            let adjustedStartHour = startHour;
+
+            if (startHour < 4) {
+                visualDate = startOfDay(addDays(event.start, -1));
+                adjustedStartHour += 24; // e.g. 1am -> 25h
+            } else {
+                visualDate = startOfDay(event.start);
+            }
+
+            const dayIso = visualDate.toISOString();
+            if (!groups[dayIso]) groups[dayIso] = [];
+
+            // Calculate Vertical Position using adjusted hour
+            const top = (adjustedStartHour - START_HOUR) * PIXELS_PER_HOUR;
+            const durationMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
+            let height = (durationMinutes / 60) * PIXELS_PER_HOUR;
+
+            const maxGridHeight = HOURS_COUNT * PIXELS_PER_HOUR;
+            let isLate = (top + height) > maxGridHeight;
+
+            if (isLate) {
+                height = Math.max(0, maxGridHeight - top);
+            }
+
+            // Final properties
+            const finalItem = {
+                event,
+                isLate,
+                style: {
+                    ...baseStyle,
+                    top: `${top}px`,
+                    height: `${height}px`
+                }
+            };
+
+            groups[dayIso].push(finalItem);
+        });
+
+        return groups;
+    }, [events]);
+
+    // OPTIMIZATION: Track day only in state. Track position via Refs to avoid re-renders.
+    const [hoverDay, setHoverDay] = useState<string | null>(null);
+    const highlightRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+    const ghostRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+    // Track creation drag via Ref (No re-renders)
+    const activeCreationRef = useRef<{
+        day: Date;
+        startTop: number;
+        currentTop: number
+    } | null>(null);
+
+    const isInteractionActive = () => {
+        const active = document.activeElement;
+        const isInput = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement;
+
+        // Broad Safety Checks for Third-Party Libraries (MUI, etc.) and Generic Overlays
+        const hasOpenExternalMenus = document.querySelector('.MuiPopper-root') || // MUI Date/Time Pickers, Selects
+            document.querySelector('[role="dialog"]') ||    // Standard Modals
+            document.querySelector('.interactive-overlay'); // Generic Class for our overlays
+
+        return isInput || !!hasOpenExternalMenus;
     };
 
-    const allEventsWithLayout = useMemo(() => events.map((event) => {
-        const overlaps = events.filter(other =>
-            other.id !== event.id &&
-            other.start < event.end &&
-            other.end > event.start &&
-            getVisualDay(other.start) === getVisualDay(event.start)
-        );
+    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, day: Date) => {
+        // 1. Click Protection
+        // If an interaction is active (input focus, open menu), do NOT prevent default.
+        // Let the click bubble so listeners can close the menus.
+        if (isInteractionActive()) return;
 
-        const totalOverlaps = overlaps.length + 1;
-        const overlapIndex = overlaps.filter(o => o.start.getTime() < event.start.getTime() || (o.start.getTime() === event.start.getTime() && o.id < event.id)).length;
+        // 2. Prevent interference
+        if ((e.target as HTMLElement).closest('.event-block')) return;
 
-        const widthCalc = `${100 / totalOverlaps}%`;
-        const leftCalc = `${(100 / totalOverlaps) * overlapIndex}%`;
+        e.preventDefault(); // ONLY prevent default if we're actually starting creation
 
-        const startHour = event.start.getHours() + event.start.getMinutes() / 60;
-        const top = (startHour - START_HOUR) * PIXELS_PER_HOUR;
+        // 3. Start Creation
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const relativeY = e.clientY - rect.top;
 
-        const durationMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
-        let height = (durationMinutes / 60) * PIXELS_PER_HOUR;
+        // Snap
+        const hourOffset = relativeY / PIXELS_PER_HOUR;
+        const totalMinutes = hourOffset * 60;
+        const snappedMinutes = Math.floor(totalMinutes / SNAP_MINUTES) * SNAP_MINUTES;
+        const snappedTop = (snappedMinutes / 60) * PIXELS_PER_HOUR;
 
-        const maxGridHeight = HOURS_COUNT * PIXELS_PER_HOUR;
-        const isLate = (top + height) > maxGridHeight;
+        // Set Ref immediately
+        activeCreationRef.current = {
+            day,
+            startTop: snappedTop,
+            currentTop: snappedTop
+        };
 
-        if (isLate) {
-            height = Math.max(0, maxGridHeight - top);
+        // Show Ghost immediately via DOM
+        const dayIso = day.toISOString();
+        const ghostEl = ghostRefs.current.get(dayIso);
+
+        if (ghostEl) {
+            ghostEl.style.display = 'block';
+            ghostEl.style.top = `${snappedTop}px`;
+            ghostEl.style.height = '25px'; // Initial min height
+            // Clear content initially or set to default
+            const hintEl = ghostEl.querySelector('.ghost-drag-hint') as HTMLElement;
+            const stdEl = ghostEl.querySelector('.ghost-standard-content') as HTMLElement;
+
+            if (hintEl) hintEl.style.display = 'flex';
+            if (stdEl) stdEl.style.display = 'none';
+
+            // Start in "Line Mode"
+            ghostEl.classList.add('is-initial-drag');
         }
 
-        return {
-            event,
-            isLate,
-            style: {
-                top: `${top}px`,
-                height: `${height}px`,
-                width: widthCalc,
-                left: leftCalc,
+        // Clear hover highlight
+        setHoverDay(null);
+
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    };
+
+    // Dnd State Tracking
+    const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+    const handleDragStart = (event: DragStartEvent) => {
+        setActiveDragId(String(event.active.id));
+        setHoverDay(null); // Clear highlight immediately on drag start
+    };
+
+    // Helper to format time
+    const formatTimeDisplay = (h: number) => {
+        const hr = Math.floor(h);
+        const mn = Math.round((h - hr) * 60);
+        const d = new Date(); d.setHours(hr, mn);
+        return format(d, 'h:mm a');
+    };
+
+    const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>, day: Date) => {
+        // Hide highlight if interaction (menu/input) is active
+        if (isInteractionActive()) {
+            if (hoverDay) setHoverDay(null);
+            return;
+        }
+
+        e.preventDefault();
+
+        if (activeDragId) {
+            if (hoverDay) setHoverDay(null);
+            return;
+        }
+
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const relativeY = e.clientY - rect.top;
+
+        const hourOffset = relativeY / PIXELS_PER_HOUR;
+        const totalMinutes = hourOffset * 60;
+        const snappedMinutes = Math.floor(totalMinutes / SNAP_MINUTES) * SNAP_MINUTES;
+        const snappedTop = (snappedMinutes / 60) * PIXELS_PER_HOUR;
+
+        if (activeCreationRef.current) {
+            // Dragging behavior for NEW event (Ref based)
+            const refState = activeCreationRef.current;
+            if (day.getTime() !== refState.day.getTime()) return;
+
+            // Update Ref
+            refState.currentTop = snappedTop;
+
+            // Calculate visual dimensions
+            let top = Math.min(refState.startTop, refState.currentTop);
+            let bottom = Math.max(refState.startTop, refState.currentTop);
+            let height = bottom - top;
+
+            if (height < 25) {
+                height = 25;
+                if (refState.currentTop < refState.startTop) {
+                    top = refState.startTop - 25;
+                } else {
+                    top = refState.startTop;
+                }
             }
+
+            // Direct DOM Update
+            const dayIso = day.toISOString();
+            const ghostEl = ghostRefs.current.get(dayIso);
+            if (ghostEl) {
+                ghostEl.style.top = `${top}px`;
+                ghostEl.style.height = `${height}px`;
+
+                const startH = START_HOUR + (top / PIXELS_PER_HOUR);
+                const endH = START_HOUR + ((top + height) / PIXELS_PER_HOUR);
+
+                // Compact Mode Logic (match EventBlock < 50px)
+                const isCompact = height < 50;
+                if (isCompact) {
+                    ghostEl.classList.add('is-compact');
+                } else {
+                    ghostEl.classList.remove('is-compact');
+                }
+
+                // Toggle Hint vs Standard
+                const hintEl = ghostEl.querySelector('.ghost-drag-hint') as HTMLElement;
+                const stdEl = ghostEl.querySelector('.ghost-standard-content') as HTMLElement;
+
+                if (height < 15) {
+                    ghostEl.classList.add('is-initial-drag'); // Line Mode
+                    if (hintEl) hintEl.style.display = 'flex';
+                    if (stdEl) stdEl.style.display = 'none';
+                } else {
+                    ghostEl.classList.remove('is-initial-drag'); // Box Mode
+                    if (hintEl) hintEl.style.display = 'none';
+                    if (stdEl) {
+                        stdEl.style.display = 'flex';
+                        stdEl.style.flexDirection = isCompact ? 'row' : 'column';
+                        stdEl.style.gap = isCompact ? '4px' : '1px';
+                    }
+                }
+
+                // Text Format: Compact = "Start", Normal = "Start - End"
+                const timeText = isCompact
+                    ? formatTimeDisplay(startH)
+                    : `${formatTimeDisplay(startH)} - ${formatTimeDisplay(endH)}`;
+
+                const contentEl = ghostEl.querySelector('.ghost-time');
+                if (contentEl && contentEl.textContent !== timeText) {
+                    contentEl.textContent = timeText;
+                }
+            }
+
+        } else {
+            // Hover logic - Optimized
+            if ((e.target as HTMLElement).closest('.event-block')) {
+                if (hoverDay) setHoverDay(null);
+                return;
+            }
+
+            const dayIso = day.toISOString();
+
+            // 1. Update React State only if Day changes
+            if (hoverDay !== dayIso) {
+                setHoverDay(dayIso);
+            }
+
+            // 2. Direct DOM update (ALWAYS update if ref exists)
+            const el = highlightRefs.current.get(dayIso);
+            if (el) {
+                el.style.top = `${snappedTop}px`;
+            }
+        }
+    };
+
+    const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+        e.preventDefault();
+
+        if (!activeCreationRef.current) return;
+
+        const { day, startTop, currentTop } = activeCreationRef.current;
+        const dayIso = day.toISOString();
+
+        // Hide Ghost ID
+        const ghostEl = ghostRefs.current.get(dayIso);
+        if (ghostEl) ghostEl.style.display = 'none';
+
+        // Calculate final times
+        let topY = Math.min(startTop, currentTop);
+        let bottomY = Math.max(startTop, currentTop);
+        let height = bottomY - topY;
+
+        // Handle min height / click fallback
+        // 15 mins = 25px
+        // Handle min height / click fallback
+        // Enforce "Drag to Create" -> Abort if movement is too small (click)
+        if (height < 15) {
+            // Was a click or tiny drag -> Cancel creation
+            activeCreationRef.current = null;
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+            }
+            return;
+        } else if (height < 25) {
+            // Tiny drag but intentional: Force 15 mins standard
+            height = 25;
+            if (currentTop < startTop) {
+                topY = startTop - 25;
+            }
+        }
+
+        // Correct rounding for Start Time
+        const startHourOffset = topY / PIXELS_PER_HOUR;
+        const startTotalHours = START_HOUR + startHourOffset;
+        const startH = Math.floor(startTotalHours);
+        const startM = Math.round((startTotalHours - startH) * 60);
+
+        const start = new Date(day);
+        start.setHours(startH, startM, 0, 0);
+
+        const durationHours = height / PIXELS_PER_HOUR;
+        const durationMinutes = Math.round(durationHours * 60);
+        const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+
+        const newEvent: Event = {
+            id: `new-${Date.now()}`,
+            title: 'New Event',
+            start: start,
+            end: end,
+            color: '#e3ded3'
         };
-    }), [events]);
+        setEvents(prev => [...prev, newEvent]);
+
+        // Reset
+        activeCreationRef.current = null;
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        }
+    };
 
     return (
         <div className="schedule-container custom-scrollbar">
@@ -557,6 +842,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                         <div
                             className="events-grid"
                             style={{ gridTemplateColumns: `repeat(${days.length}, ${COLUMN_WIDTH_DEF})` }}
+                            onMouseLeave={() => setHoverDay(null)} // Clear highlight on leave
                         >
                             <div className="grid-lines">
                                 {Array.from({ length: HOURS_COUNT }).map((_, i) => (
@@ -579,63 +865,46 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
 
                             <DndContext
                                 sensors={sensors}
+                                onDragStart={handleDragStart}
                                 onDragEnd={handleDragEnd}
                             >
-                                {days.map((day) => (
-                                    <DayColumn
-                                        key={day.toISOString()}
-                                        date={day}
-                                        id={day.toISOString()}
-                                        onClick={(e) => {
-                                            // Ensure we are clicking on the column itself, not an event
-                                            if ((e.target as HTMLElement).closest('.event-block')) return;
+                                {days.map((day) => {
+                                    const dayIso = day.toISOString();
 
-                                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                            const relativeY = e.clientY - rect.top;
-                                            handleAddEvent(day, relativeY);
-                                        }}
-                                    >
-                                        {allEventsWithLayout
-                                            .filter(item => {
-                                                const eventStart = item.event.start;
-                                                const nextDay = addDays(day, 1);
-                                                const startsToday = eventStart >= day && eventStart < nextDay && eventStart.getHours() >= 4;
-                                                const startsTomorrowEarly = eventStart >= nextDay && eventStart < addDays(nextDay, 1) && eventStart.getHours() < 4;
-                                                return startsToday || startsTomorrowEarly;
-                                            })
-                                            .map(({ event, style, isLate }) => {
-                                                let finalStyle = { ...style };
-                                                let finalIsLate = isLate;
-                                                if (event.start.getDate() !== day.getDate()) {
-                                                    const startHour = event.start.getHours() + event.start.getMinutes() / 60;
-                                                    const adjustedHour = startHour + 24;
-                                                    const newTop = (adjustedHour - START_HOUR) * PIXELS_PER_HOUR;
-                                                    finalStyle.top = `${newTop}px`;
-                                                    const maxGridHeight = HOURS_COUNT * PIXELS_PER_HOUR;
-                                                    const durationMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
-                                                    const heightVal = (durationMinutes / 60) * PIXELS_PER_HOUR;
-                                                    if (newTop + heightVal > maxGridHeight) {
-                                                        const newHeight = maxGridHeight - newTop;
-                                                        finalStyle.height = `${Math.max(0, newHeight)}px`;
-                                                        finalIsLate = true;
-                                                    } else {
-                                                        finalStyle.height = `${heightVal}px`;
-                                                        finalIsLate = false;
-                                                    }
-                                                }
-                                                return (
-                                                    <EventBlock
-                                                        key={event.id}
-                                                        event={event}
-                                                        style={finalStyle}
-                                                        isLate={finalIsLate}
-                                                        onUpdate={handleUpdateEvent}
-                                                        onDelete={handleDeleteEvent}
-                                                    />
-                                                );
-                                            })}
-                                    </DayColumn>
-                                ))}
+                                    // Calculate props for this day
+                                    const isHovered = hoverDay === dayIso;
+
+                                    return (
+                                        <DayColumn
+                                            key={dayIso}
+                                            date={day}
+                                            id={dayIso}
+                                            onPointerDown={(e) => handlePointerDown(e, day)}
+                                            onPointerMove={(e) => handlePointerMove(e, day)}
+                                            onPointerUp={handlePointerUp}
+                                            isHovered={isHovered}
+                                            highlightRef={(el) => {
+                                                if (el) highlightRefs.current.set(dayIso, el);
+                                                else highlightRefs.current.delete(dayIso);
+                                            }}
+                                            ghostRef={(el) => {
+                                                if (el) ghostRefs.current.set(dayIso, el);
+                                                else ghostRefs.current.delete(dayIso);
+                                            }}
+                                        >
+                                            {(eventsByDay[dayIso] || []).map(({ event, style, isLate }) => (
+                                                <EventBlock
+                                                    key={event.id}
+                                                    event={event}
+                                                    style={style}
+                                                    isLate={isLate}
+                                                    onUpdate={handleUpdateEvent}
+                                                    onDelete={handleDeleteEvent}
+                                                />
+                                            ))}
+                                        </DayColumn>
+                                    );
+                                })}
                             </DndContext>
                         </div>
 

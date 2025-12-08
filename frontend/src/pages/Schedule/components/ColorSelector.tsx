@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import { Check } from 'lucide-react';
+import { Backdrop } from '../../../components/UI/Backdrop';
 
 import { COLORS } from '../../../utils/eventColors';
 
@@ -52,27 +53,11 @@ export const ColorSelector: React.FC<ColorSelectorProps> = ({
     return createPortal(
         <>
             {/* Transparent backdrop to catch clicks and prevent grid interaction */}
-            <div
-                style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    zIndex: 9998, // Below popup (9999)
-                    cursor: 'default',
-                    background: 'transparent' // Invisible
-                }}
-                onMouseDown={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault(); // Prevent focus change or other default behaviors
-                    onClose();
-                }}
-            />
+            <Backdrop onClose={onClose} zIndex={9998} />
 
             <div
                 ref={popoverRef}
-                className="color-selector-popup"
+                className="color-selector-popup interactive-overlay"
                 style={{
                     top: position.top,
                     left: position.left,
@@ -81,6 +66,7 @@ export const ColorSelector: React.FC<ColorSelectorProps> = ({
                     // Could add boundary check later if needed.
                 }}
                 onMouseDown={(e) => e.stopPropagation()} // Prevent clicks inside popup from closing or bubbling
+                onPointerDown={(e) => e.stopPropagation()} // CRITICAL: Stop grid from catching this via React bubbling
             >
                 <div className="color-selector-header">
                     SELECT COLOR

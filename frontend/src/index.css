@@ -1332,6 +1332,64 @@ body {
   }
 }
 
+/* Line Mode (Initial Click) */
+.event-ghost.is-initial-drag {
+  height: 2px !important;
+  background: transparent;
+  border: none;
+  border-top: 2px dashed #2563eb;
+  /* Solid/Dashed Blue Line */
+  overflow: visible !important;
+  /* Allow hint to float out */
+}
+
+/* Floating Hint Pill */
+.ghost-drag-hint {
+  position: absolute;
+  top: 6px;
+  /* Hang below the line */
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #1e40af;
+  font-weight: 600;
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(4px);
+  padding: 4px 10px;
+  border-radius: 99px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+
+  0%,
+  100% {
+    transform: translateY(-20%);
+    /* Tweak bounce for pill context */
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+
+  50% {
+    transform: translateY(10%);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+.ghost-time {
+  font-weight: 500;
+  font-size: 1.25rem;
+}
+
 .success-title {
   font-size: 1.25rem;
   font-weight: 700;
@@ -1590,6 +1648,8 @@ body {
   padding: 24px;
   width: auto;
   min-width: 320px;
+  max-width: 360px;
+  /* Force wrapping for long titles */
   animation: zoomIn 0.15s ease-out;
   border: 1px solid rgba(255, 255, 255, 0.6);
 }
@@ -1785,6 +1845,9 @@ body {
   /* Bold as requested */
   color: #1f1f1f;
   line-height: 28px;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  hyphens: auto;
 }
 
 /* ... (subtitle remains same) ... */
@@ -2410,6 +2473,12 @@ body {
   justify-content: center;
   width: 20px;
   height: 20px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.event-control-trigger:hover {
   background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(4px);
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -2632,4 +2701,73 @@ body {
 .force-visible {
   opacity: 1 !important;
   visibility: visible !important;
+}
+
+/* Event Creation Visuals */
+.slot-highlight {
+  position: absolute;
+  height: 1px;
+  /* Line thickness */
+  background-color: #0000002f;
+  /* Black */
+  /* Primary Blue, 50% opacity */
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: none;
+  /* Removed for performance/crispness */
+}
+
+.event-ghost {
+  position: absolute;
+  background-color: rgba(37, 99, 235, 0.2);
+  border: 1px dashed rgba(37, 99, 235, 0.5);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1e40af;
+}
+
+.event-ghost-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 2px;
+  overflow: hidden;
+  text-align: center;
+  gap: 1px;
+  /* Tweak to match EventBlock visual */
+}
+
+.event-ghost.is-compact .event-ghost-content {
+  flex-direction: row;
+  gap: 4px;
+}
+
+.ghost-title {
+  font-weight: 700;
+  font-size: 0.75rem;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.ghost-time {
+  font-weight: 500;
+  font-size: 0.7rem;
+  opacity: 0.9;
+  line-height: 1.1;
+}
+
+.event-ghost.is-compact .ghost-time::after {
+  content: "-";
+  margin-left: 4px;
+  display: inline-block;
 }
