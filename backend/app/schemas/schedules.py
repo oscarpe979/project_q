@@ -6,10 +6,9 @@ class EventInput(BaseModel):
     title: str
     start: datetime
     end: datetime
-    type: str # "show",
+    color: Optional[str] = None
     time_display: Optional[str] = None
     notes: Optional[str] = None
-    color: Optional[str] = None # Not stored in DB currently, but good to accept
 
 class ItineraryInput(BaseModel):
     day: int

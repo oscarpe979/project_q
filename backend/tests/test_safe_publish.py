@@ -55,7 +55,7 @@ def test_safe_publish_scenarios(client: TestClient, auth_headers: dict, session:
     payload_100_update = {
         "voyage_number": "100",
         "original_voyage_number": "100",
-        "events": [{"title": "Updated Event", "start": datetime.now().isoformat(), "end": datetime.now().isoformat(), "type": "show"}],
+        "events": [{"title": "Updated Event", "start": datetime.now().isoformat(), "end": datetime.now().isoformat()}],
         "itinerary": []
     }
     resp = client.post("/api/schedules/", json=payload_100_update, headers=auth_headers)

@@ -122,7 +122,7 @@ class SearchService:
         
         # Fetch Schedule Items
         schedule_items = self.session.exec(
-            select(ScheduleItem.voyage_id, ScheduleItem.title, ScheduleItem.type, ScheduleItem.notes)
+            select(ScheduleItem.voyage_id, ScheduleItem.title, ScheduleItem.notes)
             .where(ScheduleItem.venue_id == venue_id)
         ).all()
         
@@ -131,8 +131,8 @@ class SearchService:
         for vid, loc in itineraries:
             index[vid] = index.get(vid, "") + " " + (loc or "")
             
-        for vid, title, type_, notes in schedule_items:
-            index[vid] = index.get(vid, "") + " " + (title or "") + " " + (type_ or "") + " " + (notes or "")
+        for vid, title, notes in schedule_items:
+            index[vid] = index.get(vid, "") + " " + (title or "") + " " + (notes or "")
             
         return index
 

@@ -7,7 +7,6 @@ describe('EventBlock', () => {
         title: 'Test Event',
         start: new Date('2023-10-27T10:00:00'),
         end: new Date('2023-10-27T11:00:00'),
-        type: 'show' as const,
         color: '#ff0000',
         venueId: 'v1',
         voyageId: 'voy1'

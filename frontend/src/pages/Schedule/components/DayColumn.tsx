@@ -6,9 +6,10 @@ interface DayColumnProps {
     date: Date;
     id?: string;
     children?: React.ReactNode;
+    onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
-export const DayColumn: React.FC<DayColumnProps> = ({ date, id, children }) => {
+export const DayColumn: React.FC<DayColumnProps> = ({ date, id, children, onClick }) => {
     const { setNodeRef, isOver } = useDroppable({
         id: id || `day-${date.toISOString()}`,
         data: { date },
@@ -21,6 +22,7 @@ export const DayColumn: React.FC<DayColumnProps> = ({ date, id, children }) => {
                 "day-column",
                 isOver && "droppable-over"
             )}
+            onClick={onClick}
         >
             {/* Hour Dividers (Visual only, matches TimeColumn) */}
             {Array.from({ length: 17 }).map((_, i) => (

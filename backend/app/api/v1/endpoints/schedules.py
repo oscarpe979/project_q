@@ -56,7 +56,7 @@ def parse_port_times(time_str: Optional[str]):
 
 from backend.app.db.session import get_session
 from backend.app.db.models import (
-    User, Voyage, VoyageItinerary, ScheduleItem, Venue, EventType, VenueHighlight, VenueSchedule
+    User, Voyage, VoyageItinerary, ScheduleItem, Venue, EventType, VenueCapability, VenueHighlight, VenueSchedule
 )
 from backend.app.api.v1.endpoints.auth import get_current_user
 from backend.app.schemas.schedules import (
@@ -234,7 +234,7 @@ def publish_schedule(
             title=event.title,
             start_time=event.start,
             end_time=event.end,
-            type=event.type,
+            color=event.color,
             time_display=event.time_display,
             notes=event.notes
         )
@@ -341,7 +341,7 @@ def get_latest_schedule(
             "title": item.title,
             "start": item.start_time.isoformat(),
             "end": item.end_time.isoformat(),
-            "type": item.type,
+            "color": item.color,
             "time_display": item.time_display,
             "notes": item.notes
         }
@@ -459,7 +459,7 @@ def get_schedule_by_voyage(
             "title": item.title,
             "start": item.start_time.isoformat(),
             "end": item.end_time.isoformat(),
-            "type": item.type,
+            "color": item.color,
             "time_display": item.time_display,
             "notes": item.notes
         }
@@ -556,6 +556,8 @@ def delete_schedule(
         return {"message": f"Deleted schedule and the Voyage {voyage_number} as it is now unused."}
     
     return {"message": f"Deleted schedule for voyage {voyage_number}"}
+
+
 
 @router.get("/{voyage_number}/export")
 def export_schedule(
@@ -780,20 +782,6 @@ def export_schedule(
         'OTHER': 'FFE3DED3',             # Warm Grey
     }
 
-    # Logic to assign colors to production shows
-    production_shows = []
-    for event in schedule_items:
-        if event.type == 'show' and event.title not in production_shows:
-            production_shows.append(event.title)
-    
-    production_color_map = {}
-    for idx, title in enumerate(production_shows):
-        if idx == 0:
-            production_color_map[title] = COLORS['PRODUCTION_SHOW_1']
-        elif idx == 1:
-            production_color_map[title] = COLORS['PRODUCTION_SHOW_2']
-        else:
-            production_color_map[title] = COLORS['PRODUCTION_SHOW_3']
 
     # Helper for contrast color
     def get_contrast_color(hex_color):
@@ -859,25 +847,28 @@ def export_schedule(
                 slots = max_grid_row - r_idx + 1
 
             # Determine Color
-            fill_color = COLORS['OTHER']
-            event_type = event.type.lower() if event.type else 'other'
+            # Use stored color (ensure checking for # prefix if needed for openpyxl ARGB)
+            # OpenPyXL expects ARGB hex string without #, e.g. 'FFRRGGBB'
+            # Our stored color is likely '#RRGGBB' or '#RRGGBBAA'
             
-            if event_type == 'show':
-                fill_color = production_color_map.get(event.title, COLORS['PRODUCTION_SHOW_1'])
-            elif event_type == 'headliner':
-                fill_color = COLORS['HEADLINER']
-            elif event_type == 'movie':
-                fill_color = COLORS['MOVIE']
-            elif event_type == 'game':
-                fill_color = COLORS['GAME_SHOW']
-            elif event_type == 'activity':
-                fill_color = COLORS['ACTIVITY']
-            elif event_type == 'music':
-                fill_color = COLORS['MUSIC']
-            elif event_type == 'party':
-                fill_color = COLORS['PARTY']
-            elif event_type == 'comedy':
-                fill_color = COLORS['COMEDY']
+            raw_color = event.color
+            if not raw_color:
+                fill_color = COLORS['OTHER']
+            else:
+                # Convert to ARGB for OpenPyXL
+                # Assume stored as #RRGGBB or #RRGGBBAA or similar
+                clean_hex = raw_color.replace('#', '')
+                if len(clean_hex) == 6:
+                    fill_color = 'FF' + clean_hex.upper()
+                elif len(clean_hex) == 8:
+                    # RRGGBBAA -> AARRGGBB for Excel? 
+                    # Actually standard hex is usually RGBA, Excel uses ARGB.
+                    # If our frontend stores rgba hex (rrggbbaa), we need to shift alpha to front.
+                    # But simpler: just strip alpha for Excel or assume FF alpha.
+                    # Let's just use RGB part and prepend FF for opacity.
+                     fill_color = 'FF' + clean_hex[:6].upper()
+                else:
+                    fill_color = COLORS['OTHER']
             
             text_color = get_contrast_color(fill_color)
 

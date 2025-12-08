@@ -8,7 +8,7 @@ import { useScheduleState } from '../../hooks/useScheduleState';
 import { authService } from '../../services/authService';
 import { scheduleService } from '../../services/scheduleService';
 import { useNavigate } from 'react-router-dom';
-import { assignEventColors } from '../../utils/eventColors';
+import { assignEventColors, getColorForType, COLORS } from '../../utils/eventColors';
 import { ScheduleHeader } from './ScheduleHeader';
 import { ScheduleModals } from './ScheduleModals';
 
@@ -127,14 +127,35 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
 
             const data = await response.json();
 
-            // Transform backend events to frontend format
-            const newEvents = data.events.map((e: any, index: number) => ({
-                id: `imported-${Date.now()}-${index}`,
-                title: e.title,
-                start: new Date(e.start),
-                end: new Date(e.end),
-                type: e.type || 'other',
-            }));
+            // 1. Identify unique production shows to rotate colors
+            const showTitles: string[] = [];
+            data.events.forEach((e: any) => {
+                if (e.type === 'show' && e.title && !showTitles.includes(e.title)) {
+                    showTitles.push(e.title);
+                }
+            });
+
+            const showColorMap: Record<string, string> = {};
+            const showColors = [COLORS.PRODUCTION_SHOW_1, COLORS.PRODUCTION_SHOW_2, COLORS.PRODUCTION_SHOW_3];
+            showTitles.forEach((title, index) => {
+                showColorMap[title] = showColors[index % showColors.length];
+            });
+
+            // 2. Transform backend events to frontend format with rotated colors
+            const newEvents = data.events.map((e: any, index: number) => {
+                let color = getColorForType(e.type);
+                if (e.type === 'show' && e.title && showColorMap[e.title]) {
+                    color = showColorMap[e.title];
+                }
+
+                return {
+                    id: `imported-${Date.now()}-${index}`,
+                    title: e.title,
+                    start: new Date(e.start),
+                    end: new Date(e.end),
+                    color: color,
+                };
+            });
 
             // Transform and update itinerary
             if (data.itinerary && data.itinerary.length > 0) {

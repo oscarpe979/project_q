@@ -51,15 +51,16 @@ export function useScheduleState() {
     const [isNewDraft, setIsNewDraft] = useState(false);
 
     useEffect(() => {
-        const loadVenues = async () => {
+        const loadInitialData = async () => {
             try {
+                // Fetch venues
                 const venues = await scheduleService.getShipVenues();
                 setShipVenues(venues);
             } catch (error) {
                 console.error("Failed to load ship venues", error);
             }
         };
-        loadVenues();
+        loadInitialData();
     }, []);
 
     const [itinerary, setItinerary] = useState<ItineraryItem[]>(generateDefaultItinerary);
@@ -89,7 +90,6 @@ export function useScheduleState() {
                 e1.title === e2.title &&
                 e1.start.getTime() === e2.start.getTime() &&
                 e1.end.getTime() === e2.end.getTime() &&
-                e1.type === e2.type &&
                 e1.color === e2.color &&
                 e1.notes === e2.notes &&
                 (e1.timeDisplay === e2.timeDisplay || (!e1.timeDisplay && !e2.timeDisplay))
@@ -218,9 +218,9 @@ export function useScheduleState() {
                 title: e.title,
                 start: new Date(e.start),
                 end: new Date(e.end),
-                type: e.type || 'other',
                 timeDisplay: e.time_display,
                 notes: e.notes,
+                color: e.color,
             }));
             processedEvents = assignEventColors(newEvents);
         }

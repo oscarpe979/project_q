@@ -92,7 +92,7 @@ class ScheduleItem(SQLModel, table=True):
     title: str
     start_time: datetime
     end_time: datetime
-    type: str # "Show", "Setup", "Strike", "Rehearsal", "Cast Install", "Cast Reblock"
+    color: Optional[str] = None # Event color (hex code)
     time_display: Optional[str] = None # Custom time label (e.g. "Doors Open 7pm")
     notes: Optional[str] = None
     

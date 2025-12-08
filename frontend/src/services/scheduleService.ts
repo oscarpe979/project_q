@@ -9,7 +9,7 @@ interface PublishScheduleRequest {
         title: string;
         start: string; // ISO string
         end: string;   // ISO string
-        type: string;
+        color?: string;
         time_display?: string;
         notes?: string;
     }[];
@@ -45,7 +45,7 @@ export const scheduleService = {
                 title: e.title,
                 start: toLocalISOString(e.start),
                 end: toLocalISOString(e.end),
-                type: e.type,
+                color: e.color,
                 time_display: e.timeDisplay,
                 notes: e.notes // Assuming Event type has notes, if not we might need to extend it or ignore
             })),
@@ -154,5 +154,6 @@ export const scheduleService = {
         }
 
         return response.json();
-    }
+    },
+
 };

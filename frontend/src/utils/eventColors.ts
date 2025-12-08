@@ -1,7 +1,7 @@
 import type { Event } from '../types';
 
 // Color Palette
-const COLORS = {
+export const COLORS = {
     PRODUCTION_SHOW_1: '#963333ff', // Vivid Red
     PRODUCTION_SHOW_2: '#7e46beff', // Vivid Blue
     PRODUCTION_SHOW_3: '#820080', // Deep Purple
@@ -15,65 +15,40 @@ const COLORS = {
     OTHER: '#e3ded3',             // Warm Grey
 };
 
+
+export const getColorForType = (type: string): string => {
+    switch (type?.toLowerCase()) {
+        case 'show':
+            // Simple rotation or hashing could go here if we want varied production colors
+            // For now, default to the main red
+            return COLORS.PRODUCTION_SHOW_1;
+        case 'headliner':
+            return COLORS.HEADLINER;
+        case 'movie':
+            return COLORS.MOVIE;
+        case 'game':
+            return COLORS.GAME_SHOW;
+        case 'activity':
+            return COLORS.ACTIVITY;
+        case 'music':
+            return COLORS.MUSIC;
+        case 'party':
+            return COLORS.PARTY;
+        case 'comedy':
+            return COLORS.COMEDY;
+        case 'rehearsal':
+        case 'maintenance':
+        case 'other':
+        default:
+            return COLORS.OTHER;
+    }
+};
+
 export const assignEventColors = (events: Event[]): Event[] => {
-    const productionShows = new Set<string>();
-    const assignedProductionColors = new Map<string, string>();
-
-    // First pass: Identify unique production shows
-    events.forEach(event => {
-        if (event.type === 'show') {
-            productionShows.add(event.title);
-        }
-    });
-
-    // Assign colors to production shows
-    const uniqueShows = Array.from(productionShows);
-    uniqueShows.forEach((title, index) => {
-        let color = COLORS.PRODUCTION_SHOW_1;
-        if (index === 1) color = COLORS.PRODUCTION_SHOW_2;
-        if (index >= 2) color = COLORS.PRODUCTION_SHOW_3;
-        assignedProductionColors.set(title, color);
-    });
-
-    // Second pass: Assign colors to all events
-    return events.map(event => {
-        let color = COLORS.OTHER;
-
-        switch (event.type) {
-            case 'show':
-                color = assignedProductionColors.get(event.title) || COLORS.PRODUCTION_SHOW_1;
-                break;
-            case 'headliner':
-                color = COLORS.HEADLINER;
-                break;
-            case 'movie':
-                color = COLORS.MOVIE;
-                break;
-            case 'game':
-                color = COLORS.GAME_SHOW;
-                break;
-            case 'activity':
-                color = COLORS.ACTIVITY;
-                break;
-            case 'music':
-                color = COLORS.MUSIC;
-                break;
-            case 'party':
-                color = COLORS.PARTY;
-                break;
-            case 'comedy':
-                color = COLORS.COMEDY;
-                break;
-            case 'rehearsal':
-            case 'maintenance':
-            case 'other':
-            default:
-                color = COLORS.OTHER;
-                break;
-        }
-
-        return { ...event, color };
-    });
+    return events.map(event => ({
+        ...event,
+        color: event.color || COLORS.OTHER
+    }));
 };
 
 export const getContrastColor = (hexColor?: string): string => {

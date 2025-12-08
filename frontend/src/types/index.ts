@@ -3,7 +3,6 @@ export interface Event {
     title: string;
     start: Date;
     end: Date;
-    type: 'show' | 'rehearsal' | 'maintenance' | 'movie' | 'game' | 'activity' | 'music' | 'party' | 'comedy' | 'headliner' | 'other';
     color?: string;
     timeDisplay?: string;
     notes?: string;

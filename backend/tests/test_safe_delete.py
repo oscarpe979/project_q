@@ -42,7 +42,7 @@ def test_safe_delete_shared_schedule(client: TestClient, session: Session, auth_
     payload = {
         "voyage_number": "900",
         "events": [
-            {"title": "Event A", "start": "2025-01-01T10:00:00", "end": "2025-01-01T11:00:00", "type": "show"}
+            {"title": "Event A", "start": "2025-01-01T10:00:00", "end": "2025-01-01T11:00:00"}
         ],
         "itinerary": [
              {"day": 1, "date": "2025-01-01", "location": "Miami", "time": "17:00"}
@@ -62,7 +62,7 @@ def test_safe_delete_shared_schedule(client: TestClient, session: Session, auth_
         "voyage_number": "900",
         "original_voyage_number": "900", # Safe Publish Update
         "events": [
-            {"title": "Event B", "start": "2025-01-01T12:00:00", "end": "2025-01-01T13:00:00", "type": "show"}
+            {"title": "Event B", "start": "2025-01-01T12:00:00", "end": "2025-01-01T13:00:00"}
         ],
         "itinerary": [] # Itinerary remains from A (shared)
     }

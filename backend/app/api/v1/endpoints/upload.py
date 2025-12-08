@@ -43,17 +43,28 @@ async def upload_cd_grid(
             try:
                 # Fetch other venues for this ship to extract their main shows
                 other_venues = []
+                allowed_types = []
+                
                 if current_user.ship_id:
-                    # Run blocking DB call in thread
-                    def get_other_venues(s_id, t_venue):
+                    # Run blocking DB call in thread to get other venues
+                    def get_context_data(s_id, t_venue):
                         from sqlmodel import select
+                        from backend.app.db.models import Venue
+                        
+                        # 1. Other Venues
                         venues = session.exec(select(Venue).where(Venue.ship_id == s_id)).all()
-                        return [v.name for v in venues if v.name != t_venue]
+                        o_venues = [v.name for v in venues if v.name != t_venue]
+                        return o_venues
 
-                    other_venues = await asyncio.to_thread(get_other_venues, current_user.ship_id, target_venue)
+                    other_venues = await asyncio.to_thread(get_context_data, current_user.ship_id, target_venue)
 
                 print(f"DEBUG: Parsing CD Grid with target_venue='{target_venue}', other_venues={other_venues}")
-                result = await parser.parse_cd_grid(file_obj, filename=file.filename, target_venue=target_venue, other_venues=other_venues)
+                result = await parser.parse_cd_grid(
+                    file_obj, 
+                    filename=file.filename, 
+                    target_venue=target_venue, 
+                    other_venues=other_venues
+                )
                 return result
             except Exception as e:
                 print(f"GenAI parsing failed: {e}")

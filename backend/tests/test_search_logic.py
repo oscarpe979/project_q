@@ -46,7 +46,6 @@ def test_fuzzy_search_short_token_exclusion(session: Session):
         voyage_id=voyage_a.id, 
         venue_id=venue_id,
         title="Setup",
-        type="Work",
         notes="Complete installation of equipment", # Contains "installation"
         date=date(2025, 1, 2),
         start_time=datetime(2025, 1, 2, 10, 0),
@@ -58,7 +57,6 @@ def test_fuzzy_search_short_token_exclusion(session: Session):
         voyage_id=voyage_b.id, 
         venue_id=venue_id,
         title="Meeting",
-        type="Admin",
         notes="Check in with team", # Contains "in"
         date=date(2025, 2, 2),
         start_time=datetime(2025, 2, 2, 10, 0),
@@ -97,7 +95,6 @@ def test_fuzzy_search_typo_tolerance(session: Session):
         voyage_id=voyage.id,
         venue_id=venue_id,
         title="Port Visit",
-        type="Port",
         notes="Arrive in Tokyo",
         date=date(2025, 1, 1),
         start_time=datetime(2025, 1, 1, 8, 0),

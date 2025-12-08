@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { format, addDays, startOfWeek, setMinutes } from 'date-fns';
 import { DndContext, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { NewDraftOverlay } from './NewDraftOverlay';
@@ -48,14 +48,14 @@ const isAtSea = (location: string) => {
 };
 
 const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateChange, onLocationChange, onTimeChange }) => {
-    const [isOpen, setIsOpen] = React.useState(false);
-    const [isEditingLocation, setIsEditingLocation] = React.useState(false);
-    const [isEditingTime, setIsEditingTime] = React.useState(false);
-    const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
-    const [activeTimeTab, setActiveTimeTab] = React.useState<'arrival' | 'departure'>('arrival');
-    const [locationInput, setLocationInput] = React.useState(info ? info.location : '');
-    const inputRef = React.useRef<HTMLInputElement>(null);
-    const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const [isEditingLocation, setIsEditingLocation] = useState(false);
+    const [isEditingTime, setIsEditingTime] = useState(false);
+    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+    const [activeTimeTab, setActiveTimeTab] = useState<'arrival' | 'departure'>('arrival');
+    const [locationInput, setLocationInput] = useState(info ? info.location : '');
+    const inputRef = useRef<HTMLInputElement>(null);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const onToggle = () => setIsOpen(!isOpen);
 
@@ -76,19 +76,19 @@ const DayHeaderCell: React.FC<DayHeaderCellProps> = ({ day, info, index, onDateC
         return `${hour}:${m} ${ampm}`;
     };
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (info) {
             setLocationInput(info.location);
         }
     }, [info]);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (isEditingLocation && inputRef.current) {
             inputRef.current.focus();
         }
     }, [isEditingLocation]);
 
-    React.useEffect(() => {
+    useEffect(() => {
         return () => {
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
@@ -317,7 +317,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
     onOtherVenueShowUpdate,
     isNewDraft,
     onImportClick,
-    onStartClick
+    onStartClick,
 }) => {
 
 
@@ -341,13 +341,47 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
         useSensor(PointerSensor)
     );
 
-    const handleUpdateEvent = (eventId: string, updates: { title?: string; timeDisplay?: string }) => {
-        setEvents(prev => prev.map(e =>
-            e.id === eventId ? { ...e, ...updates } : e
-        ));
+    const handleUpdateEvent = (eventId: string, updates: { title?: string; timeDisplay?: string; type?: string }) => {
+        setEvents(prev => prev.map(e => {
+            if (e.id !== eventId) return e;
+            // Cast type back to any or specific union to avoid TS error since we know what we get from UI
+            // ideally we validate but for now direct cast
+            return { ...e, ...updates } as Event;
+        }));
+    };
+
+    const handleDeleteEvent = (eventId: string) => {
+        setEvents(prev => prev.filter(e => e.id !== eventId));
+    };
+
+    const handleAddEvent = (date: Date, yPosition: number) => {
+        // Calculate time from yPosition relative to grid content
+        // yPosition is relative to the DayColumn
+        const hourOffset = yPosition / PIXELS_PER_HOUR;
+        const totalHours = START_HOUR + hourOffset;
+
+        const hour = Math.floor(totalHours);
+        const minutes = Math.round((totalHours - hour) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
+
+        const start = new Date(date);
+        start.setHours(hour, minutes, 0, 0);
+
+        // Default duration 60 mins
+        const end = new Date(start.getTime() + 60 * 60 * 1000);
+
+        const newEvent: Event = {
+            id: `new-${Date.now()}`,
+            title: 'New Event',
+            start: start,
+            end: end,
+            color: '#e3ded3' // COLORS.OTHER
+        };
+
+        setEvents(prev => [...prev, newEvent]);
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
+        // ... (existing drag logic)
         const { active, delta, over } = event;
         const activeId = String(active.id);
         const isResizeBottom = activeId.endsWith('-resize-bottom');
@@ -548,7 +582,19 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                                 onDragEnd={handleDragEnd}
                             >
                                 {days.map((day) => (
-                                    <DayColumn key={day.toISOString()} date={day} id={day.toISOString()}>
+                                    <DayColumn
+                                        key={day.toISOString()}
+                                        date={day}
+                                        id={day.toISOString()}
+                                        onClick={(e) => {
+                                            // Ensure we are clicking on the column itself, not an event
+                                            if ((e.target as HTMLElement).closest('.event-block')) return;
+
+                                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                            const relativeY = e.clientY - rect.top;
+                                            handleAddEvent(day, relativeY);
+                                        }}
+                                    >
                                         {allEventsWithLayout
                                             .filter(item => {
                                                 const eventStart = item.event.start;
@@ -584,6 +630,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                                                         style={finalStyle}
                                                         isLate={finalIsLate}
                                                         onUpdate={handleUpdateEvent}
+                                                        onDelete={handleDeleteEvent}
                                                     />
                                                 );
                                             })}

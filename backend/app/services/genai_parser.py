@@ -201,6 +201,7 @@ Present the output as a JSON object with the following structure:
    - end_time: String in HH:MM format (24-hour) or null if not specified
    - date: String in YYYY-MM-DD format (match to itinerary date)
    - venue: String (always "{venue}")
+   - category: String (Must be one of the allowed categories defined below)
 
 {other_venues_prompt}
 
@@ -251,6 +252,10 @@ Return ONLY valid JSON matching the schema.
     
     def _get_response_schema(self) -> Dict:
         """Define JSON schema for structured output."""
+        
+        # Build enum list
+        enum_values = ["show", "movie", "game", "activity", "music", "party", "comedy", "headliner", "rehearsal", "maintenance", "other"]
+
         return {
             "type": "object",
             "properties": {
@@ -279,7 +284,7 @@ Return ONLY valid JSON matching the schema.
                             "end_time": {"type": "string"},
                             "date": {"type": "string"},
                             "venue": {"type": "string"},
-                            "category": {"type": "string", "enum": ["show", "movie", "game", "activity", "music", "party", "comedy", "headliner", "rehearsal", "maintenance", "other"]}
+                            "category": {"type": "string", "enum": enum_values}
                         },
                         "required": ["title", "start_time", "date", "venue", "category"]
                     }
