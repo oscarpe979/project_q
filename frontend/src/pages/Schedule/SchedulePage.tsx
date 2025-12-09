@@ -94,7 +94,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
 
     // Unsaved Changes State
     const [isUnsavedModalOpen, setIsUnsavedModalOpen] = useState(false);
-    const [pendingAction, setPendingAction] = useState<{ type: 'NEW' | 'LOAD', payload?: any } | null>(null);
+    const [pendingAction, setPendingAction] = useState<{ type: 'NEW' | 'LOAD' | 'LOGOUT', payload?: any } | null>(null);
 
     const handleFileSelect = async (file: File) => {
         setIsUploading(true);
@@ -222,6 +222,15 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
         setUploadSuccess(false);
         setProcessingTime(null);
         setIsImportOpen(false);
+    };
+
+    const handleLogoutRequest = () => {
+        if (isModified) {
+            setPendingAction({ type: 'LOGOUT' });
+            setIsUnsavedModalOpen(true);
+            return;
+        }
+        onLogout();
     };
 
     const handlePublishClick = () => {
@@ -361,6 +370,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
     const handleDiscardAndProceed = () => {
         if (pendingAction?.type === 'NEW') executeNewSchedule();
         if (pendingAction?.type === 'LOAD') loadScheduleByVoyage(pendingAction.payload);
+        if (pendingAction?.type === 'LOGOUT') onLogout();
         setPendingAction(null);
         setIsUnsavedModalOpen(false);
         setIsModified(false);
@@ -373,7 +383,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
                     setUploadSuccess(false);
                     setIsImportOpen(true);
                 }}
-                onLogout={onLogout}
+                onLogout={handleLogoutRequest}
                 user={user}
                 headerContent={
                     <ScheduleHeader

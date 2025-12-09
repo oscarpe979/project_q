@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { ChevronDown, FileSpreadsheet, LogOut } from 'lucide-react';
 import { VoyageSelector } from './components/VoyageSelector';
@@ -114,6 +114,11 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = (props) => {
         }
     };
 
+    const handleMenuAction = (action: () => void) => {
+        setIsViewOptionsOpen(false);
+        action();
+    };
+
     return (
         <header className="top-header glass-header">
             <div className="header-left">
@@ -147,7 +152,7 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = (props) => {
             <div className="header-right">
                 <div className="dropdown view-options-container" ref={viewOptionsRef} style={{ zIndex: 110 }}>
                     <button
-                        onPointerDown={(e) => {
+                        onPointerDown={() => {
                             // Toggle, but prevent default to avoid immediate focus loss if needed
                             // Actually standard button behavior is fine
                             setIsViewOptionsOpen(!isViewOptionsOpen);
@@ -183,8 +188,7 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = (props) => {
                                 <MenuItem
                                     onClick={() => {
                                         if (props.onNewSchedule) {
-                                            props.onNewSchedule();
-                                            setIsViewOptionsOpen(false);
+                                            handleMenuAction(props.onNewSchedule);
                                         }
                                     }}
                                     icon={
@@ -196,14 +200,14 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = (props) => {
                                     disabled={props.isNewDraft}
                                 />
                                 <MenuItem
-                                    onClick={handleExportClick}
+                                    onClick={() => handleMenuAction(handleExportClick)}
                                     icon={<FileSpreadsheet size={16} />}
                                     label={isExporting ? "Exporting..." : "Export to Excel"}
                                     disabled={!currentVoyageNumber}
                                 />
                                 <div className="dropdown-divider"></div>
                                 <MenuItem
-                                    onClick={props.onDeleteClick}
+                                    onClick={() => handleMenuAction(props.onDeleteClick)}
                                     icon={<LogOut size={16} />}
                                     label="Delete Schedule"
                                     danger
