@@ -11,6 +11,7 @@ interface DayColumnProps {
     onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
     onPointerMove?: (e: React.PointerEvent<HTMLDivElement>) => void;
     onPointerUp?: (e: React.PointerEvent<HTMLDivElement>) => void;
+    onContextMenu?: (e: React.MouseEvent<HTMLDivElement>) => void;
     highlightRef?: (el: HTMLDivElement | null) => void;
     ghostRef?: (el: HTMLDivElement | null) => void;
     isHovered?: boolean;
@@ -24,6 +25,7 @@ const DayColumnComponent: React.FC<DayColumnProps> = ({
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onContextMenu,
     highlightRef,
     ghostRef,
     isHovered
@@ -44,6 +46,7 @@ const DayColumnComponent: React.FC<DayColumnProps> = ({
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onContextMenu={onContextMenu}
             style={{ position: 'relative' }}
         >
             {/* Hour Dividers */}

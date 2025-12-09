@@ -2,8 +2,10 @@ import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { format, addDays, startOfWeek, setMinutes, startOfDay } from 'date-fns';
 import { DndContext, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { NewDraftOverlay } from './NewDraftOverlay';
-import { Edit2 } from 'lucide-react';
+import { Edit2, Copy, Clipboard, Trash2 } from 'lucide-react';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+import { ContextMenu } from './ContextMenu';
+import type { ContextMenuItem } from './ContextMenu';
 
 import { TimeColumn } from './TimeColumn';
 import { DayColumn } from './DayColumn';
@@ -319,6 +321,123 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
     onImportClick,
     onStartClick,
 }) => {
+    // Context Menu State
+    const [contextMenu, setContextMenu] = useState<{
+        position: { x: number; y: number };
+        type: 'event' | 'grid';
+        data?: any;
+    } | null>(null);
+
+    // Clipboard State
+    const [copiedEvent, setCopiedEvent] = useState<Event | null>(null);
+
+    const handleUpdateEvent = useCallback((eventId: string, updates: { title?: string; timeDisplay?: string; color?: string }) => {
+        setEvents(prev => prev.map(e => {
+            if (e.id !== eventId) return e;
+            return { ...e, ...updates } as Event;
+        }));
+    }, [setEvents]);
+
+    const handleDeleteEvent = useCallback((eventId: string) => {
+        setEvents(prev => prev.filter(e => e.id !== eventId));
+    }, [setEvents]);
+
+    const handleContextMenu = useCallback((e: React.MouseEvent, type: 'event' | 'grid', data?: any) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenu({
+            position: { x: e.clientX, y: e.clientY },
+            type,
+            data
+        });
+    }, []);
+
+    const handleCloseContextMenu = useCallback(() => {
+        setContextMenu(null);
+    }, []);
+
+    const handleCopy = useCallback(() => {
+        if (contextMenu?.type === 'event' && contextMenu.data) {
+            const eventToCopy = events.find(e => e.id === contextMenu.data);
+            if (eventToCopy) {
+                setCopiedEvent(eventToCopy);
+            }
+        }
+        handleCloseContextMenu();
+    }, [contextMenu, events, handleCloseContextMenu]);
+
+    const handlePaste = useCallback(() => {
+        if (copiedEvent && contextMenu?.type === 'grid' && contextMenu.data && contextMenu.data.date) {
+            const { date } = contextMenu.data; // y is relative clientY, need to map to time
+
+            // We need to calculate the time based on the click position relative to the DayColumn
+            // However, contextMenu.position is absolute clientX/Y.
+            // We passed `y` (clientY) in the data payload from DayColumn's context menu handler if possible, 
+            // OR we can use contextMenu.position.y if we have the rect of the column.
+
+            // Simplification: In handleContextMenu for grid, we can calculate the time if we have the target element.
+            // But managing refs for all columns here is hard.
+            // Better approach: Calculate time inside the DayColumn's onContextMenu wrapper and pass it up.
+
+            // Refined plan: DayColumn onContextMenu will calculate the time and pass it as data.
+
+            const startHour = contextMenu.data.time || START_HOUR;
+            const durationMs = copiedEvent.end.getTime() - copiedEvent.start.getTime();
+
+            const newStart = new Date(date);
+            const hours = Math.floor(startHour);
+            const minutes = Math.round((startHour - hours) * 60);
+            newStart.setHours(hours, minutes, 0, 0);
+
+            const newEnd = new Date(newStart.getTime() + durationMs);
+
+            const newEvent: Event = {
+                ...copiedEvent,
+                id: `copy-${Date.now()}`,
+                start: newStart,
+                end: newEnd,
+                // Make sure we reset specific things if needed, but keeping color/title is desired
+            };
+
+            setEvents(prev => [...prev, newEvent]);
+        }
+        handleCloseContextMenu();
+    }, [copiedEvent, contextMenu, handleCloseContextMenu, setEvents]);
+
+    const contextMenuItems: ContextMenuItem[] = useMemo(() => {
+        if (!contextMenu) return [];
+
+        if (contextMenu.type === 'event') {
+            return [
+                {
+                    label: 'Copy Event',
+                    icon: <Copy size={16} />,
+                    onClick: handleCopy
+                },
+                {
+                    label: 'Delete Event',
+                    icon: <Trash2 size={16} />,
+                    onClick: () => {
+                        if (contextMenu.data) handleDeleteEvent(contextMenu.data);
+                    },
+                    danger: true
+                }
+            ];
+        }
+
+        if (contextMenu.type === 'grid') {
+            return [
+                {
+                    label: 'Paste Event',
+                    icon: <Clipboard size={16} />,
+                    onClick: handlePaste,
+                    disabled: !copiedEvent
+                }
+            ];
+        }
+
+        return [];
+    }, [contextMenu, copiedEvent, handleCopy, handlePaste, handleDeleteEvent]);
 
 
     const days = useMemo(() => {
@@ -341,23 +460,19 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
         useSensor(PointerSensor)
     );
 
-    const handleUpdateEvent = useCallback((eventId: string, updates: { title?: string; timeDisplay?: string; color?: string }) => {
-        setEvents(prev => prev.map(e => {
-            if (e.id !== eventId) return e;
-            return { ...e, ...updates } as Event;
-        }));
-    }, [setEvents]);
 
-    const handleDeleteEvent = useCallback((eventId: string) => {
-        setEvents(prev => prev.filter(e => e.id !== eventId));
-    }, [setEvents]);
 
 
     const handleDragEnd = (event: DragEndEvent) => {
         setActiveDragId(null);
-        // ... (existing drag logic)
-        // ... (existing drag logic)
+
         const { active, delta, over } = event;
+        // Check for modifier keys in activatorEvent
+        // dnd-kit events don't strictly type activatorEvent as PointerEvent always, but it usually is for mouse/touch
+        const activatorEvent = event.activatorEvent as unknown as MouseEvent | TouchEvent;
+        const isCopyMode = (activatorEvent && 'ctrlKey' in activatorEvent && activatorEvent.ctrlKey) ||
+            (activatorEvent && 'metaKey' in activatorEvent && activatorEvent.metaKey);
+
         const activeId = String(active.id);
         const isResizeBottom = activeId.endsWith('-resize-bottom');
         const isResizeTop = activeId.endsWith('-resize-top');
@@ -367,68 +482,84 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 ? activeId.replace('-resize-top', '')
                 : activeId;
 
-        setEvents((prev) => prev.map((e) => {
-            if (e.id === eventId) {
-                const minutesShift = delta.y * (60 / PIXELS_PER_HOUR);
-                const snappedMinutes = Math.round(minutesShift / SNAP_MINUTES) * SNAP_MINUTES;
+        setEvents((prev) => {
+            const originalEvent = prev.find(e => e.id === eventId);
+            if (!originalEvent) return prev;
 
-                if (isResizeTop) {
-                    let newStart = addDays(setMinutes(e.start, e.start.getMinutes() + snappedMinutes), 0);
-                    if (newStart >= e.end) return e;
-                    const durationMinutes = (e.end.getTime() - newStart.getTime()) / (1000 * 60);
-                    if (durationMinutes < 15) {
-                        newStart = new Date(e.end.getTime() - 15 * 60 * 1000);
-                    }
+            const minutesShift = delta.y * (60 / PIXELS_PER_HOUR);
+            const snappedMinutes = Math.round(minutesShift / SNAP_MINUTES) * SNAP_MINUTES;
 
-                    if (newStart.getTime() === e.start.getTime()) return e; // No change
+            let newStart = originalEvent.start;
+            let newEnd = originalEvent.end;
 
-                    return { ...e, start: newStart, timeDisplay: undefined };
-                } else if (isResizeBottom) {
-                    let newEnd = addDays(setMinutes(e.end, e.end.getMinutes() + snappedMinutes), 0);
-                    if (newEnd <= e.start) return e;
-                    const durationMinutes = (newEnd.getTime() - e.start.getTime()) / (1000 * 60);
-                    if (durationMinutes < 15) {
-                        newEnd = new Date(e.start.getTime() + 15 * 60 * 1000);
-                    }
+            if (isResizeTop) {
+                newStart = addDays(setMinutes(originalEvent.start, originalEvent.start.getMinutes() + snappedMinutes), 0);
+                if (newStart >= originalEvent.end) return prev;
+                const durationMinutes = (originalEvent.end.getTime() - newStart.getTime()) / (1000 * 60);
+                if (durationMinutes < 15) {
+                    newStart = new Date(originalEvent.end.getTime() - 15 * 60 * 1000);
+                }
+            } else if (isResizeBottom) {
+                newEnd = addDays(setMinutes(originalEvent.end, originalEvent.end.getMinutes() + snappedMinutes), 0);
+                if (newEnd <= originalEvent.start) return prev;
+                const durationMinutes = (newEnd.getTime() - originalEvent.start.getTime()) / (1000 * 60);
+                if (durationMinutes < 15) {
+                    newEnd = new Date(originalEvent.start.getTime() + 15 * 60 * 1000);
+                }
+            } else {
+                // Move
+                newStart = addDays(setMinutes(originalEvent.start, originalEvent.start.getMinutes() + snappedMinutes), 0);
+                newEnd = addDays(setMinutes(originalEvent.end, originalEvent.end.getMinutes() + snappedMinutes), 0);
 
-                    if (newEnd.getTime() === e.end.getTime()) return e; // No change
+                if (over && over.id !== activeId) {
+                    const targetDayStr = String(over.id);
+                    if (targetDayStr.includes('T')) {
+                        const targetDay = new Date(targetDayStr);
+                        const currentVisualDay = new Date(originalEvent.start);
+                        if (currentVisualDay.getHours() < 4) {
+                            currentVisualDay.setDate(currentVisualDay.getDate() - 1);
+                        }
+                        currentVisualDay.setHours(0, 0, 0, 0);
+                        targetDay.setHours(0, 0, 0, 0);
+                        const dayDiff = Math.round((targetDay.getTime() - currentVisualDay.getTime()) / (1000 * 60 * 60 * 24));
 
-                    return { ...e, end: newEnd, timeDisplay: undefined };
-                } else {
-                    let newStart = addDays(setMinutes(e.start, e.start.getMinutes() + snappedMinutes), 0);
-                    let newEnd = addDays(setMinutes(e.end, e.end.getMinutes() + snappedMinutes), 0);
-
-                    if (over && over.id !== activeId) {
-                        const targetDayStr = String(over.id);
-                        if (targetDayStr.includes('T')) {
-                            const targetDay = new Date(targetDayStr);
-                            const currentVisualDay = new Date(e.start);
-                            if (currentVisualDay.getHours() < 4) {
-                                currentVisualDay.setDate(currentVisualDay.getDate() - 1);
-                            }
-                            currentVisualDay.setHours(0, 0, 0, 0);
-                            targetDay.setHours(0, 0, 0, 0);
-                            const dayDiff = Math.round((targetDay.getTime() - currentVisualDay.getTime()) / (1000 * 60 * 60 * 24));
-
-                            if (dayDiff !== 0) {
-                                newStart = addDays(newStart, dayDiff);
-                                newEnd = addDays(newEnd, dayDiff);
-                            }
+                        if (dayDiff !== 0) {
+                            newStart = addDays(newStart, dayDiff);
+                            newEnd = addDays(newEnd, dayDiff);
                         }
                     }
-
-                    if (newStart.getTime() === e.start.getTime() && newEnd.getTime() === e.end.getTime()) return e; // No change
-
-                    return {
-                        ...e,
-                        start: newStart,
-                        end: newEnd,
-                        timeDisplay: undefined
-                    };
                 }
             }
-            return e;
-        }));
+
+            // Check if changed
+            if (newStart.getTime() === originalEvent.start.getTime() && newEnd.getTime() === originalEvent.end.getTime()) {
+                return prev;
+            }
+
+            if (isCopyMode && !isResizeBottom && !isResizeTop) { // Only copy on move, not resize
+                const newEvent = {
+                    ...originalEvent,
+                    id: `copy-${Date.now()}`,
+                    start: newStart,
+                    end: newEnd,
+                    timeDisplay: undefined
+                };
+                return [...prev, newEvent];
+            } else {
+                // Normal update
+                return prev.map(e => {
+                    if (e.id === eventId) {
+                        return {
+                            ...e,
+                            start: newStart,
+                            end: newEnd,
+                            timeDisplay: undefined
+                        };
+                    }
+                    return e;
+                });
+            }
+        });
     };
 
     // OPTIMIZATION: Pre-calculate layout and group by Visual Day
@@ -543,6 +674,15 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
     };
 
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, day: Date) => {
+        // 0. Ignore right-clicks (button 2) - let context menu handle them
+        if (e.button !== 0) return;
+
+        // 0.5. Close context menu if open and return (first click dismisses, doesn't start drag)
+        if (contextMenu) {
+            handleCloseContextMenu();
+            return;
+        }
+
         // 1. Click Protection
         // If an interaction is active (input focus, open menu), do NOT prevent default.
         // Let the click bubble so listeners can close the menus.
@@ -879,10 +1019,15 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                                             key={dayIso}
                                             date={day}
                                             id={dayIso}
+                                            isHovered={isHovered}
+                                            onClick={() => {
+                                                if (isInteractionActive()) return;
+                                                // Optional: Clear selection or something
+                                            }}
                                             onPointerDown={(e) => handlePointerDown(e, day)}
+                                            // Pointer events for hover tracking
                                             onPointerMove={(e) => handlePointerMove(e, day)}
                                             onPointerUp={handlePointerUp}
-                                            isHovered={isHovered}
                                             highlightRef={(el) => {
                                                 if (el) highlightRefs.current.set(dayIso, el);
                                                 else highlightRefs.current.delete(dayIso);
@@ -890,6 +1035,15 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                                             ghostRef={(el) => {
                                                 if (el) ghostRefs.current.set(dayIso, el);
                                                 else ghostRefs.current.delete(dayIso);
+                                            }}
+                                            onContextMenu={(e: React.MouseEvent) => {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const relativeY = e.clientY - rect.top;
+                                                const hour = START_HOUR + (relativeY / PIXELS_PER_HOUR);
+                                                // Snap to 5 mins
+                                                const snappedHour = Math.floor(hour) + Math.round((hour % 1) * 60 / SNAP_MINUTES) * SNAP_MINUTES / 60;
+
+                                                handleContextMenu(e, 'grid', { date: day, time: snappedHour });
                                             }}
                                         >
                                             {(eventsByDay[dayIso] || []).map(({ event, style, isLate }) => (
@@ -900,6 +1054,9 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                                                     isLate={isLate}
                                                     onUpdate={handleUpdateEvent}
                                                     onDelete={handleDeleteEvent}
+                                                    onContextMenu={(e, id) => {
+                                                        handleContextMenu(e, 'event', id);
+                                                    }}
                                                 />
                                             ))}
                                         </DayColumn>
@@ -951,6 +1108,11 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                     )}
                 </div>
             </div>
+            <ContextMenu
+                position={contextMenu?.position || null}
+                items={contextMenuItems}
+                onClose={handleCloseContextMenu}
+            />
         </div>
     );
 };

@@ -13,13 +13,14 @@ interface EventBlockProps {
     isLate?: boolean;
     onUpdate?: (eventId: string, updates: { title?: string; timeDisplay?: string; color?: string }) => void;
     onDelete?: (eventId: string) => void;
+    onContextMenu?: (e: React.MouseEvent, eventId: string) => void;
 }
 
 const PIXELS_PER_HOUR = 100;
 const SNAP_MINUTES = 5;
 const MIN_HEIGHT = 25; // Minimum 15 minutes
 
-const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containerStyle, isLate, onUpdate, onDelete }) => {
+const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containerStyle, isLate, onUpdate, onDelete, onContextMenu }) => {
     const defaultTimeLabel = `${format(event.start, 'h:mm a')} - ${isLate ? 'Late' : format(event.end, 'h:mm a')}`;
 
     // Separate edit states
@@ -38,6 +39,9 @@ const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containe
     const lastTitleClickRef = React.useRef(0);
     const titleInputRef = React.useRef<HTMLInputElement>(null);
     const timeInputRef = React.useRef<HTMLInputElement>(null);
+    const domRef = React.useRef<HTMLDivElement | null>(null);
+
+
 
     // Reset state when event changes
     React.useEffect(() => {
@@ -104,6 +108,11 @@ const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containe
         data: { type: 'event', event },
         disabled: isEditingTitle || isEditingTime || isColorSelectorOpen
     });
+
+    const setRefs = React.useCallback((node: HTMLDivElement | null) => {
+        setNodeRef(node);
+        domRef.current = node;
+    }, [setNodeRef]);
 
     const {
         attributes: resizeAttrs,
@@ -196,9 +205,25 @@ const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containe
         : (event.timeDisplay || `${format(displayStart, 'h:mm a')} - ${isLate ? 'Late' : format(displayEnd, 'h:mm a')}`);
     const isInteracting = isDragging || isResizingBottom || isResizingTop;
 
+    React.useEffect(() => {
+        const node = domRef.current;
+        if (!node || !onContextMenu) return;
+
+        const handleContextMenu = (e: MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onContextMenu(e as unknown as React.MouseEvent, event.id);
+        };
+
+        node.addEventListener('contextmenu', handleContextMenu);
+        return () => {
+            node.removeEventListener('contextmenu', handleContextMenu);
+        }
+    }, [event.id, onContextMenu]);
+
     return (
         <div
-            ref={setNodeRef}
+            ref={setRefs}
             style={positionStyle}
             {...listeners}
             {...attributes}
@@ -209,6 +234,7 @@ const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containe
                 "group",
                 isSmallDuration && "is-compact"
             )}
+
         >
             <div
                 className={clsx(
@@ -246,32 +272,36 @@ const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containe
                 />
 
                 {/* Delete Button (Top Right) */}
-                {!isEditingTitle && !isEditingTime && onDelete && (
-                    <button
-                        className="delete-event-btn"
-                        onPointerDown={(e) => {
-                            e.stopPropagation();
-                            onDelete(event.id);
-                        }}
-                        title="Delete Event"
-                    >
-                        <Trash2 size={13} strokeWidth={2.5} />
-                    </button>
-                )}
+                {
+                    !isEditingTitle && !isEditingTime && onDelete && (
+                        <button
+                            className="delete-event-btn"
+                            onPointerDown={(e) => {
+                                e.stopPropagation();
+                                onDelete(event.id);
+                            }}
+                            title="Delete Event"
+                        >
+                            <Trash2 size={13} strokeWidth={2.5} />
+                        </button>
+                    )
+                }
 
 
                 {/* Top Handle */}
-                {!isEditingTitle && !isEditingTime && (
-                    <div
-                        ref={setResizeTopRef}
-                        {...resizeTopListeners}
-                        {...resizeTopAttrs}
-                        className="resize-handle resize-handle-top"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="resize-bar"></div>
-                    </div>
-                )}
+                {
+                    !isEditingTitle && !isEditingTime && (
+                        <div
+                            ref={setResizeTopRef}
+                            {...resizeTopListeners}
+                            {...resizeTopAttrs}
+                            className="resize-handle resize-handle-top"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="resize-bar"></div>
+                        </div>
+                    )
+                }
 
                 <div className="event-content" style={{ position: 'relative', height: '100%' }}>
                     {/* Full View */}
@@ -368,12 +398,14 @@ const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containe
                 </div>
 
                 {/* Bottom Handle */}
-                {!isEditingTitle && !isEditingTime && (
-                    <div ref={setResizeRef} {...resizeListeners} {...resizeAttrs} className="resize-handle" onClick={(e) => e.stopPropagation()}>
-                        <div className="resize-bar"></div>
-                    </div>
-                )}
-            </div>
+                {
+                    !isEditingTitle && !isEditingTime && (
+                        <div ref={setResizeRef} {...resizeListeners} {...resizeAttrs} className="resize-handle" onClick={(e) => e.stopPropagation()}>
+                            <div className="resize-bar"></div>
+                        </div>
+                    )
+                }
+            </div >
         </div>
     );
 };
