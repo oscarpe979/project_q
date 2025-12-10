@@ -807,6 +807,30 @@ body {
   font-weight: 700;
 }
 
+/* Compact ghost view (for short events ≤25 mins) */
+.ghost-event-overlay.ghost-compact {
+  flex-direction: row;
+  gap: 0.25rem;
+}
+
+.ghost-event-overlay .ghost-compact-content {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ghost-event-overlay .ghost-time-compact {
+  font-weight: 700;
+}
+
+.ghost-event-overlay .ghost-title-compact {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Event Content Layout */
 .event-content {
   display: flex;

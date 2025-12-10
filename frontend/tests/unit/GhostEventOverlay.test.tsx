@@ -102,4 +102,35 @@ describe('GhostEventOverlay', () => {
         const overlay = container.querySelector('.ghost-event-overlay');
         expect(overlay).toHaveStyle({ background: '#3b82f6' });
     });
+
+    it('renders compact view when height < 50px', () => {
+        const { container } = render(
+            <GhostEventOverlay
+                event={mockEvent}
+                dragDelta={{ x: 0, y: 0 }}
+                width={200}
+                height="40px"
+            />
+        );
+
+        const overlay = container.querySelector('.ghost-event-overlay');
+        expect(overlay).toHaveClass('ghost-compact');
+        expect(container.querySelector('.ghost-compact-content')).toBeInTheDocument();
+    });
+
+    it('renders normal view when height >= 50px', () => {
+        const { container } = render(
+            <GhostEventOverlay
+                event={mockEvent}
+                dragDelta={{ x: 0, y: 0 }}
+                width={200}
+                height="60px"
+            />
+        );
+
+        const overlay = container.querySelector('.ghost-event-overlay');
+        expect(overlay).not.toHaveClass('ghost-compact');
+        expect(container.querySelector('.ghost-time')).toBeInTheDocument();
+        expect(container.querySelector('.ghost-title')).toBeInTheDocument();
+    });
 });

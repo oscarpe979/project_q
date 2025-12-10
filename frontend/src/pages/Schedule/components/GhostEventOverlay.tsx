@@ -25,9 +25,15 @@ export const GhostEventOverlay: React.FC<GhostEventOverlayProps> = ({
     const previewStart = new Date(event.start.getTime() + minutesShift * 60 * 1000);
     const previewEnd = new Date(event.end.getTime() + minutesShift * 60 * 1000);
 
+    // Compact mode: height < 50px (same logic as EventBlock)
+    const numericHeight = parseFloat(height);
+    const isCompact = !isNaN(numericHeight) && numericHeight < 50;
+
+    const startTimeStr = format(previewStart, 'h:mm a');
+
     return (
         <div
-            className="ghost-event-overlay"
+            className={`ghost-event-overlay ${isCompact ? 'ghost-compact' : ''}`}
             style={{
                 width: `${width}px`,
                 height: `calc(${height} - 2px)`,
@@ -35,10 +41,22 @@ export const GhostEventOverlay: React.FC<GhostEventOverlayProps> = ({
                 color: getContrastColor(event.color),
             }}
         >
-            <span className="ghost-time">
-                {format(previewStart, 'h:mm a')} - {format(previewEnd, 'h:mm a')}
-            </span>
-            <span className="ghost-title">{event.title}</span>
+            {isCompact ? (
+                // Compact: single row with start time - title
+                <span className="ghost-compact-content">
+                    <span className="ghost-time-compact">{startTimeStr}</span>
+                    <span>-</span>
+                    <span className="ghost-title-compact">{event.title}</span>
+                </span>
+            ) : (
+                // Normal: stacked time range and title
+                <>
+                    <span className="ghost-time">
+                        {startTimeStr} - {format(previewEnd, 'h:mm a')}
+                    </span>
+                    <span className="ghost-title">{event.title}</span>
+                </>
+            )}
         </div>
     );
 };
