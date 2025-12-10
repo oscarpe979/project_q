@@ -315,13 +315,13 @@ export const VoyageSelector: React.FC<VoyageSelectorProps> = ({
                     left: 0,
                     width: '100%',
                     background: 'rgba(255, 255, 255, 0.99)',
-                    backdropFilter: 'blur(16px)',
+                    backdropFilter: 'blur(8px)',
                     borderRadius: '16px',
                     border: '1px solid rgba(255, 255, 255, 0.5)',
                     boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
                     padding: '0.5rem', // Add bottom padding to prevent scrollbar hitting edge
                     overflow: 'hidden',
-                    animation: 'fadeIn 0.2s ease-out',
+                    animation: 'fadeIn 0.15s ease-out',
                     display: 'flex',
                     flexDirection: 'column',
                     maxHeight: isExpanded ? 'none' : '650px', // Comfortably fit 5 items + view more

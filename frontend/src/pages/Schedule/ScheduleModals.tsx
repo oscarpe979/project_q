@@ -38,6 +38,10 @@ export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
             {/* Publish Modal */}
             {isPublishModalOpen && (
                 <div className="modal-overlay">
+                    <div
+                        className="modal-backdrop-click"
+                        onPointerDown={() => setIsPublishModalOpen(false)}
+                    />
                     <div className="modal-content publish-modal-content">
                         <h3 className="publish-modal-header">Publish Schedule</h3>
                         <p className="publish-modal-text">Enter the Voyage Number to publish this schedule.</p>
@@ -67,6 +71,10 @@ export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
             {/* Delete Modal */}
             {isDeleteModalOpen && (
                 <div className="modal-overlay">
+                    <div
+                        className="modal-backdrop-click"
+                        onPointerDown={() => setIsDeleteModalOpen(false)}
+                    />
                     <div className="modal-content modal-content-delete">
                         <h3 className="delete-modal-header">Delete Schedule</h3>
                         <p className="delete-modal-text">
