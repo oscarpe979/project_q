@@ -329,6 +329,7 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   border: 1px solid transparent;
+  outline: none;
 }
 
 .btn-secondary {
@@ -351,6 +352,15 @@ body {
 .btn-primary:hover {
   background: #1d4ed8;
   transform: translateY(-1px);
+}
+
+/* Keyboard focus states for modal buttons */
+.btn.btn-focused {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2563eb;
+}
+
+.btn.btn-focused-danger {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #DC2626;
 }
 
 /* Schedule Grid */
@@ -737,6 +747,7 @@ body {
   /* No visual styles, just positioning wrapper */
   z-index: 10;
   /* Default z-index */
+  outline: none;
 }
 
 .event-box {
@@ -2152,6 +2163,12 @@ body {
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 1.5rem;
+}
+
+.modal-error-text {
+  color: var(--error);
+  margin-top: 0.5rem;
+  font-size: 0.9em;
 }
 
 .btn-danger {

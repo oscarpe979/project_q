@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 interface ScheduleModalsProps {
     isPublishModalOpen: boolean;
@@ -16,6 +16,9 @@ interface ScheduleModalsProps {
     onDeleteConfirm: () => void;
 }
 
+type PublishFocus = 'cancel' | 'publish';
+type DeleteFocus = 'cancel' | 'delete';
+
 export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
     const {
         isPublishModalOpen,
@@ -32,6 +35,72 @@ export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
         onPublishConfirm,
         onDeleteConfirm
     } = props;
+
+    // Focus state for publish modal buttons
+    const [publishFocus, setPublishFocus] = useState<PublishFocus>('publish');
+    // Focus state for delete modal buttons
+    const [deleteFocus, setDeleteFocus] = useState<DeleteFocus>('cancel');
+
+    // Reset focus when modals open
+    useEffect(() => {
+        if (isPublishModalOpen) setPublishFocus('publish');
+    }, [isPublishModalOpen]);
+
+    useEffect(() => {
+        if (isDeleteModalOpen) setDeleteFocus('cancel');
+    }, [isDeleteModalOpen]);
+
+    const handlePublishAction = useCallback(() => {
+        if (publishFocus === 'cancel') {
+            setIsPublishModalOpen(false);
+        } else if (!isPublishing) {
+            onPublishConfirm();
+        }
+    }, [publishFocus, setIsPublishModalOpen, isPublishing, onPublishConfirm]);
+
+    const handleDeleteAction = useCallback(() => {
+        if (deleteFocus === 'cancel') {
+            setIsDeleteModalOpen(false);
+        } else if (!isDeleting) {
+            onDeleteConfirm();
+        }
+    }, [deleteFocus, setIsDeleteModalOpen, isDeleting, onDeleteConfirm]);
+
+    // Keyboard navigation for publish modal
+    useEffect(() => {
+        if (!isPublishModalOpen) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || (e.key === 'Tab')) {
+                e.preventDefault();
+                setPublishFocus(prev => prev === 'cancel' ? 'publish' : 'cancel');
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                handlePublishAction();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isPublishModalOpen, handlePublishAction]);
+
+    // Keyboard navigation for delete modal
+    useEffect(() => {
+        if (!isDeleteModalOpen) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || (e.key === 'Tab')) {
+                e.preventDefault();
+                setDeleteFocus(prev => prev === 'cancel' ? 'delete' : 'cancel');
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                handleDeleteAction();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isDeleteModalOpen, handleDeleteAction]);
 
     return (
         <>
@@ -54,13 +123,22 @@ export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
                             autoFocus={!currentVoyageNumber}
                         />
                         {publishError && (
-                            <div className="modal-error-text" style={{ color: 'var(--error)', marginTop: '0.5rem', fontSize: '0.9em' }}>
+                            <div className="modal-error-text">
                                 {publishError}
                             </div>
                         )}
                         <div className="publish-modal-actions">
-                            <button className="btn btn-secondary" onClick={() => setIsPublishModalOpen(false)}>Cancel</button>
-                            <button className="btn btn-primary" onClick={onPublishConfirm} disabled={isPublishing}>
+                            <button
+                                className={`btn btn-secondary ${publishFocus === 'cancel' ? 'btn-focused' : ''}`}
+                                onClick={() => setIsPublishModalOpen(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className={`btn btn-primary ${publishFocus === 'publish' ? 'btn-focused' : ''}`}
+                                onClick={onPublishConfirm}
+                                disabled={isPublishing}
+                            >
                                 {isPublishing ? 'Publishing...' : 'Publish'}
                             </button>
                         </div>
@@ -91,13 +169,22 @@ export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
                             autoFocus
                         />
                         {deleteError && (
-                            <div className="modal-error-text" style={{ color: 'var(--error)', marginTop: '0.5rem', fontSize: '0.9em' }}>
+                            <div className="modal-error-text">
                                 {deleteError}
                             </div>
                         )}
                         <div className="modal-actions">
-                            <button className="btn btn-secondary" onClick={() => setIsDeleteModalOpen(false)}>Cancel</button>
-                            <button className="btn btn-primary btn-danger" onClick={onDeleteConfirm} disabled={isDeleting}>
+                            <button
+                                className={`btn btn-secondary ${deleteFocus === 'cancel' ? 'btn-focused' : ''}`}
+                                onClick={() => setIsDeleteModalOpen(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className={`btn btn-primary btn-danger ${deleteFocus === 'delete' ? 'btn-focused-danger' : ''}`}
+                                onClick={onDeleteConfirm}
+                                disabled={isDeleting}
+                            >
                                 {isDeleting ? 'Deleting...' : 'Delete'}
                             </button>
                         </div>

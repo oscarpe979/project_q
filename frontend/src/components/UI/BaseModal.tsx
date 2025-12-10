@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface BaseModalProps {
@@ -6,9 +6,26 @@ interface BaseModalProps {
     onClose: () => void;
     title: string;
     children: React.ReactNode;
+    disableEnterKey?: boolean; // Allow child components to handle Enter themselves
 }
 
-export const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, title, children }) => {
+export const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, title, children, disableEnterKey = false }) => {
+    // Handle Enter key to close modal (for confirmation modals)
+    useEffect(() => {
+        if (!isOpen || disableEnterKey) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                onClose();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown, { capture: true });
+        return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+    }, [isOpen, onClose, disableEnterKey]);
+
     if (!isOpen) return null;
 
     return (
@@ -16,7 +33,7 @@ export const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, title, ch
             {/* Backdrop click handler */}
             <div
                 className="modal-backdrop-click"
-                onClick={onClose}
+                onPointerDown={onClose}
             ></div>
 
             {/* Content */}
