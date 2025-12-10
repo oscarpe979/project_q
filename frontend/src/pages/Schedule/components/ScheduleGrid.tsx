@@ -1,15 +1,16 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { format, addDays, startOfWeek, setMinutes, startOfDay } from 'date-fns';
-import { DndContext, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
+import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { NewDraftOverlay } from './NewDraftOverlay';
 import { Edit2, Copy, Clipboard, Trash2 } from 'lucide-react';
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent, DragMoveEvent } from '@dnd-kit/core';
 import { ContextMenu } from './ContextMenu';
 import type { ContextMenuItem } from './ContextMenu';
 
 import { TimeColumn } from './TimeColumn';
 import { DayColumn } from './DayColumn';
 import { EventBlock } from './EventBlock';
+import { GhostEventOverlay } from './GhostEventOverlay';
 import { DatePicker } from '../../../components/UI/DatePicker';
 import { FooterHighlightCell } from './FooterHighlightCell';
 import { PortTimeEditor } from './PortTimeEditor';
@@ -464,14 +465,12 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
 
 
     const handleDragEnd = (event: DragEndEvent) => {
-        setActiveDragId(null);
+        // Capture copy mode BEFORE resetting state - this reflects current Ctrl key state
+        const isCopyMode = copyDragState.isCopyDrag;
+
+        setCopyDragState(initialCopyDragState);
 
         const { active, delta, over } = event;
-        // Check for modifier keys in activatorEvent
-        // dnd-kit events don't strictly type activatorEvent as PointerEvent always, but it usually is for mouse/touch
-        const activatorEvent = event.activatorEvent as unknown as MouseEvent | TouchEvent;
-        const isCopyMode = (activatorEvent && 'ctrlKey' in activatorEvent && activatorEvent.ctrlKey) ||
-            (activatorEvent && 'metaKey' in activatorEvent && activatorEvent.metaKey);
 
         const activeId = String(active.id);
         const isResizeBottom = activeId.endsWith('-resize-bottom');
@@ -735,13 +734,95 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     };
 
-    // Dnd State Tracking
-    const [activeDragId, setActiveDragId] = useState<string | null>(null);
+    // Consolidated Dnd Copy State
+    interface CopyDragState {
+        activeDragId: string | null;
+        isCopyDrag: boolean;
+        activeEvent: Event | null;
+        eventHeight: string;
+        eventWidth: number;
+        delta: { x: number; y: number };
+    }
+
+    const initialCopyDragState: CopyDragState = {
+        activeDragId: null,
+        isCopyDrag: false,
+        activeEvent: null,
+        eventHeight: '50px',
+        eventWidth: 210,
+        delta: { x: 0, y: 0 },
+    };
+
+    const [copyDragState, setCopyDragState] = useState<CopyDragState>(initialCopyDragState);
+
+    // Memoized event height lookup map
+    const eventHeightMap = useMemo(() => {
+        const map = new Map<string, string>();
+        Object.values(eventsByDay).forEach(dayEvents => {
+            dayEvents?.forEach(({ event, style }) => {
+                map.set(event.id, style.height as string);
+            });
+        });
+        return map;
+    }, [eventsByDay]);
 
     const handleDragStart = (event: DragStartEvent) => {
-        setActiveDragId(String(event.active.id));
-        setHoverDay(null); // Clear highlight immediately on drag start
+        const activeId = String(event.active.id);
+        const activatorEvent = event.activatorEvent as MouseEvent;
+        const isCopyMode = activatorEvent.ctrlKey || activatorEvent.metaKey;
+
+        // Find the event being dragged (skip resize handles)
+        const eventId = activeId.replace('-resize-bottom', '').replace('-resize-top', '');
+        const draggedEvent = events.find(e => e.id === eventId);
+
+        // Get actual width from any event-box element (they all have same column width)
+        const anyEventBox = document.querySelector('.event-box') as HTMLElement;
+        const eventWidth = anyEventBox?.offsetWidth || 210;
+
+        // Get height from memoized lookup map
+        const eventHeight = draggedEvent ? eventHeightMap.get(draggedEvent.id) || '50px' : '50px';
+
+        setCopyDragState({
+            activeDragId: activeId,
+            isCopyDrag: isCopyMode,
+            activeEvent: draggedEvent || null,
+            eventHeight,
+            eventWidth,
+            delta: { x: 0, y: 0 },
+        });
+
+        setHoverDay(null);
     };
+
+    const handleDragMove = (event: DragMoveEvent) => {
+        if (event.delta) {
+            setCopyDragState(prev => ({ ...prev, delta: event.delta }));
+        }
+    };
+
+    // Listen for Ctrl key press/release during drag to toggle copy mode
+    useEffect(() => {
+        if (!copyDragState.activeDragId) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Control' || e.key === 'Meta') {
+                setCopyDragState(prev => ({ ...prev, isCopyDrag: true }));
+            }
+        };
+
+        const handleKeyUp = (e: KeyboardEvent) => {
+            if (e.key === 'Control' || e.key === 'Meta') {
+                setCopyDragState(prev => ({ ...prev, isCopyDrag: false }));
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, [copyDragState.activeDragId]);
 
     // Helper to format time
     const formatTimeDisplay = (h: number) => {
@@ -760,7 +841,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
 
         e.preventDefault();
 
-        if (activeDragId) {
+        if (copyDragState.activeDragId) {
             if (hoverDay) setHoverDay(null);
             return;
         }
@@ -1006,6 +1087,7 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                             <DndContext
                                 sensors={sensors}
                                 onDragStart={handleDragStart}
+                                onDragMove={handleDragMove}
                                 onDragEnd={handleDragEnd}
                             >
                                 {days.map((day) => {
@@ -1057,11 +1139,24 @@ export const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                                                     onContextMenu={(e, id) => {
                                                         handleContextMenu(e, 'event', id);
                                                     }}
+                                                    isCopyDrag={copyDragState.isCopyDrag && copyDragState.activeDragId === event.id}
                                                 />
                                             ))}
                                         </DayColumn>
                                     );
                                 })}
+
+                                {/* Ghost overlay for copy-drag mode */}
+                                <DragOverlay dropAnimation={null}>
+                                    {copyDragState.isCopyDrag && copyDragState.activeEvent && (
+                                        <GhostEventOverlay
+                                            event={copyDragState.activeEvent}
+                                            dragDelta={copyDragState.delta}
+                                            width={copyDragState.eventWidth}
+                                            height={copyDragState.eventHeight}
+                                        />
+                                    )}
+                                </DragOverlay>
                             </DndContext>
                         </div>
 

@@ -14,13 +14,14 @@ interface EventBlockProps {
     onUpdate?: (eventId: string, updates: { title?: string; timeDisplay?: string; color?: string }) => void;
     onDelete?: (eventId: string) => void;
     onContextMenu?: (e: React.MouseEvent, eventId: string) => void;
+    isCopyDrag?: boolean;
 }
 
 const PIXELS_PER_HOUR = 100;
 const SNAP_MINUTES = 5;
 const MIN_HEIGHT = 25; // Minimum 15 minutes
 
-const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containerStyle, isLate, onUpdate, onDelete, onContextMenu }) => {
+const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containerStyle, isLate, onUpdate, onDelete, onContextMenu, isCopyDrag }) => {
     const defaultTimeLabel = `${format(event.start, 'h:mm a')} - ${isLate ? 'Late' : format(event.end, 'h:mm a')}`;
 
     // Separate edit states
@@ -150,7 +151,8 @@ const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containe
             ? Math.max(MIN_HEIGHT, height - snappedResizeTopTransformY)
             : height;
     const currentTop = isResizingTop ? top + (height - currentHeight) : top;
-    const visualTop = isDragging && transform ? top + snappedTransformY : currentTop;
+    // In copy mode, original stays at original position; otherwise apply drag transform
+    const visualTop = (isDragging && transform && !isCopyDrag) ? top + snappedTransformY : currentTop;
 
     const positionStyle: React.CSSProperties = {
         top: `${visualTop}px`,
@@ -158,7 +160,8 @@ const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containe
         left: containerStyle.left,
         width: containerStyle.width,
         zIndex: isDragging || isResizingBottom || isResizingTop || isEditingTitle || isEditingTime || isColorSelectorOpen ? 80 : 10,
-        transform: (isDragging && transform) ? `translate3d(${transform.x}px, 0, 0)` : undefined,
+        // Skip transform when in copy mode - original stays in place, ghost follows cursor
+        transform: (isDragging && transform && !isCopyDrag) ? `translate3d(${transform.x}px, 0, 0)` : undefined,
         paddingRight: '1px',
         paddingBottom: '2px',
         boxSizing: 'border-box'
@@ -179,6 +182,10 @@ const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containe
             return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
         };
         if (isDragging && transform) {
+            // In copy mode, original shows static times (ghost shows the preview)
+            if (isCopyDrag) {
+                return { start: event.start, end: event.end };
+            }
             const minutesShift = pixelsToMinutes(snappedTransformY);
             const previewStart = new Date(event.start.getTime() + minutesShift * 60 * 1000);
             const previewEnd = new Date(event.end.getTime() + minutesShift * 60 * 1000);
@@ -229,7 +236,7 @@ const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containe
             {...attributes}
             className={clsx(
                 "event-block",
-                isDragging && "dragging",
+                isDragging && !isCopyDrag && "dragging",
                 (isResizingBottom || isResizingTop) && "resizing",
                 "group",
                 isSmallDuration && "is-compact"
