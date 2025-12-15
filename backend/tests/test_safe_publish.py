@@ -113,3 +113,75 @@ def test_safe_publish_scenarios(client: TestClient, auth_headers: dict, session:
     resp = client.post("/api/schedules/", json=payload_overwrite, headers=auth_headers)
     assert resp.status_code == 409
     assert "Cannot overwrite" in resp.json()["detail"]
+
+
+def test_multi_venue_same_voyage_number(client: TestClient, session: Session, auth_headers: dict, test_user: User):
+    """
+    Test that DIFFERENT venues can publish the SAME voyage number independently.
+    This was a bug where the conflict detection checked global voyage existence
+    instead of venue-specific ownership.
+    
+    Scenario:
+    1. User A (Venue A) publishes voyage "500" → SUCCESS
+    2. User B (Venue B) publishes voyage "500" → SUCCESS (should NOT conflict)
+    3. User A tries to publish "500" again → CONFLICT (already has it)
+    """
+    from backend.app.db.models import Venue
+    from backend.app.core.security import get_password_hash
+    
+    # 1. User A (test_user) publishes voyage "500"
+    payload_a = {
+        "voyage_number": "500",
+        "events": [],
+        "itinerary": []
+    }
+    resp = client.post("/api/schedules/", json=payload_a, headers=auth_headers)
+    assert resp.status_code == 201, f"User A publish failed: {resp.text}"
+    
+    # 2. Setup User B on a DIFFERENT venue (same ship)
+    ship_id = test_user.ship_id
+    venue_b = Venue(name="Venue B for Publish Test", ship_id=ship_id, capacity=50)
+    session.add(venue_b)
+    session.commit()
+    session.refresh(venue_b)
+    
+    user_b = User(
+        username="user_b_publish_test",
+        password_hash=get_password_hash("testpassword"),
+        full_name="User B",
+        ship_id=ship_id,
+        venue_id=venue_b.id,
+        role="manager",
+        is_active=True
+    )
+    session.add(user_b)
+    session.commit()
+    
+    # Authenticate User B
+    login_resp = client.post("/api/auth/login", data={"username": "user_b_publish_test", "password": "testpassword"})
+    assert login_resp.status_code == 200
+    auth_headers_b = {"Authorization": f"Bearer {login_resp.json()['access_token']}"}
+    
+    # 3. User B publishes the SAME voyage number "500" → Should SUCCEED
+    payload_b = {
+        "voyage_number": "500",
+        "events": [],
+        "itinerary": []
+    }
+    resp = client.post("/api/schedules/", json=payload_b, headers=auth_headers_b)
+    assert resp.status_code == 201, f"User B publish should succeed but got: {resp.text}"
+    
+    # 4. User A tries to publish "500" AGAIN (without original) → Should CONFLICT
+    resp = client.post("/api/schedules/", json=payload_a, headers=auth_headers)
+    assert resp.status_code == 409, f"User A duplicate should conflict but got: {resp.text}"
+    assert "already exists" in resp.json()["detail"]
+    
+    # 5. User A can UPDATE their "500" (with original_voyage_number)
+    payload_update = {
+        "voyage_number": "500",
+        "original_voyage_number": "500",
+        "events": [],
+        "itinerary": []
+    }
+    resp = client.post("/api/schedules/", json=payload_update, headers=auth_headers)
+    assert resp.status_code == 201, f"User A update should succeed but got: {resp.text}"

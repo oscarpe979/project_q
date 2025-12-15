@@ -84,27 +84,35 @@ def publish_schedule(
         raise HTTPException(status_code=400, detail="User must be assigned to a ship to publish a schedule.")
 
     # 1. Find or Create Voyage
-    # First, checked if the target voyage number already exists
+    # First, check if the target voyage number already exists
     existing_voyage = session.exec(select(Voyage).where(Voyage.voyage_number == request.voyage_number)).first()
+    
+    # Check if the CURRENT VENUE has a schedule for this voyage (venue-specific ownership)
+    existing_venue_schedule = None
+    if existing_voyage:
+        existing_venue_schedule = session.exec(
+            select(VenueSchedule)
+            .where(VenueSchedule.venue_id == current_user.venue_id)
+            .where(VenueSchedule.voyage_id == existing_voyage.id)
+        ).first()
 
-    # STRICT VALIDATION Logic
+    # STRICT VALIDATION Logic (Venue-Scoped)
     if request.original_voyage_number:
         # Update Mode: We are editing an existing schedule (or renaming it)
-        # Security Check: ideally we should check if original_voyage_number exists, but for now we trust the flow
-        # Conflict Check: If we are renaming (target != original), target must NOT exist.
+        # Conflict Check: If we are renaming (target != original), THIS VENUE must not already have the target.
         if request.voyage_number != request.original_voyage_number:
-            if existing_voyage:
+            if existing_venue_schedule:
                  raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT, 
                     detail=f"Cannot overwrite existing schedule '{request.voyage_number}' while renaming from '{request.original_voyage_number}'."
                 )
     else:
         # Creation Mode: We are creating a NEW draft/schedule
-        # Target must NOT exist.
-        if existing_voyage:
+        # THIS VENUE must NOT have the target voyage.
+        if existing_venue_schedule:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, 
-                detail=f"Voyage '{request.voyage_number}' already exists."
+                detail=f"Voyage '{request.voyage_number}' already exists for your venue."
             )
             
     voyage = existing_voyage

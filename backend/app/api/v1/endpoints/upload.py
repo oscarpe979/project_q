@@ -41,29 +41,19 @@ async def upload_cd_grid(
         if file.filename.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png', '.xls', '.xlsx')):
             # Use GenAI Parser for CD Grid (PDF, Image, or Excel)
             try:
-                # Fetch other venues for this ship to extract their main shows
-                other_venues = []
-                allowed_types = []
-                
+                # Get ship code for venue rules lookup
+                ship_code = None
                 if current_user.ship_id:
-                    # Run blocking DB call in thread to get other venues
-                    def get_context_data(s_id, t_venue):
-                        from sqlmodel import select
-                        from backend.app.db.models import Venue
-                        
-                        # 1. Other Venues
-                        venues = session.exec(select(Venue).where(Venue.ship_id == s_id)).all()
-                        o_venues = [v.name for v in venues if v.name != t_venue]
-                        return o_venues
+                    from backend.app.db.models import Ship
+                    ship = session.get(Ship, current_user.ship_id)
+                    ship_code = ship.code if ship else None
 
-                    other_venues = await asyncio.to_thread(get_context_data, current_user.ship_id, target_venue)
-
-                print(f"DEBUG: Parsing CD Grid with target_venue='{target_venue}', other_venues={other_venues}")
+                print(f"DEBUG: Parsing CD Grid with target_venue='{target_venue}', ship_code='{ship_code}'")
                 result = await parser.parse_cd_grid(
                     file_obj, 
                     filename=file.filename, 
                     target_venue=target_venue, 
-                    other_venues=other_venues
+                    ship_code=ship_code
                 )
                 return result
             except Exception as e:

@@ -4,6 +4,7 @@ Extracts raw grid data preserving structure, merge info, and cell positions.
 """
 from typing import Dict, Any, List, BinaryIO, Union
 import io
+import datetime
 
 
 class ContentExtractor:
@@ -52,7 +53,26 @@ class ContentExtractor:
         for row_idx, row in enumerate(ws.iter_rows(), start=1):
             for col_idx, cell in enumerate(row, start=1):
                 if cell.value is not None:
-                    value = str(cell.value).strip()
+                    # Clean and format the value
+                    val = cell.value
+                    value = ""
+                    
+                    # Handle Excel Date/Time objects
+                    if isinstance(val, datetime.time):
+                        # Format "17:00:00" -> "5:00 pm"
+                        value = val.strftime("%I:%M %p").lstrip("0").lower()
+                        
+                    elif isinstance(val, datetime.datetime):
+                        # If it's a pure date (midnight): Keep YYYY-MM-DD for headers
+                        if val.time() == datetime.time(0, 0, 0):
+                             value = val.strftime("%Y-%m-%d")
+                        else:
+                             # It has a time component, treat as Time (e.g. "1900-01-01 17:00:00")
+                             value = val.strftime("%I:%M %p").lstrip("0").lower()
+                             
+                    else:
+                        value = str(val).strip()
+                        
                     if value:
                         cells.append({
                             "row": row_idx,
@@ -116,7 +136,7 @@ class ContentExtractor:
         }
     
     def _extract_pdf(self, file_obj: Union[str, BinaryIO]) -> Dict[str, Any]:
-        """Extract PDF table data using pdfplumber."""
+        """Extract PDF table data using pdfplumber's default detection."""
         import pdfplumber
         
         # Read PDF bytes
@@ -134,13 +154,8 @@ class ContentExtractor:
         
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             for page_num, page in enumerate(pdf.pages):
-                # Extract tables with line-based detection
-                tables = page.extract_tables(table_settings={
-                    "vertical_strategy": "lines",
-                    "horizontal_strategy": "lines",
-                    "snap_tolerance": 5,
-                    "join_tolerance": 5,
-                })
+                # Use default table extraction - works best for most PDFs
+                tables = page.extract_tables()
                 
                 for table in tables:
                     if not table:
@@ -165,7 +180,7 @@ class ContentExtractor:
         return {
             "type": "pdf",
             "cells": cells,
-            "merges": [],  # PDF merge detection is heuristic-based
+            "merges": [],
             "dimensions": {
                 "rows": max_row,
                 "cols": max_col
