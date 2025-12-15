@@ -938,7 +938,7 @@ Return ONLY valid JSON matching the schema."""
     def _calculate_default_end(self, start_dt: datetime, title: str, duration_map: Dict[str, int]) -> datetime:
         """Calculate end time based on title match or default 45 mins."""
         # Find best matching duration
-        minutes = 45 # Fallback
+        minutes = 60 # Fallback
         
         # Exact or partial match in duration map
         # duration_map keys might be 'inTENse', 'Ice Spectacular'
