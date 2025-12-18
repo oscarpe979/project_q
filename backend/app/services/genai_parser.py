@@ -64,8 +64,8 @@ class GenAIParser:
         
         print(f"DEBUG: Extracted {len(raw_data['cells'])} cells from {raw_data['type']} file")
         
-        # Initialize Token Usage Stats
-        usage_stats = {"input_tokens": 0, "output_tokens": 0}
+        # Initialize Token Usage Stats (including thinking tokens)
+        usage_stats = {"input_tokens": 0, "output_tokens": 0, "thinking_tokens": 0, "total_tokens": 0}
         
         # Step 2: LLM Structure Discovery (Pass 1)
         print("DEBUG: Step 2 - LLM structure discovery...")
@@ -85,11 +85,21 @@ class GenAIParser:
         print("DEBUG: Step 4 - LLM content interpretation...")
         result = await self._interpret_schedule(filtered_data, structure, target_venue, combined_other_venues, venue_rules, usage_stats)
         
-        # Log Token Usage
+        # Log Token Usage (with thinking tokens breakdown)
         print(f"DEBUG: Token Usage Report:")
-        print(f"DEBUG:   Input Tokens:  {usage_stats['input_tokens']}")
-        print(f"DEBUG:   Output Tokens: {usage_stats['output_tokens']}")
-        print(f"DEBUG:   Total Tokens:  {usage_stats['input_tokens'] + usage_stats['output_tokens']}")
+        print(f"DEBUG:   Input Tokens:    {usage_stats['input_tokens']}")
+        print(f"DEBUG:   Output Tokens:   {usage_stats['output_tokens']}")
+        print(f"DEBUG:   Thinking Tokens: {usage_stats['thinking_tokens']}")
+        print(f"DEBUG:   Total Tokens:    {usage_stats['total_tokens']}")
+        
+        # Cost estimate (Gemini 2.5 Flash pricing - Dec 2024)
+        # Source: https://ai.google.dev/gemini-api/docs/pricing
+        # Input: $0.30 per 1M tokens (text/image/video)
+        # Output (including thinking tokens): $2.50 per 1M tokens
+        input_cost = (usage_stats['input_tokens'] / 1_000_000) * 0.30
+        output_cost = ((usage_stats['output_tokens'] + usage_stats['thinking_tokens']) / 1_000_000) * 2.50
+        total_cost = input_cost + output_cost
+        print(f"DEBUG: Estimated Cost: ${total_cost:.6f} (Input: ${input_cost:.6f}, Output+Thinking: ${output_cost:.6f})")
         
         # Step 5: Validate and Repair (Deterministic)
         print("DEBUG: Step 5 - Validating results...")
@@ -195,15 +205,21 @@ HINTS:
         )
         
         
-        # Update Usage Stats
+        # Update Usage Stats (including thinking tokens)
         if response.usage_metadata:
-            # print(f"DEBUG: usage_metadata: {response.usage_metadata}") # Uncomment to see raw fields
+            print(f"DEBUG: Pass 1 usage_metadata: {response.usage_metadata}")
             usage_stats["input_tokens"] += response.usage_metadata.prompt_token_count
             usage_stats["output_tokens"] += response.usage_metadata.candidates_token_count
-            # If 'total_token_count' exists and is > sum, it includes hidden tokens
-            if hasattr(response.usage_metadata, "total_token_count"):
-                 # We can track this separately if needed, but for now we trust candidates + prompt
-                 pass
+            
+            # Calculate thinking tokens from total if available
+            if hasattr(response.usage_metadata, "total_token_count") and response.usage_metadata.total_token_count:
+                total = response.usage_metadata.total_token_count
+                thinking = total - response.usage_metadata.prompt_token_count - response.usage_metadata.candidates_token_count
+                if thinking > 0:
+                    usage_stats["thinking_tokens"] += thinking
+                usage_stats["total_tokens"] += total
+            else:
+                usage_stats["total_tokens"] += response.usage_metadata.prompt_token_count + response.usage_metadata.candidates_token_count
             
         return json.loads(response.text)
     
@@ -509,10 +525,21 @@ Return ONLY valid JSON matching the schema."""
             )
         )
         
-        # Update Usage Stats
+        # Update Usage Stats (including thinking tokens)
         if response.usage_metadata:
+            print(f"DEBUG: Pass 2 usage_metadata: {response.usage_metadata}")
             usage_stats["input_tokens"] += response.usage_metadata.prompt_token_count
             usage_stats["output_tokens"] += response.usage_metadata.candidates_token_count
+            
+            # Calculate thinking tokens from total if available
+            if hasattr(response.usage_metadata, "total_token_count") and response.usage_metadata.total_token_count:
+                total = response.usage_metadata.total_token_count
+                thinking = total - response.usage_metadata.prompt_token_count - response.usage_metadata.candidates_token_count
+                if thinking > 0:
+                    usage_stats["thinking_tokens"] += thinking
+                usage_stats["total_tokens"] += total
+            else:
+                usage_stats["total_tokens"] += response.usage_metadata.prompt_token_count + response.usage_metadata.candidates_token_count
         
         try:
             result = json.loads(response.text)

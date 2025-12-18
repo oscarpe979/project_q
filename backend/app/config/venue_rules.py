@@ -99,6 +99,46 @@ CROSS_VENUE_POLICIES: Dict[tuple, Dict[str, Any]] = {
     },
 
     # ───────────────────────────────────────────────────────────────────────────
+    # Wonder of the Seas (WN) - Royal Theater imports
+    # ───────────────────────────────────────────────────────────────────────────
+    ("WN", "Royal Theater", "AquaTheater"): {
+        "highlight_inclusions": ["show", "headliner", "movie", "game", "backup"],
+        "custom_instructions": "For any movie related events, simplify the name to just Movie",
+    },
+    ("WN", "Royal Theater", "Studio B"): {
+        "highlight_inclusions": ["show", "headliner", "comedy", "game", "movie"],
+        "custom_instructions": ""
+    },
+    ("WN", "Royal Theater", "Royal Promenade"): {
+        "highlight_inclusions": ["party", "parade", "competition", "show", "class", "activity"],
+        "merge_into_schedule": False,
+        "merge_inclusions": ["Anchors Aweigh Parade"],
+        "custom_instructions": (
+            "Extract ALL Parades, Street Parties, and Theme Activities like 'Thriller Dance Class'."
+        ),
+    },
+
+    # ───────────────────────────────────────────────────────────────────────────
+    # Wonder of the Seas (WN) - AquaTheater imports
+    # ───────────────────────────────────────────────────────────────────────────
+    ("WN", "AquaTheater", "Royal Theater"): {
+        "highlight_inclusions": ["show", "headliner", "movie", "game"],
+        "custom_instructions": "For any movie related events, simplify the name to just Movie",
+    },
+    ("WN", "AquaTheater", "Studio B"): {
+        "highlight_inclusions": ["show", "headliner", "comedy", "game", "movie"],
+        "custom_instructions": ""
+    },
+    ("WN", "AquaTheater", "Royal Promenade"): {
+        "highlight_inclusions": ["party", "parade", "competition", "show", "class", "activity"],
+        "merge_into_schedule": False,
+        "merge_inclusions": ["Anchors Aweigh Parade"],
+        "custom_instructions": (
+            "Extract ALL Parades, Street Parties, and Theme Activities like 'Thriller Dance Class'."
+        ),
+    },
+
+    # ───────────────────────────────────────────────────────────────────────────
     # Add more ships/venues as needed...
     # ───────────────────────────────────────────────────────────────────────────
 }
