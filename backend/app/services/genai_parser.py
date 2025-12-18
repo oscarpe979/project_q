@@ -2,13 +2,16 @@
 GenAI Parser v2 - Multi-pass architecture for improved accuracy.
 Uses structured extraction followed by LLM interpretation.
 """
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from typing import Dict, Any, List, Optional, Union, BinaryIO
 import json
 import io
 from datetime import datetime, timedelta
 import asyncio
 import difflib
+import os
+import time
 
 from .content_extractor import ContentExtractor
 from .parser_validator import ParserValidator
@@ -16,15 +19,43 @@ from .parser_validator import ParserValidator
 # Venue Rules Configuration
 from backend.app.config.venue_rules import get_source_venues, get_venue_rules
 
+# Thinking budget for speed/quality tradeoff (0=off, -1=dynamic, 1-24576=fixed)
+THINKING_BUDGET = 1024
+
+# Retry configuration for transient API errors (503, 429, etc.)
+MAX_RETRIES = 3
+INITIAL_BACKOFF = 2  # seconds
+
 
 class GenAIParser:
     """Parse CD Grid PDFs/Excel using Google Gemini with multi-pass architecture."""
     
     def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_name)
+        self.client = genai.Client(api_key=api_key)
+        self.model_name = model_name
         self.content_extractor = ContentExtractor()
         self.validator = ParserValidator()
+    
+    def _call_with_retry(self, config: types.GenerateContentConfig, prompt: str, pass_name: str = "LLM"):
+        """Call LLM with retry logic for transient errors (503, 429)."""
+        for attempt in range(MAX_RETRIES):
+            try:
+                return self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=config
+                )
+            except Exception as e:
+                error_str = str(e)
+                # Check for retryable errors (503 UNAVAILABLE, 429 RESOURCE_EXHAUSTED)
+                if "503" in error_str or "429" in error_str or "UNAVAILABLE" in error_str or "overloaded" in error_str.lower():
+                    if attempt < MAX_RETRIES - 1:
+                        wait_time = INITIAL_BACKOFF * (2 ** attempt)
+                        print(f"DEBUG: {pass_name} failed with transient error, retrying in {wait_time}s (attempt {attempt + 1}/{MAX_RETRIES})")
+                        time.sleep(wait_time)
+                        continue
+                # Non-retryable error or max retries reached
+                raise
     
     async def parse_cd_grid(
         self, 
@@ -69,7 +100,7 @@ class GenAIParser:
         
         # Step 2: LLM Structure Discovery (Pass 1)
         print("DEBUG: Step 2 - LLM structure discovery...")
-        structure = await self._discover_structure(raw_data, target_venue, combined_other_venues, usage_stats)
+        structure = await asyncio.to_thread(self._discover_structure, raw_data, target_venue, combined_other_venues, usage_stats)
         print(f"DEBUG: Structure discovered: {json.dumps(structure, indent=2)}")
         
         if not structure.get("target_venue_column"):
@@ -83,7 +114,7 @@ class GenAIParser:
         
         # Step 4: Interpret content (Pass 2)
         print("DEBUG: Step 4 - LLM content interpretation...")
-        result = await self._interpret_schedule(filtered_data, structure, target_venue, combined_other_venues, venue_rules, usage_stats)
+        result = await asyncio.to_thread(self._interpret_schedule, filtered_data, structure, target_venue, combined_other_venues, venue_rules, usage_stats)
         
         # Log Token Usage (with thinking tokens breakdown)
         print(f"DEBUG: Token Usage Report:")
@@ -141,7 +172,7 @@ class GenAIParser:
         print("DEBUG: Step 6 - Formatting response...")
         return self._transform_to_api_format(result, master_duration_map, renaming_map, cross_policies)
     
-    async def _discover_structure(
+    def _discover_structure(
         self, 
         raw_data: Dict[str, Any], 
         target_venue: str,
@@ -195,31 +226,30 @@ HINTS:
 - STRICT COLUMN MATCHING: Map venues ONLY if the column header typically matches the venue name (e.g. "Royal Promenade" matches "Royal Promenade", "Promenade", "Royal Prom"). Do NOT map to unrelated headers like "Pool Deck" or "Activity" just because they are empty. If no text match is found, omit the venue.
 """
 
-        # Use JSON mode for compatible models, text mode for others
-        response = await self.model.generate_content_async(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-                temperature=0.0
-            )
+        # Use retry helper for transient error handling
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.0,
+            thinking_config=types.ThinkingConfig(thinking_budget=THINKING_BUDGET)
         )
+        response = self._call_with_retry(config, prompt, "Pass 1")
         
         
         # Update Usage Stats (including thinking tokens)
         if response.usage_metadata:
             print(f"DEBUG: Pass 1 usage_metadata: {response.usage_metadata}")
-            usage_stats["input_tokens"] += response.usage_metadata.prompt_token_count
-            usage_stats["output_tokens"] += response.usage_metadata.candidates_token_count
+            usage_stats["input_tokens"] += response.usage_metadata.prompt_token_count or 0
+            usage_stats["output_tokens"] += response.usage_metadata.candidates_token_count or 0
             
             # Calculate thinking tokens from total if available
-            if hasattr(response.usage_metadata, "total_token_count") and response.usage_metadata.total_token_count:
-                total = response.usage_metadata.total_token_count
-                thinking = total - response.usage_metadata.prompt_token_count - response.usage_metadata.candidates_token_count
+            total = response.usage_metadata.total_token_count or 0
+            if total > 0:
+                thinking = total - (response.usage_metadata.prompt_token_count or 0) - (response.usage_metadata.candidates_token_count or 0)
                 if thinking > 0:
                     usage_stats["thinking_tokens"] += thinking
                 usage_stats["total_tokens"] += total
             else:
-                usage_stats["total_tokens"] += response.usage_metadata.prompt_token_count + response.usage_metadata.candidates_token_count
+                usage_stats["total_tokens"] += (response.usage_metadata.prompt_token_count or 0) + (response.usage_metadata.candidates_token_count or 0)
             
         return json.loads(response.text)
     
@@ -263,7 +293,7 @@ HINTS:
             "structure": structure
         }
     
-    async def _interpret_schedule(
+    def _interpret_schedule(
         self,
         filtered_data: Dict[str, Any],
         structure: Dict[str, Any],
@@ -499,6 +529,7 @@ EVENT NAMES RULES:
 - Event names must be formatted as title case unless it's an acronym.
 - **Date Ranges**: If an event title contains a date range (e.g. "7/20 - 8/17"), REMOVE IT from the title string.
 - **Parenthetical Metadata**: Remove act type descriptions in parentheses like "(Juggler)", "(Comedian)", "(Magician)" from the title.
+- **Red Carpet Movie**: If an event starts with "Red Carpet Movie" followed by a dash and movie name (e.g., "Red Carpet Movie - Minecraft Movie"), extract it as just "Red Carpet Movie". The specific movie title changes weekly and should be stripped.
 
 CATEGORIZATION RULES:
 Assign a `category` to each event based on its type. Use ONLY these categories:
@@ -516,30 +547,30 @@ Assign a `category` to each event based on its type. Use ONLY these categories:
 
 Return ONLY valid JSON matching the schema."""
 
-        response = await self.model.generate_content_async(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-                response_schema=self._get_interpretation_schema(),
-                temperature=0.1  # Small temp to help escape repetition loops
-            )
+        # Use retry helper for transient error handling
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=self._get_interpretation_schema(),
+            temperature=0.1,  # Small temp to help escape repetition loops
+            thinking_config=types.ThinkingConfig(thinking_budget=THINKING_BUDGET)
         )
+        response = self._call_with_retry(config, prompt, "Pass 2")
         
         # Update Usage Stats (including thinking tokens)
         if response.usage_metadata:
             print(f"DEBUG: Pass 2 usage_metadata: {response.usage_metadata}")
-            usage_stats["input_tokens"] += response.usage_metadata.prompt_token_count
-            usage_stats["output_tokens"] += response.usage_metadata.candidates_token_count
+            usage_stats["input_tokens"] += response.usage_metadata.prompt_token_count or 0
+            usage_stats["output_tokens"] += response.usage_metadata.candidates_token_count or 0
             
             # Calculate thinking tokens from total if available
-            if hasattr(response.usage_metadata, "total_token_count") and response.usage_metadata.total_token_count:
-                total = response.usage_metadata.total_token_count
-                thinking = total - response.usage_metadata.prompt_token_count - response.usage_metadata.candidates_token_count
+            total = response.usage_metadata.total_token_count or 0
+            if total > 0:
+                thinking = total - (response.usage_metadata.prompt_token_count or 0) - (response.usage_metadata.candidates_token_count or 0)
                 if thinking > 0:
                     usage_stats["thinking_tokens"] += thinking
                 usage_stats["total_tokens"] += total
             else:
-                usage_stats["total_tokens"] += response.usage_metadata.prompt_token_count + response.usage_metadata.candidates_token_count
+                usage_stats["total_tokens"] += (response.usage_metadata.prompt_token_count or 0) + (response.usage_metadata.candidates_token_count or 0)
         
         try:
             result = json.loads(response.text)
