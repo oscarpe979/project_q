@@ -75,6 +75,11 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
 # CROSS-VENUE POLICIES - Keyed by (ship_code, target_venue, source_venue)
 # Contains: highlight_inclusions, custom_instructions, merge rules
 # Does NOT contain known_shows (pulled from VENUE_METADATA automatically)
+#
+# MERGE RULES:
+#   - merge_inclusions: [] or missing → highlights only (nothing merged to main schedule)
+#   - merge_inclusions: ["Event A", "Event B"] → merge only these specific events
+#   - merge_inclusions: ["*"] → merge ALL events from source venue
 # ═══════════════════════════════════════════════════════════════════════════════
 
 CROSS_VENUE_POLICIES: Dict[tuple, Dict[str, Any]] = {
@@ -91,7 +96,6 @@ CROSS_VENUE_POLICIES: Dict[tuple, Dict[str, Any]] = {
     },
     ("WN", "Studio B", "Royal Promenade"): {
         "highlight_inclusions": ["party", "parade", "competition", "show", "class", "activity"],
-        "merge_into_schedule": False,
         "merge_inclusions": ["Anchors Aweigh Parade"],
         "custom_instructions": (
             "Extract ALL Parades, Street Parties, and Theme Activities like 'Thriller Dance Class'."
@@ -111,7 +115,6 @@ CROSS_VENUE_POLICIES: Dict[tuple, Dict[str, Any]] = {
     },
     ("WN", "Royal Theater", "Royal Promenade"): {
         "highlight_inclusions": ["party", "parade", "competition", "show", "class", "activity"],
-        "merge_into_schedule": False,
         "merge_inclusions": ["Anchors Aweigh Parade"],
         "custom_instructions": (
             "Extract ALL Parades, Street Parties, and Theme Activities like 'Thriller Dance Class'."
@@ -131,7 +134,6 @@ CROSS_VENUE_POLICIES: Dict[tuple, Dict[str, Any]] = {
     },
     ("WN", "AquaTheater", "Royal Promenade"): {
         "highlight_inclusions": ["party", "parade", "competition", "show", "class", "activity"],
-        "merge_into_schedule": False,
         "merge_inclusions": ["Anchors Aweigh Parade"],
         "custom_instructions": (
             "Extract ALL Parades, Street Parties, and Theme Activities like 'Thriller Dance Class'."

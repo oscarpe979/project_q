@@ -154,7 +154,8 @@ class GenAIParser:
         # Add durations & metadata from merged venues (e.g. Parades)
         cross_policies = venue_rules.get("cross_venue_import_policies", {})
         for venue_name, policy in cross_policies.items():
-            if policy.get("merge_into_schedule"):
+            # Include durations from source venue if there are any merge_inclusions
+            if policy.get("merge_inclusions"):
                 master_duration_map.update(policy.get("default_durations", {}))
                 
                 # If this merge source has force settings, add them to metadata rules
@@ -345,11 +346,13 @@ HINTS:
             for venue in other_venues:
                 policy = other_venue_policies.get(venue, {})
                 inclusions = policy.get("highlight_inclusions", [])
-                should_merge = policy.get("merge_into_schedule", False)
+                merge_inclusions = policy.get("merge_inclusions", [])
                 
-                if should_merge:
-                    # Logic for "Merged Imports" (e.g. Parades run by this crew)
-                    # These go into the MAIN 'events' list, NOT 'other_venue_shows'
+                # Check if this is a "merge all" policy ("*" in merge_inclusions)
+                merge_all = "*" in merge_inclusions
+                
+                if merge_all:
+                    # Logic for "Merged Imports" (e.g. ALL events from this venue go to main schedule)
                     col_num = venue_cols.get(venue, "unknown")
                     formatted_inclusions = ", ".join(inclusions).upper() if inclusions else "ALL EVENTS"
                     main_import_instructions += f"""
@@ -703,19 +706,20 @@ Return ONLY valid JSON matching the schema."""
             show['venue'] = matched_venue_key
             policy = cross_venue_policies.get(matched_venue_key, {})
             
-            # Check Merge Criteria
+            # Check Merge Criteria based on merge_inclusions
             is_merged = False
+            merge_inclusions = policy.get("merge_inclusions", [])
             
-            # 1. Global Merge (All events from this venue go to Main)
-            if policy.get("merge_into_schedule") is True:
+            # 1. Global Merge ("*" means all events from this venue go to Main)
+            if "*" in merge_inclusions:
                 is_merged = True
             
             # 2. Selective Merge (Specific titles go to Main)
             # e.g. "Royal Promenade" -> merge_inclusions: ["Anchors Aweigh Parade"]
-            elif "merge_inclusions" in policy:
+            elif merge_inclusions:
                 raw_title_other = show.get("title", "")
                 # Check against whitelist
-                for inclusion in policy.get("merge_inclusions", []):
+                for inclusion in merge_inclusions:
                     # Use fuzzy match or substring
                     if inclusion.lower() in raw_title_other.lower():
                         is_merged = True
