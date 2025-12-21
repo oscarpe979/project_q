@@ -169,9 +169,10 @@ class GenAIParser:
         # Step 6: Transform to API format
         # New Step: Pass standard renaming map for robustness against LLM misses
         renaming_map = venue_rules.get("self_extraction_policy", {}).get("renaming_map", {})
+        derived_event_rules = venue_rules.get("derived_event_rules", {})
         
         print("DEBUG: Step 6 - Formatting response...")
-        return self._transform_to_api_format(result, master_duration_map, renaming_map, cross_policies)
+        return self._transform_to_api_format(result, master_duration_map, renaming_map, cross_policies, derived_event_rules)
     
     def _discover_structure(
         self, 
@@ -648,7 +649,7 @@ Return ONLY valid JSON matching the schema."""
             "required": ["itinerary", "events"]
         }
     
-    def _transform_to_api_format(self, result: Dict[str, Any], default_durations: Dict[str, int] = {}, renaming_map: Dict[str, str] = {}, cross_venue_policies: Dict = {}) -> Dict[str, Any]:
+    def _transform_to_api_format(self, result: Dict[str, Any], default_durations: Dict[str, int] = {}, renaming_map: Dict[str, str] = {}, cross_venue_policies: Dict = {}, derived_event_rules: Dict = {}) -> Dict[str, Any]:
         """Transform parsed result to API response format."""
         
         # Process events
@@ -821,6 +822,10 @@ Return ONLY valid JSON matching the schema."""
         
         # Resolve durations (Main Events + Merged Events)
         final_events = self._resolve_event_durations(parsed_events, default_durations)
+        
+        # Apply derived event rules (doors, rehearsals, etc.)
+        if derived_event_rules:
+            final_events = self._apply_derived_event_rules(final_events, derived_event_rules)
         
         # Format for API
         formatted_events = [self._format_event_for_api(e) for e in final_events]
@@ -1012,15 +1017,305 @@ Return ONLY valid JSON matching the schema."""
         
         return start_dt + timedelta(minutes=minutes)
     
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DERIVED EVENT RULES ENGINE
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def _event_matches_rule(self, event: Dict, rule: Dict) -> bool:
+        """
+        Check if an event matches rule criteria (title or category).
+        Uses fuzzy matching for title comparison to handle typos.
+        
+        Args:
+            event: Event dict with 'title' and 'category' keys
+            rule: Rule dict with optional 'match_titles', 'match_categories', and 'match_threshold'
+        
+        Returns:
+            True if event matches any rule criteria
+        """
+        # Title match - fuzzy matching with similarity threshold
+        if "match_titles" in rule:
+            event_title = event.get("title", "").lower()
+            match_threshold = rule.get("match_threshold", 0.8)  # Default 80% similarity
+            
+            for pattern in rule["match_titles"]:
+                pattern_lower = pattern.lower()
+                
+                # First try exact substring match (fast path)
+                if pattern_lower in event_title:
+                    return True
+                
+                # Then try fuzzy matching on the full title
+                similarity = difflib.SequenceMatcher(None, pattern_lower, event_title).ratio()
+                if similarity >= match_threshold:
+                    return True
+                
+                # Also check if pattern is similar to any word in the title
+                # This helps match "Ice Skating" to "Open Ice Skatng Session"
+                title_words = event_title.split()
+                pattern_words = pattern_lower.split()
+                
+                # Check if all pattern words fuzzy-match words in title
+                if len(pattern_words) > 1:
+                    matched_words = 0
+                    for p_word in pattern_words:
+                        for t_word in title_words:
+                            word_sim = difflib.SequenceMatcher(None, p_word, t_word).ratio()
+                            if word_sim >= match_threshold:
+                                matched_words += 1
+                                break
+                    if matched_words == len(pattern_words):
+                        return True
+        
+        # Category match (broad) - exact match
+        if "match_categories" in rule:
+            event_category = event.get("category", "other")
+            if event_category in rule["match_categories"]:
+                return True
+        
+        return False
+    
+    def _create_derived_event(self, parent: Dict, rule: Dict) -> Optional[Dict]:
+        """
+        Create a derived event based on parent event and rule configuration.
+        
+        Args:
+            parent: Parent event dict with 'start_dt', 'end_dt', 'title', etc.
+            rule: Rule configuration with offset, duration, template, styling
+        
+        Returns:
+            Derived event dict or None if creation fails
+        """
+        try:
+            offset = timedelta(minutes=rule["offset_minutes"])
+            duration = timedelta(minutes=rule["duration_minutes"])
+            
+            # Determine anchor point (start or end of parent event)
+            anchor = rule.get("anchor", "start")
+            if anchor == "end":
+                base_time = parent["end_dt"]
+            else:
+                base_time = parent["start_dt"]
+            
+            derived_start = base_time + offset
+            derived_end = derived_start + duration
+            
+            # Format title with template (supports {parent_title} placeholder)
+            parent_title = parent.get("title", "")
+            title = rule["title_template"].format(parent_title=parent_title)
+            
+            return {
+                "title": title,
+                "start_dt": derived_start,
+                "end_dt": derived_end,
+                "category": rule.get("type", "other"),
+                "type": rule.get("type", "other"),
+                "venue": parent.get("venue", ""),
+                "raw_date": derived_start.strftime("%Y-%m-%d"),
+                "is_derived": True,
+                "parent_title": parent_title if parent_title else None,
+                "styling": rule.get("styling", {})
+            }
+        except (KeyError, ValueError) as e:
+            print(f"Error creating derived event: {e}")
+            return None
+    
+    def _apply_derived_event_rules(
+        self, 
+        events: List[Dict], 
+        derived_rules: Dict[str, List[Dict]]
+    ) -> List[Dict]:
+        """
+        Generate derived events (doors, rehearsals, setup, strike) based on rules.
+        
+        Args:
+            events: List of parsed events with 'start_dt', 'end_dt', 'title', 'category'
+            derived_rules: Dict keyed by rule type ('doors', 'rehearsal', etc.)
+        
+        Returns:
+            Original events + generated derived events, sorted by start time
+        
+        Note:
+            Uses "first match wins" strategy - once an event matches a rule of a 
+            particular type, it won't be matched by other rules of the same type.
+            
+            If a rule has "first_per_day": True, it only matches the earliest 
+            occurrence of matching events per day.
+        """
+        if not derived_rules:
+            return events
+        
+        derived_events = []
+        
+        for rule_type, rules in derived_rules.items():
+            # Track which parent events have already been matched for this rule type
+            matched_parent_keys = set()
+            
+            for rule in rules:
+                # Check special per-day processing modes
+                first_per_day = rule.get("first_per_day", False)
+                skip_last_per_day = rule.get("skip_last_per_day", False)
+                
+                if first_per_day:
+                    # Group matching events by date and only process the first of each day
+                    # Note: first_per_day rules are independent - they don't use matched_parent_keys
+                    # because each rule should generate its own derived event
+                    matching_by_date = {}
+                    count_by_date = {}
+                    
+                    for parent_event in events:
+                        if self._event_matches_rule(parent_event, rule):
+                            event_date = parent_event.get('start_dt').date()
+                            count_by_date[event_date] = count_by_date.get(event_date, 0) + 1
+                            
+                            if event_date not in matching_by_date:
+                                matching_by_date[event_date] = parent_event
+                            elif parent_event.get('start_dt') < matching_by_date[event_date].get('start_dt'):
+                                matching_by_date[event_date] = parent_event
+                    
+                    # Check min_per_day requirement (e.g., only fire if 2+ shows)
+                    min_per_day = rule.get("min_per_day", 1)
+                    
+                    # Process only the first matching event of each day (if min requirement met)
+                    for event_date, parent_event in matching_by_date.items():
+                        if count_by_date.get(event_date, 0) >= min_per_day:
+                            derived = self._create_derived_event(parent_event, rule)
+                            if derived:
+                                derived_events.append(derived)
+                
+                elif rule.get("last_per_day", False):
+                    # Apply only to the LAST matching event of each day
+                    # Useful for strikes after the final show
+                    matching_by_date = {}
+                    count_by_date = {}
+                    
+                    for parent_event in events:
+                        if self._event_matches_rule(parent_event, rule):
+                            event_date = parent_event.get('start_dt').date()
+                            count_by_date[event_date] = count_by_date.get(event_date, 0) + 1
+                            
+                            if event_date not in matching_by_date:
+                                matching_by_date[event_date] = parent_event
+                            elif parent_event.get('start_dt') > matching_by_date[event_date].get('start_dt'):
+                                # Keep the LATEST event (opposite of first_per_day)
+                                matching_by_date[event_date] = parent_event
+                    
+                    # Check min_per_day requirement
+                    min_per_day = rule.get("min_per_day", 1)
+                    
+                    # Process only the last matching event of each day
+                    for event_date, parent_event in matching_by_date.items():
+                        if count_by_date.get(event_date, 0) >= min_per_day:
+                            derived = self._create_derived_event(parent_event, rule)
+                            if derived:
+                                derived_events.append(derived)
+                
+                elif skip_last_per_day:
+                    # Apply to all matching events EXCEPT the last one of each day
+                    # Useful for presets between shows (no preset after final show)
+                    matching_by_date = {}
+                    
+                    for parent_event in events:
+                        if self._event_matches_rule(parent_event, rule):
+                            event_date = parent_event.get('start_dt').date()
+                            if event_date not in matching_by_date:
+                                matching_by_date[event_date] = []
+                            matching_by_date[event_date].append(parent_event)
+                    
+                    # Check min_per_day requirement
+                    min_per_day = rule.get("min_per_day", 1)
+                    
+                    # Process all except the last event of each day
+                    for event_date, day_events in matching_by_date.items():
+                        if len(day_events) >= min_per_day:
+                            # Sort by start time and exclude the last one
+                            sorted_events = sorted(day_events, key=lambda x: x.get('start_dt'))
+                            for parent_event in sorted_events[:-1]:  # All except last
+                                derived = self._create_derived_event(parent_event, rule)
+                                if derived:
+                                    derived_events.append(derived)
+                
+                elif rule.get("min_gap_minutes") is not None:
+                    # Only fire if there's enough gap from the previous matching event's end
+                    # Useful for "stacked" sessions (e.g., back-to-back ice skating)
+                    # - If sessions are stacked (no gap), only fire before the first
+                    # - If there's a gap >= min_gap_minutes, fire before each block
+                    min_gap = rule.get("min_gap_minutes")
+                    matching_by_date = {}
+                    
+                    for parent_event in events:
+                        if self._event_matches_rule(parent_event, rule):
+                            event_date = parent_event.get('start_dt').date()
+                            if event_date not in matching_by_date:
+                                matching_by_date[event_date] = []
+                            matching_by_date[event_date].append(parent_event)
+                    
+                    # Process each day's events
+                    for event_date, day_events in matching_by_date.items():
+                        # Sort by start time
+                        sorted_events = sorted(day_events, key=lambda x: x.get('start_dt'))
+                        
+                        prev_end = None
+                        for parent_event in sorted_events:
+                            current_start = parent_event.get('start_dt')
+                            
+                            # Fire if: first event OR gap from previous end >= min_gap_minutes
+                            should_fire = False
+                            if prev_end is None:
+                                should_fire = True  # First event of day
+                            else:
+                                gap_minutes = (current_start - prev_end).total_seconds() / 60
+                                if gap_minutes >= min_gap:
+                                    should_fire = True  # Sufficient gap, start new block
+                            
+                            if should_fire:
+                                derived = self._create_derived_event(parent_event, rule)
+                                if derived:
+                                    derived_events.append(derived)
+                            
+                            # Update prev_end to current event's end
+                            prev_end = parent_event.get('end_dt')
+                
+                else:
+                    # Standard processing - match all events
+                    for parent_event in events:
+                        parent_key = (parent_event.get('title'), parent_event.get('start_dt'))
+                        
+                        if parent_key in matched_parent_keys:
+                            continue
+                        
+                        if self._event_matches_rule(parent_event, rule):
+                            derived = self._create_derived_event(parent_event, rule)
+                            if derived:
+                                derived_events.append(derived)
+                                matched_parent_keys.add(parent_key)
+        
+        # Combine and sort by start time
+        all_events = events + derived_events
+        all_events.sort(key=lambda x: x['start_dt'])
+        
+        return all_events
+    
     def _format_event_for_api(self, event: Dict) -> Dict:
         """Format event for API response."""
-        return {
+        formatted = {
             "title": event["title"],
             "start": event["start_dt"].isoformat(),
             "end": event["end_dt"].isoformat(),
-            "type": event.get("category", "other"),
+            "type": event.get("type", event.get("category", "other")),
             "venue": event.get("venue", "")
         }
+        
+        # Include styling for derived events
+        if event.get("styling"):
+            formatted["styling"] = event["styling"]
+        
+        # Include derived event metadata
+        if event.get("is_derived"):
+            formatted["is_derived"] = True
+            formatted["parent_title"] = event.get("parent_title")
+        
+        return formatted
     
     def _filter_other_venue_shows(self, shows: List[Dict], policies: Dict = {}) -> List[Dict]:
         """Ensure only one show per venue per day and apply renaming."""

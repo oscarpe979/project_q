@@ -34,6 +34,92 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
             "Top Tier": 45,
             "Battle of the Sexes": 60,
         },
+        # Derived Event Rules - auto-generate events based on parent shows
+        "derived_event_rules": {
+            "warm_up": [
+                # Specialty Ice Warm Up - 3.5 hours before first Ice Show of the night
+                {
+                    "match_titles": ["Ice Show: 365"],
+                    "offset_minutes": -210,  # 3.5 hours before
+                    "duration_minutes": 90,
+                    "title_template": "Warm Up - Specialty Ice",
+                    "type": "warm_up",
+                    "first_per_day": True,
+                },
+                # Cast Warm Up - 2 hours before first Ice Show (right after Specialty Ice)
+                {
+                    "match_titles": ["Ice Show: 365"],
+                    "offset_minutes": -120,  # 2 hours before
+                    "duration_minutes": 30,
+                    "title_template": "Warm Up - Cast",
+                    "type": "warm_up",
+                    "first_per_day": True,
+                },
+            ],
+            "preset": [
+                # Ice Make & Presets - 1.5 hours before first Ice Show
+                {
+                    "match_titles": ["Ice Show: 365"],
+                    "offset_minutes": -90,  # 1.5 hours before
+                    "duration_minutes": 30,
+                    "title_template": "Ice Make & Presets",
+                    "type": "preset",
+                    "first_per_day": True,
+                },
+                # Between-show presets - After each show ends (except last show of day)
+                {
+                    "match_titles": ["Ice Show: 365"],
+                    "offset_minutes": 0,  # Starts immediately after show ends
+                    "anchor": "end",
+                    "duration_minutes": 30,
+                    "title_template": "Ice Make & Presets",
+                    "type": "preset",
+                    "skip_last_per_day": True,  # Fire after all shows except the last
+                    "min_per_day": 2,  # Only when 2+ shows per day
+                },
+                # Ice Make for skating sessions (handles stacked sessions)
+                # Only fires when there's at least 30 min gap from previous session
+                {
+                    "match_titles": ["Ice Skating", "Open Ice Skating", "Private Ice Skating", 
+                                    "Teens Skate", "Open Skates", "Open Skate", "Teens Ice Skate"],
+                    "offset_minutes": -30,  # 30 min before session starts
+                    "duration_minutes": 30,
+                    "title_template": "Ice Make",
+                    "type": "preset",
+                    "min_gap_minutes": 30,  # Only fire if gap from previous session >= 30 min
+                },
+            ],
+            "doors": [
+                # Specific: Ice Show doors
+                {
+                    "match_titles": ["Ice Show: 365"],
+                    "offset_minutes": -45,
+                    "duration_minutes": 15,
+                    "title_template": "Doors",
+                    "type": "doors",
+                },
+                # Default: All shows and headliners get standard doors
+                {
+                    "match_categories": ["show", "headliner"],
+                    "offset_minutes": -45,
+                    "duration_minutes": 15,
+                    "title_template": "Doors",
+                    "type": "doors",
+                },
+            ],
+            "strike": [
+                # Strike & Ice Scrape - After the last Ice Show of the night
+                {
+                    "match_titles": ["Ice Show: 365"],
+                    "offset_minutes": 0,  # Starts immediately after show ends
+                    "anchor": "end",
+                    "duration_minutes": 30,
+                    "title_template": "Strike & Ice Scrape",
+                    "type": "strike",
+                    "last_per_day": True,  # Only after the last show
+                },
+            ],
+        },
     },
     ("WN", "AquaTheater"): {
         "known_shows": ["inTENse", "Aqua80", "Aqua Back Up", "Movies On Deck", "Halloween Movies", "Movies"],
@@ -179,11 +265,16 @@ def get_venue_rules(ship_code: str, target_venue: str, source_venues: List[str] 
                     "custom_instructions": "...",
                 },
                 ...
+            },
+            "derived_event_rules": {
+                "doors": [...],
+                "rehearsal": [...],
+                ...
             }
         }
     """
     if not ship_code:
-        return {"self_extraction_policy": {}, "cross_venue_import_policies": {}}
+        return {"self_extraction_policy": {}, "cross_venue_import_policies": {}, "derived_event_rules": {}}
     
     # If source_venues not provided, derive from config
     if source_venues is None:
@@ -191,6 +282,9 @@ def get_venue_rules(ship_code: str, target_venue: str, source_venues: List[str] 
     
     # Self extraction policy
     self_policy = VENUE_METADATA.get((ship_code, target_venue), {})
+    
+    # Extract derived event rules
+    derived_rules = self_policy.get("derived_event_rules", {})
     
     # Cross-venue policies (merge source metadata with policy)
     cross_policies = {}
@@ -211,4 +305,5 @@ def get_venue_rules(ship_code: str, target_venue: str, source_venues: List[str] 
     return {
         "self_extraction_policy": self_policy,
         "cross_venue_import_policies": cross_policies,
+        "derived_event_rules": derived_rules,
     }

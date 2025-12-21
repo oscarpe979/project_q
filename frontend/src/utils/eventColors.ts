@@ -12,6 +12,10 @@ export const COLORS = {
     MUSIC: '#9bfa9e',             // Bright Green
     PARTY: '#a5e1f8ff',             // Yellow
     COMEDY: '#4dc7a2ff',            // Light Pink
+    DOORS: '#000000',             // Black (for doors events)
+    WARM_UP: '#A3FEFF',           // Faint Aquamarine (for warm up events)
+    PRESET: '#e3ded3',            // Warm Grey (for preset events)
+    STRIKE: '#e3ded3',            // Warm Grey (for strike events)
     OTHER: '#e3ded3',             // Warm Grey
 };
 
@@ -36,6 +40,14 @@ export const getColorForType = (type: string): string => {
             return COLORS.PARTY;
         case 'comedy':
             return COLORS.COMEDY;
+        case 'doors':
+            return COLORS.DOORS;
+        case 'warm_up':
+            return COLORS.WARM_UP;
+        case 'preset':
+            return COLORS.PRESET;
+        case 'strike':
+            return COLORS.STRIKE;
         case 'rehearsal':
         case 'maintenance':
         case 'other':
