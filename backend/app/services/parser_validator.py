@@ -23,7 +23,7 @@ class ParserValidator:
         self.valid_types = valid_types or [
             "show", "movie", "game", "activity", "music", 
             "party", "comedy", "headliner", "rehearsal", 
-            "maintenance", "other"
+            "maintenance", "other", "parade", "toptier"
         ]
     
     def validate(

@@ -384,19 +384,28 @@ HINTS:
                 hl_list_str = ", ".join(highlight_venues_list)
                 other_venues_prompt = f"""
 3. OTHER VENUE SHOWS (Focus on these columns: {hl_list_str}):
-   Column mappings: {json.dumps(venue_cols)}
-   - For each of these other venues, extract the **Main Highlights** for each day.
-   - Typically include major production shows, headliners, and movies.
-   - **Time Rule**: While usually evening (6pm+), you MUST extract **Special Events** (like Parades) regardless of time (e.g. 12:30 PM).
-   - **Time Rule**: While usually evening (6pm+), you MUST extract **Special Events** (like Parades) regardless of time (e.g. 12:30 PM).
-   - You may extract multiple significant events if available.
-   - Ignore minor activities (like 'Open Skating', 'Dance Class').
-   - **Ignore**: "Aerial Install", "Tech Run", "Rehearsal", "Sound Check", "Private Event".
+   **CRITICAL - COLUMN BOUNDARIES:**
+   {json.dumps(venue_cols, indent=3)}
+   
+   **STRICT COLUMN RULES - READ CAREFULLY:**
+   - Each venue has ONE specific column. ONLY extract events from that EXACT column number.
+   - Studio B = Column {venue_cols.get('Studio B', 'N/A')} ONLY. Do NOT read from any other column for Studio B.
+   - AquaTheater = Column {venue_cols.get('AquaTheater', 'N/A')} ONLY. Do NOT read from any other column for AquaTheater.
+   - Royal Promenade = Column {venue_cols.get('Royal Promenade', 'N/A')} ONLY. Do NOT read from any other column for Royal Promenade.
+   - If you see an event in Column {venue_cols.get('AquaTheater', 'N/A')}, it belongs to AquaTheater, NOT Studio B.
+   - NEVER assign an event to different venue based on event type or name similarity.
+   **END COLUMN RULES**
+   
+   **EXTRACTION RULE: Extract ALL events from each venue column for each day.**
+   - For EACH venue column, extract EVERY event that appears for EACH day.
+   - Do NOT be selective - extract everything. Our backend algorithm will decide which one to highlight.
+   - Even if there are multiple events per day for a venue, extract ALL of them.
+   
    {highlight_instructions}
    - Extract:
      - venue: The name of the venue. You MUST use one of the exact strings from this list: [{hl_list_str}]. Do NOT combine names.
      - date: String in YYYY-MM-DD format
-     - title: The name of the show
+     - title: The name of the event (ONLY from the correct column for that venue)
      - category: One of [show, headliner, game, party, movie, activity, parade, backup, other]
      - time: The display time string (e.g. "8:00 pm & 10:00 pm" or "12:30 pm"). keep the format exactly as shown.
 
@@ -409,26 +418,21 @@ CRITICAL INSTRUCTIONS FOR TARGET VENUE ({target_venue}):
 2. **Stacking:** If multiple events are in the same cell stack, extract them as separate events.
 
 
-
 """
         prompt = f"""Extract schedule data from this CD Grid.
 Analyze the data as a strict grid structure. Focus strictly on the column for {target_venue}. 
-Extract every event listed in this column for each date.
 
 VENUE SPECIFIC CONTEXT ({target_venue}):
 {custom_instructions}
 {main_import_instructions}
 
+FORMATTING RULES:
 When reading the table, ignore all formatting attributes such as text color or cell background colors.
-    - **Background Color**: A dark or gray background does NOT mean the event is cancelled. It is just styling. Extract these events normally.
-    - **Strikethrough**: ONLY if the text has a visible line drawing through it (crossed out), treat it as CANCELLED and do not extract it.
-    - **Mixed Cells**: A cell may contain one active event and one crossed-out event. Extract the active one.
-    
-    Your only priority is the text content and its position within the defined column boundaries.
-Do not allow any color or highlighting to influence which text you select. 
-
-Ignore Saliency: Treat red text, yellow highlights, and bold fonts as identical to standard black text. They carry no special meaning.
-Focus: Your attention must be distributed evenly across the grid. Do not let colored text pull your focus away from the column structure. 
+- Background Color: A dark or gray background does NOT mean the event is cancelled. It is just styling.
+- Strikethrough: ONLY if the text has a visible line drawing through it (crossed out), treat it as CANCELLED.
+- Mixed Cells: A cell may contain one active event and one crossed-out event. Extract the active one.
+- Saliency: Treat red text, yellow highlights, and bold fonts as identical to standard black text.
+Your priority is the text content and its position within the defined column boundaries.
 
 {formatted}
 
@@ -440,7 +444,7 @@ STRUCTURE INFO:
 - Rows per day block: {structure.get('rows_per_day_block', 4)}
 - Target venue "{target_venue}" is in column: {structure.get('target_venue_column')}
 
-**CRITICAL - HOW TO PAIR EVENTS WITH TIMES**:
+HOW TO PAIR EVENTS WITH TIMES:
 In CD Grids, each venue column contains BOTH event titles AND their times, stacked vertically:
 
 PATTERN (within any venue column):
@@ -460,7 +464,29 @@ Result: Event "Private Ice Skating" with start_time "11:30"
 - Row 6: "8:15 pm & 10:30 pm" 
 Result: TWO events - "Ice Spectacular 365" at 20:15 AND "Ice Spectacular 365" at 22:30
 
-Present the output as a JSON object with the following structure:
+MULTI-SESSION EVENTS:
+Sometimes an event header (like "Ice Skating (5+1hrs)") is followed by multiple time slots:
+- Row 20: "Ice Skating (5+1hrs)"
+- Row 21: "5:00 pm - 6:00 pm (1hr) TEENS"
+- Row 22: "6:00 pm - 8:00 pm (2hrs)"
+- Row 23: "8:30 pm - 11:30 pm (3hrs)"
+
+Extract each time slot as a SEPARATE event using the header as the base title:
+Result: THREE events:
+1. "Teens Ice Skating" from 17:00 to 18:00 (TEENS modifier becomes part of title)
+2. "Ice Skating" from 18:00 to 20:00
+3. "Ice Skating" from 20:30 to 23:30
+
+PERFORMER NAMES (Combine into one event title):
+Sometimes an event is followed by a performer name on the next row:
+- Row 41: "Adult Comedy LIVE! (18+) @ 10:15 PM"
+- Row 42: "Simeon Kirkiles & Collin Moulton"
+
+Combine them into ONE event with the performer in the title:
+Result: ONE event - "Adult Comedy: Simeon Kirkiles & Collin Moulton" at 22:15
+Do NOT create two separate events. The performer row has no time of its own.
+
+OUTPUT FORMAT - Present as JSON with:
 
 1. ITINERARY (one entry per day):
    - day_number: Integer (e.g., 1, 2, 3)
@@ -470,6 +496,12 @@ Present the output as a JSON object with the following structure:
    - departure_time: String (e.g., "18:00" or "00:00" for Midnight or null if none)
 
 2. EVENTS (from the "{target_venue}" column only):
+   Extract EVERY event in this column - both guest-facing and operational:
+   - Guest shows: productions, movies, comedy, headliners
+   - Technical events: Aerial Install, Tech Run, Rehearsal, Sound Check
+   - Any text with times that reserves venue time
+   
+   Fields:
    - title: String (event name, excluding time information)
    - start_time: String in HH:MM format (24-hour)
    - end_time: String in HH:MM format (24-hour) or null if not specified
@@ -545,7 +577,8 @@ Assign a `category` to each event based on its type. Use ONLY these categories:
 - **Music** (category: "music"): e.g., "Live Music", "Piano", "Band", "Live Concert", "Live Performance".
 - **Comedy** (category: "comedy"): e.g., "Stand-up Comedy", "Comedian", "Comedy Show", "Adult Comedy Show".
 - **Party** (category: "party"): e.g., "RED: Nightclub Experience", "Nightclub".
-- **Parade** (category: "parade"): e.g., "Parade", "Muster Drill".
+- **Parade** (category: "parade"): e.g., "Parade", "Anchors Aweigh Parade".
+- **Top Tier Event** (category: "toptier"): e.g., "Top Tier Event", "Top Tier".
 - **Other** (category: "other"): Rehearsals, Maintenance, or anything else.
 {category_instructions}
 
@@ -598,7 +631,7 @@ Return ONLY valid JSON matching the schema."""
         enum_values = [
             "show", "movie", "game", "activity", "music", 
             "party", "comedy", "headliner", "rehearsal", 
-            "maintenance", "other", "parade"
+            "maintenance", "other", "parade", "toptier"
         ]
         
         return {
@@ -640,9 +673,10 @@ Return ONLY valid JSON matching the schema."""
                             "venue": {"type": "string"},
                             "date": {"type": "string"},
                             "title": {"type": "string"},
-                            "time": {"type": "string"}
+                            "time": {"type": "string"},
+                            "category": {"type": "string", "enum": enum_values}
                         },
-                        "required": ["venue", "date", "title", "time"]
+                        "required": ["venue", "date", "title", "time", "category"]
                     }
                 }
             },
@@ -800,12 +834,35 @@ Return ONLY valid JSON matching the schema."""
                 # Ideally, we update valid default_durations with our merged policy ones?
                 # We already updated master_duration_map in Step 5.
                 
+                # Set category for merged event (important for coloring)
+                # 1. Use policy's forced_type if specified
+                # 2. Infer from title if contains known category keywords
+                if not show.get("category"):
+                    forced_type = policy.get("forced_type")
+                    if forced_type:
+                        show["category"] = forced_type
+                    else:
+                        # Infer from title
+                        title_lower = show.get("title", "").lower()
+                        if "parade" in title_lower:
+                            show["category"] = "parade"
+                        elif "party" in title_lower:
+                            show["category"] = "party"
+                        elif "movie" in title_lower:
+                            show["category"] = "movie"
+                        # else: will default to "other" in _parse_single_event
+                
                 parsed_main = self._parse_single_event(show)
                 if parsed_main:
                     if policy.get("custom_color"):
                          parsed_main['color'] = policy.get("custom_color")
                     
                     parsed_events.append(parsed_main)
+                    
+                    # IMPORTANT: Merged events should ALSO appear in highlights!
+                    # The parade goes to main schedule but should still show as a highlight for that venue/day
+                    show['time'] = self._clean_time_string(show.get('time', ''))
+                    final_other_shows.append(show)
                 else:
                      # Failed to parse (bad time?) - Safe Fallback: Keep in Footer
                      print(f"DEBUG: Merge failed for '{show.get('title')}' (time parse error?), returning to Footer")
@@ -1236,13 +1293,28 @@ Return ONLY valid JSON matching the schema."""
                                     derived_events.append(derived)
                 
                 elif rule.get("min_gap_minutes") is not None:
-                    # Only fire if there's enough gap from the previous matching event's end
-                    # Useful for "stacked" sessions (e.g., back-to-back ice skating)
+                    # Only fire if there's enough gap from previous event's end
                     # - If sessions are stacked (no gap), only fire before the first
                     # - If there's a gap >= min_gap_minutes, fire before each block
+                    #
+                    # check_all_events: If True, check gap from ANY preceding event (not just same-type)
+                    # This is useful for doors - don't add doors if they'd overlap with any event
                     min_gap = rule.get("min_gap_minutes")
-                    matching_by_date = {}
+                    check_all = rule.get("check_all_events", False)
                     
+                    # Build list of all events by date for global gap checking
+                    all_events_by_date = {}
+                    if check_all:
+                        for evt in events:
+                            evt_date = evt.get('start_dt').date()
+                            if evt_date not in all_events_by_date:
+                                all_events_by_date[evt_date] = []
+                            all_events_by_date[evt_date].append(evt)
+                        # Sort each day's events
+                        for d in all_events_by_date:
+                            all_events_by_date[d] = sorted(all_events_by_date[d], key=lambda x: x.get('start_dt'))
+                    
+                    matching_by_date = {}
                     for parent_event in events:
                         if self._event_matches_rule(parent_event, rule):
                             event_date = parent_event.get('start_dt').date()
@@ -1255,14 +1327,36 @@ Return ONLY valid JSON matching the schema."""
                         # Sort by start time
                         sorted_events = sorted(day_events, key=lambda x: x.get('start_dt'))
                         
-                        prev_end = None
                         for parent_event in sorted_events:
+                            # Check if already matched by another rule (first match wins)
+                            parent_key = (parent_event.get('title'), parent_event.get('start_dt'))
+                            if parent_key in matched_parent_keys:
+                                continue
+                            
                             current_start = parent_event.get('start_dt')
                             
-                            # Fire if: first event OR gap from previous end >= min_gap_minutes
+                            # Find the closest preceding event end time
+                            prev_end = None
+                            if check_all and event_date in all_events_by_date:
+                                # Check gap from ANY preceding event
+                                for evt in all_events_by_date[event_date]:
+                                    evt_end = evt.get('end_dt')
+                                    if evt_end and evt_end <= current_start:
+                                        if prev_end is None or evt_end > prev_end:
+                                            prev_end = evt_end
+                            else:
+                                # Original logic: check gap from previous same-type event only
+                                # (This is kept for backward compatibility with non-doors rules)
+                                for evt in sorted_events:
+                                    if evt.get('start_dt') < current_start:
+                                        evt_end = evt.get('end_dt')
+                                        if evt_end and (prev_end is None or evt_end > prev_end):
+                                            prev_end = evt_end
+                            
+                            # Fire if: first of day OR gap from previous end >= min_gap_minutes
                             should_fire = False
                             if prev_end is None:
-                                should_fire = True  # First event of day
+                                should_fire = True  # First event of day (no preceding events)
                             else:
                                 gap_minutes = (current_start - prev_end).total_seconds() / 60
                                 if gap_minutes >= min_gap:
@@ -1272,9 +1366,7 @@ Return ONLY valid JSON matching the schema."""
                                 derived = self._create_derived_event(parent_event, rule)
                                 if derived:
                                     derived_events.append(derived)
-                            
-                            # Update prev_end to current event's end
-                            prev_end = parent_event.get('end_dt')
+                                    matched_parent_keys.add(parent_key)
                 
                 else:
                     # Standard processing - match all events
@@ -1318,7 +1410,11 @@ Return ONLY valid JSON matching the schema."""
         return formatted
     
     def _filter_other_venue_shows(self, shows: List[Dict], policies: Dict = {}) -> List[Dict]:
-        """Ensure only one show per venue per day and apply renaming."""
+        """
+        Ensure only one show per venue per day, choosing the best highlight by priority.
+        Priority: show (1) > headliner (2) > game (3) > party (4) > movie (5) > activity (6) > other (7) > backup (8)
+        Also prefers afternoon/evening events over morning events.
+        """
         grouped = {}
         for show in shows:
             # Apply Policy Renaming (Robust)
@@ -1340,9 +1436,11 @@ Return ONLY valid JSON matching the schema."""
         PRIORITY_MAP = {
             "show": 1,
             "headliner": 2,
+            "comedy": 2.5,
             "game": 3,
             "party": 4, 
             "movie": 5,
+            "parade": 5,  # Parades are important events like movies
             "activity": 6,
             "other": 7,
             "backup": 8
@@ -1390,9 +1488,21 @@ Return ONLY valid JSON matching the schema."""
             # LOGIC FIX: Check for other events with the SAME Title as the winner (e.g. 2nd Showtime)
             # If found, merge their times into the winner's display string.
             # This handles the case where LLM splits "7:45 & 10:00" into two events.
+            # BUT: Don't merge if times have ranges (dashes) or if it's an activity - creates messy strings.
             
             same_title_events = [s for s in venue_shows if s.get("title") == winner.get("title")]
-            if len(same_title_events) > 1:
+            winner_category = winner.get("category", "").lower()
+            first_time = winner.get("time", "")
+            
+            # Only merge if: multiple same-title events AND times are simple (no dash ranges)
+            # AND category is not "activity" (activity sessions have complex time ranges)
+            should_merge = (
+                len(same_title_events) > 1 and
+                winner_category != "activity" and
+                "-" not in first_time  # Don't merge if first time is already a range
+            )
+            
+            if should_merge:
                 # Deduplicate times robustly
                 unique_times_set = set()
                 final_times_list = []
@@ -1400,6 +1510,10 @@ Return ONLY valid JSON matching the schema."""
                 for s in same_title_events:
                     t_str = s.get("time", "").strip()
                     if not t_str: continue
+                    
+                    # Skip times with ranges (dashes) - they're session times, not showtime slots
+                    if "-" in t_str:
+                        continue
                     
                     # Split by '&' to handle existing combined times
                     parts = [p.strip() for p in t_str.split('&')]
@@ -1410,14 +1524,47 @@ Return ONLY valid JSON matching the schema."""
                             unique_times_set.add(p_clean)
                             final_times_list.append(p) # Keep original casing
                 
-                # Check if we should merge them
-                if len(final_times_list) > 0:
+                # Only update if we have clean times to merge
+                if len(final_times_list) > 1:
                     winner['time'] = " & ".join(final_times_list)
                     print(f"DEBUG: Merged highlight times for {winner['title']}: {winner['time']}")
+            
+            # Clean up time string for display (remove ugly notations)
+            winner['time'] = self._clean_highlight_time(winner.get('time', ''))
             
             filtered.append(winner)
         
         return filtered
+    
+    def _clean_highlight_time(self, time_str: str) -> str:
+        """
+        Clean up time string for highlight display.
+        Removes duration notations like (1hr), (2hrs) and modifiers like TEENS, KIDS.
+        Safe for any input - won't break on unexpected formats.
+        """
+        import re
+        
+        if not time_str or not isinstance(time_str, str):
+            return time_str if time_str else ""
+        
+        cleaned = time_str
+        
+        # Remove duration notations: (1hr), (2 hrs), (1 hour), (2.5hrs), (6 hours)
+        cleaned = re.sub(r'\s*\(\d+\.?\d*\s*(hrs?|hours?)\)', '', cleaned, flags=re.IGNORECASE)
+        
+        # Remove parenthetical modifiers: (TEENS), (KIDS), (Adults), (18+)
+        cleaned = re.sub(r'\s*\([^)]*\)\s*$', '', cleaned)
+        
+        # Remove trailing modifiers without parentheses: TEENS, KIDS, Adults
+        cleaned = re.sub(r'\s*(TEENS|KIDS|ADULTS|18\+)\s*$', '', cleaned, flags=re.IGNORECASE)
+        
+        # Clean up any trailing 'TEENS' etc that might be stuck to previous text
+        cleaned = re.sub(r'(TEENS|KIDS|ADULTS)\s*$', '', cleaned, flags=re.IGNORECASE)
+        
+        # Clean up extra whitespace
+        cleaned = ' '.join(cleaned.split())
+        
+        return cleaned
 
     def _clean_itinerary(self, itinerary: List[Dict]) -> List[Dict]:
         """Clean and normalize itinerary items."""

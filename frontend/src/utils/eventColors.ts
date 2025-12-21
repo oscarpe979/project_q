@@ -11,11 +11,14 @@ export const COLORS = {
     ACTIVITY: '#BBDEFB',          // Light Blues
     MUSIC: '#9bfa9e',             // Bright Green
     PARTY: '#a5e1f8ff',             // Yellow
-    COMEDY: '#4dc7a2ff',            // Light Pink
+    COMEDY: '#f5ff9bff',            // Light Pink
     DOORS: '#000000',             // Black (for doors events)
     WARM_UP: '#A3FEFF',           // Faint Aquamarine (for warm up events)
     PRESET: '#e3ded3',            // Warm Grey (for preset events)
     STRIKE: '#e3ded3',            // Warm Grey (for strike events)
+    PARADE: '#b3ff51ff',            // Green (for parade events)
+    TOPTIER: '#ff7979ff',            // Coral Red (for top tier events)
+    SETUP: '#e3ded3',              // Warm Taupe (for setup events)
     OTHER: '#e3ded3',             // Warm Grey
 };
 
@@ -48,6 +51,12 @@ export const getColorForType = (type: string): string => {
             return COLORS.PRESET;
         case 'strike':
             return COLORS.STRIKE;
+        case 'parade':
+            return COLORS.PARADE;
+        case 'toptier':
+            return COLORS.TOPTIER;
+        case 'setup':
+            return COLORS.SETUP;
         case 'rehearsal':
         case 'maintenance':
         case 'other':

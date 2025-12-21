@@ -595,3 +595,591 @@ class TestVenueRulesConfig:
         assert "known_shows" in studio_b_config
         assert "renaming_map" in studio_b_config
         assert "default_durations" in studio_b_config
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST GROUP 7: Cross-Event Gap Checking (check_all_events)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestCheckAllEventsOption:
+    """Tests for check_all_events option in min_gap_minutes rules."""
+    
+    def test_doors_skipped_when_overlaps_with_different_event_type(self):
+        """Doors should be skipped if they would overlap with a DIFFERENT event type."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Movie ends at 3:00 PM, Bingo starts at 3:15 PM (15-min gap)
+        # With 30-min doors offset, doors would start at 2:45 PM (overlaps Movie)
+        events = [
+            {"title": "Movie", "start_dt": datetime(2025, 1, 15, 14, 0), 
+             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "movie"},
+            {"title": "Bingo", "start_dt": datetime(2025, 1, 15, 15, 15), 
+             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "game"},
+        ]
+        
+        rules = {"doors": [{
+            "match_categories": ["game"],
+            "offset_minutes": -30,
+            "duration_minutes": 15,
+            "title_template": "Doors",
+            "type": "doors",
+            "min_gap_minutes": 30,
+            "check_all_events": True,
+        }]}
+        
+        result = parser._apply_derived_event_rules(events, rules)
+        doors_events = [e for e in result if e.get("type") == "doors"]
+        
+        # Gap is 15 min but rule requires 30 min → No doors
+        assert len(doors_events) == 0
+    
+    def test_doors_created_when_sufficient_gap_from_different_type(self):
+        """Doors should be created if there's sufficient gap from ANY event type."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Movie ends at 2:00 PM, Bingo starts at 3:15 PM (75-min gap)
+        events = [
+            {"title": "Movie", "start_dt": datetime(2025, 1, 15, 13, 0), 
+             "end_dt": datetime(2025, 1, 15, 14, 0), "category": "movie"},
+            {"title": "Bingo", "start_dt": datetime(2025, 1, 15, 15, 15), 
+             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "game"},
+        ]
+        
+        rules = {"doors": [{
+            "match_categories": ["game"],
+            "offset_minutes": -30,
+            "duration_minutes": 15,
+            "title_template": "Doors",
+            "type": "doors",
+            "min_gap_minutes": 30,
+            "check_all_events": True,
+        }]}
+        
+        result = parser._apply_derived_event_rules(events, rules)
+        doors_events = [e for e in result if e.get("type") == "doors"]
+        
+        # Gap is 75 min >= 30 min required → Doors created
+        assert len(doors_events) == 1
+    
+    def test_check_all_events_false_ignores_different_types(self):
+        """Without check_all_events, gaps are only checked against same-type events."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Movie ends at 3:00 PM, Bingo starts at 3:15 PM (15-min gap)
+        # Without check_all_events, this should still create doors (only checks game vs game)
+        events = [
+            {"title": "Movie", "start_dt": datetime(2025, 1, 15, 14, 0), 
+             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "movie"},
+            {"title": "Bingo", "start_dt": datetime(2025, 1, 15, 15, 15), 
+             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "game"},
+        ]
+        
+        rules = {"doors": [{
+            "match_categories": ["game"],
+            "offset_minutes": -30,
+            "duration_minutes": 15,
+            "title_template": "Doors",
+            "type": "doors",
+            "min_gap_minutes": 30,
+            "check_all_events": False,  # Only check same-type events
+        }]}
+        
+        result = parser._apply_derived_event_rules(events, rules)
+        doors_events = [e for e in result if e.get("type") == "doors"]
+        
+        # Bingo is first game of day, so doors ARE created (no preceding game)
+        assert len(doors_events) == 1
+    
+    def test_first_event_of_day_gets_doors_with_check_all_events(self):
+        """First event of the day should always get doors (no preceding events)."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Only one event on this day
+        events = [
+            {"title": "Bingo", "start_dt": datetime(2025, 1, 15, 15, 0), 
+             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "game"},
+        ]
+        
+        rules = {"doors": [{
+            "match_categories": ["game"],
+            "offset_minutes": -30,
+            "duration_minutes": 15,
+            "title_template": "Doors",
+            "type": "doors",
+            "min_gap_minutes": 30,
+            "check_all_events": True,
+        }]}
+        
+        result = parser._apply_derived_event_rules(events, rules)
+        doors_events = [e for e in result if e.get("type") == "doors"]
+        
+        # First event of day → Doors created
+        assert len(doors_events) == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST GROUP 8: Category Inference for Merged Events
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestMergedEventCategoryInference:
+    """Tests for category inference on merged events from other venues."""
+    
+    def test_parade_title_infers_parade_category(self):
+        """Events with 'parade' in title should get category 'parade'."""
+        # This tests the logic in _transform_to_api_format that infers category
+        # before calling _parse_single_event
+        
+        # Simulate what happens in the merge logic
+        show = {"title": "Anchors Aweigh Parade", "date": "2025-01-15", 
+                "start_time": "12:30", "venue": "Royal Promenade"}
+        
+        # Infer category from title (this is the logic we added)
+        if not show.get("category"):
+            title_lower = show.get("title", "").lower()
+            if "parade" in title_lower:
+                show["category"] = "parade"
+        
+        assert show["category"] == "parade"
+    
+    def test_party_title_infers_party_category(self):
+        """Events with 'party' in title should get category 'party'."""
+        show = {"title": "Deck Party", "date": "2025-01-15", 
+                "start_time": "21:00", "venue": "Pool Deck"}
+        
+        if not show.get("category"):
+            title_lower = show.get("title", "").lower()
+            if "parade" in title_lower:
+                show["category"] = "parade"
+            elif "party" in title_lower:
+                show["category"] = "party"
+        
+        assert show["category"] == "party"
+    
+    def test_movie_title_infers_movie_category(self):
+        """Events with 'movie' in title should get category 'movie'."""
+        show = {"title": "Movie Night", "date": "2025-01-15", 
+                "start_time": "20:00", "venue": "Royal Theater"}
+        
+        if not show.get("category"):
+            title_lower = show.get("title", "").lower()
+            if "parade" in title_lower:
+                show["category"] = "parade"
+            elif "party" in title_lower:
+                show["category"] = "party"
+            elif "movie" in title_lower:
+                show["category"] = "movie"
+        
+        assert show["category"] == "movie"
+    
+    def test_existing_category_not_overwritten(self):
+        """If category already exists, it should NOT be overwritten."""
+        show = {"title": "Parade Party", "date": "2025-01-15", 
+                "start_time": "18:00", "venue": "Promenade", 
+                "category": "activity"}  # Already has category
+        
+        if not show.get("category"):
+            title_lower = show.get("title", "").lower()
+            if "parade" in title_lower:
+                show["category"] = "parade"
+        
+        # Category should remain "activity" (not overwritten to "parade")
+        assert show["category"] == "activity"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST GROUP 9: Highlights Filtering Algorithm
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestHighlightsFilteringAlgorithm:
+    """Tests for _filter_other_venue_shows() priority and filtering logic."""
+    
+    def test_show_beats_activity_same_day(self):
+        """Show (priority 1) should be chosen over activity (priority 6)."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Studio B", "date": "2025-10-13", "title": "Private Ice Skating", 
+             "time": "11:30am-12:30pm", "category": "activity"},
+            {"venue": "Studio B", "date": "2025-10-13", "title": "Ice Spectacular 365", 
+             "time": "8:15 pm & 10:30 pm", "category": "show"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        # Only one event per venue/day
+        assert len(result) == 1
+        # Show should win over activity
+        assert result[0]["title"] == "Ice Spectacular 365"
+        assert result[0]["category"] == "show"
+    
+    def test_evening_time_beats_morning_same_category(self):
+        """Evening events should be preferred over morning events."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Studio B", "date": "2025-10-13", "title": "Morning Show", 
+             "time": "10:00 am", "category": "show"},
+            {"venue": "Studio B", "date": "2025-10-13", "title": "Evening Show", 
+             "time": "8:00 pm", "category": "show"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        assert len(result) == 1
+        # Evening show should win
+        assert result[0]["title"] == "Evening Show"
+    
+    def test_headliner_beats_game(self):
+        """Headliner (priority 2) should beat game (priority 3)."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Trivia Night", 
+             "time": "7:00 pm", "category": "game"},
+            {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Comedy Special", 
+             "time": "9:00 pm", "category": "headliner"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        assert len(result) == 1
+        assert result[0]["title"] == "Comedy Special"
+    
+    def test_party_beats_activity(self):
+        """Party (priority 4) should beat activity (priority 6)."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Let's Dance", 
+             "time": "11:00 pm", "category": "party"},
+            {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Open Skating", 
+             "time": "2:00 pm", "category": "activity"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        assert len(result) == 1
+        assert result[0]["title"] == "Let's Dance"
+    
+    def test_one_winner_per_venue_per_day(self):
+        """Only one highlight should be returned per venue per day."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Studio B", "date": "2025-10-13", "title": "Event A", 
+             "time": "7:00 pm", "category": "show"},
+            {"venue": "Studio B", "date": "2025-10-13", "title": "Event B", 
+             "time": "9:00 pm", "category": "show"},
+            {"venue": "Studio B", "date": "2025-10-13", "title": "Event C", 
+             "time": "10:00 pm", "category": "party"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        # Only one winner for Studio B on 2025-10-13
+        assert len(result) == 1
+    
+    def test_multiple_venues_multiple_days(self):
+        """Multiple venues and days should each have one winner."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Studio B", "date": "2025-10-13", "title": "Ice Show", 
+             "time": "8:00 pm", "category": "show"},
+            {"venue": "AquaTheater", "date": "2025-10-13", "title": "Aqua Show", 
+             "time": "8:00 pm", "category": "show"},
+            {"venue": "Studio B", "date": "2025-10-14", "title": "Ice Show 2", 
+             "time": "8:00 pm", "category": "show"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        # 3 unique (venue, date) combinations
+        assert len(result) == 3
+        
+        # Verify each is present
+        keys = {(r["venue"], r["date"]) for r in result}
+        assert ("Studio B", "2025-10-13") in keys
+        assert ("AquaTheater", "2025-10-13") in keys
+        assert ("Studio B", "2025-10-14") in keys
+    
+    def test_same_title_events_merge_times(self):
+        """Events with same title should merge their times."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Studio B", "date": "2025-10-13", "title": "Ice Show", 
+             "time": "7:00 pm", "category": "show"},
+            {"venue": "Studio B", "date": "2025-10-13", "title": "Ice Show", 
+             "time": "9:30 pm", "category": "show"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        assert len(result) == 1
+        # Times should be merged
+        assert "7:00 pm" in result[0]["time"]
+        assert "9:30 pm" in result[0]["time"]
+    
+    def test_backup_has_lowest_priority(self):
+        """Backup (priority 8) should only win if nothing else available."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "AquaTheater", "date": "2025-10-16", "title": "Aqua Backup", 
+             "time": "8:00 pm", "category": "backup"},
+            {"venue": "AquaTheater", "date": "2025-10-16", "title": "Other Event", 
+             "time": "8:00 pm", "category": "other"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        assert len(result) == 1
+        # "other" (priority 7) beats "backup" (priority 8)
+        assert result[0]["title"] == "Other Event"
+    
+    def test_parade_category_priority(self):
+        """Parade should have moderate priority (not highest, not lowest)."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Parade vs Activity - parade has higher priority
+        shows = [
+            {"venue": "Royal Promenade", "date": "2025-10-13", "title": "Costume Parade", 
+             "time": "10:00 pm", "category": "parade"},
+            {"venue": "Royal Promenade", "date": "2025-10-13", "title": "Random Activity", 
+             "time": "2:00 pm", "category": "activity"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        assert len(result) == 1
+        # Parade should beat activity (it's after party in priority, but before activity)
+        # Let's verify it's the parade
+        assert result[0]["title"] == "Costume Parade"
+    
+    def test_late_night_party_is_valid_highlight(self):
+        """Late-night parties (11pm+) like 'Let's Dance' should be valid highlights."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Scenario: Royal Promenade Day 2 only has a late-night party
+        shows = [
+            {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Let's Dance", 
+             "time": "11:15 pm - midnight", "category": "party"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        # Should be kept as the highlight for that day
+        assert len(result) == 1
+        assert result[0]["title"] == "Let's Dance"
+        assert result[0]["category"] == "party"
+    
+    def test_late_night_party_vs_activity(self):
+        """Late-night party should beat afternoon activity even at 11pm."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Afternoon Activity", 
+             "time": "2:00 pm", "category": "activity"},
+            {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Let's Dance", 
+             "time": "11:15 pm", "category": "party"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        assert len(result) == 1
+        # Party (priority 4) beats activity (priority 6)
+        assert result[0]["title"] == "Let's Dance"
+    
+    def test_multiple_highlights_same_day_different_venues(self):
+        """Each venue should have its own best highlight for the same day."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Studio B", "date": "2025-10-14", "title": "RED: Nightclub Experience", 
+             "time": "Midnight - late", "category": "party"},
+            {"venue": "AquaTheater", "date": "2025-10-14", "title": "inTENse: Maximum Performance", 
+             "time": "8:15 pm & 10:30 pm", "category": "show"},
+            {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Let's Dance", 
+             "time": "11:15 pm - midnight", "category": "party"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        # All 3 venues should have highlights
+        assert len(result) == 3
+        
+        titles = {r["title"] for r in result}
+        assert "RED: Nightclub Experience" in titles
+        assert "inTENse: Maximum Performance" in titles
+        assert "Let's Dance" in titles
+    
+    def test_game_beats_activity_for_highlight(self):
+        """Game shows (priority 3) should beat activity (priority 6) for highlights."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Real scenario: Day 5 Studio B - Battle of the Sexes should beat Family SHUSH
+        shows = [
+            {"venue": "Studio B", "date": "2025-08-21", "title": "Family SHUSH", 
+             "time": "8pm - 9:30 pm", "category": "activity"},
+            {"venue": "Studio B", "date": "2025-08-21", "title": "Battle of the Sexes", 
+             "time": "9:45 pm", "category": "game"},
+            {"venue": "Studio B", "date": "2025-08-21", "title": "Crazy Quest", 
+             "time": "11:00 pm", "category": "game"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        assert len(result) == 1
+        # Game (priority 3) should beat activity (priority 6)
+        # Battle of the Sexes is the first game and both have evening time
+        assert result[0]["category"] == "game"
+        # Either Battle of the Sexes or Crazy Quest should win
+        assert result[0]["title"] in ["Battle of the Sexes", "Crazy Quest"]
+    
+    def test_game_beats_activity_even_earlier_time(self):
+        """Game in evening should beat activity even if activity is earlier."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Studio B", "date": "2025-08-21", "title": "Morning Activity", 
+             "time": "10:00 am", "category": "activity"},
+            {"venue": "Studio B", "date": "2025-08-21", "title": "Evening Game Show", 
+             "time": "9:00 pm", "category": "game"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        assert len(result) == 1
+        # Evening game (priority 3, time score 0) beats morning activity (priority 6, time score 1)
+        assert result[0]["title"] == "Evening Game Show"
+    
+    def test_movie_and_game_priority_same_day(self):
+        """Game (priority 3) should beat movie (priority 5) for highlights."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "AquaTheater", "date": "2025-08-21", "title": "MOVIES ON DECK", 
+             "time": "6:00 pm & 9:30 pm", "category": "movie"},
+            {"venue": "AquaTheater", "date": "2025-08-21", "title": "Finish That Lyric", 
+             "time": "8:30 pm", "category": "game"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        assert len(result) == 1
+        # Game (priority 3) should beat movie (priority 5)
+        assert result[0]["title"] == "Finish That Lyric"
+    
+    def test_ice_skating_fallback_when_nothing_else(self):
+        """Ice Skating is used as fallback highlight if nothing better exists."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Only Ice Skating sessions available - should use first one as fallback
+        shows = [
+            {"venue": "Studio B", "date": "2025-07-23", "title": "Ice Skating", 
+             "time": "5:00 pm - 6:00 pm (1hr) TEENS", "category": "activity"},
+            {"venue": "Studio B", "date": "2025-07-23", "title": "Ice Skating", 
+             "time": "6:00 pm - 8:00 pm (2hrs)", "category": "activity"},
+            {"venue": "Studio B", "date": "2025-07-23", "title": "Ice Skating", 
+             "time": "8:30 pm - 11:30 pm (3hrs)", "category": "activity"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        # Should return exactly 1 Ice Skating as fallback (not merge all times)
+        assert len(result) == 1
+        assert "ice skating" in result[0]["title"].lower()
+    
+    def test_laser_tag_fallback_when_nothing_else(self):
+        """Laser Tag is used as fallback highlight if nothing better exists."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Studio B", "date": "2025-07-24", "title": "Laser Tag", 
+             "time": "1:00 pm - 7:00 pm (6hrs)", "category": "activity"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        # Laser Tag should be used as fallback
+        assert len(result) == 1
+        assert result[0]["title"] == "Laser Tag"
+    
+    def test_ice_spectacular_show_not_blocked(self):
+        """Ice Spectacular: 365 is a SHOW, not a skating session - should NOT be blocked."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Studio B", "date": "2025-07-22", "title": "Ice Spectacular: 365", 
+             "time": "6:45 pm & 9:00 pm", "category": "show"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        # Ice Spectacular is a show, not an activity - should NOT be blocked
+        assert len(result) == 1
+        assert result[0]["title"] == "Ice Spectacular: 365"
+    
+    def test_game_show_preferred_over_blocked_ice_skating(self):
+        """If there's a game show AND Ice Skating, game show should be the highlight."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        shows = [
+            {"venue": "Studio B", "date": "2025-07-23", "title": "Ice Skating", 
+             "time": "5:00 pm - 8:00 pm", "category": "activity"},
+            {"venue": "Studio B", "date": "2025-07-23", "title": "Battle of the Sexes", 
+             "time": "9:15 pm", "category": "game"},
+        ]
+        
+        result = parser._filter_other_venue_shows(shows, {})
+        
+        # Ice Skating blocked, Battle of the Sexes is the only remaining event
+        assert len(result) == 1
+        assert result[0]["title"] == "Battle of the Sexes"

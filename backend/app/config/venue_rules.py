@@ -97,6 +97,17 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "duration_minutes": 15,
                     "title_template": "Doors",
                     "type": "doors",
+                    "min_gap_minutes": 45,  # Skip if stacked with previous event
+                    "check_all_events": True,  # Check gap against ALL events, not just same-type
+                },
+                {
+                    "match_categories": ["game", "movie", "party"],
+                    "offset_minutes": -30,
+                    "duration_minutes": 15,
+                    "title_template": "Doors",
+                    "type": "doors",
+                    "min_gap_minutes": 30,  # Skip if stacked with previous event
+                    "check_all_events": True,  # Check gap against ALL events, not just same-type
                 },
                 # Default: All shows and headliners get standard doors
                 {
@@ -105,6 +116,29 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "duration_minutes": 15,
                     "title_template": "Doors",
                     "type": "doors",
+                    "min_gap_minutes": 45,  # Skip if stacked with previous event
+                    "check_all_events": True,  # Check gap against ALL events, not just same-type
+                },
+                # Top Tier Event doors - 15 min before event
+                {
+                    "match_categories": ["toptier"],
+                    "offset_minutes": -15,
+                    "duration_minutes": 15,
+                    "title_template": "Doors",
+                    "type": "doors",
+                    "min_gap_minutes": 15,
+                    "check_all_events": True,  # Check gap against ALL events, not just same-type
+                },
+            ],
+            "setup": [
+                # Set Up - Top Tier: 1 hour setup, 15 min before doors (30 min before event)
+                {
+                    "match_categories": ["toptier"],
+                    "offset_minutes": -75,  # 30 min before event + 60 min duration - 15 min overlap
+                    "duration_minutes": 60,
+                    "title_template": "Set Up - Top Tier",
+                    "type": "setup",
+                    "min_gap_minutes": 75,  # Skip if stacked
                 },
             ],
             "strike": [
