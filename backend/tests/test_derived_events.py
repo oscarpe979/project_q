@@ -723,6 +723,68 @@ class TestCheckAllEventsOption:
         
         # First event of day → Doors created
         assert len(doors_events) == 1
+    
+    def test_doors_blocked_when_falling_inside_another_event(self):
+        """Doors should NOT be created if they would fall inside another event's time range."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Scenario: Crazy Quest 11:20 PM - 12:00 AM, RED Nightclub at 12:00 AM
+        # Doors for RED would be at 11:30 PM, which falls INSIDE Crazy Quest
+        events = [
+            {"title": "Crazy Quest", "start_dt": datetime(2025, 1, 15, 23, 20), 
+             "end_dt": datetime(2025, 1, 16, 0, 0), "category": "game"},
+            {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 16, 0, 0), 
+             "end_dt": datetime(2025, 1, 16, 2, 0), "category": "party"},
+        ]
+        
+        rules = {"doors": [{
+            "match_categories": ["party"],
+            "offset_minutes": -30,  # 30 min before = 11:30 PM
+            "duration_minutes": 15,
+            "title_template": "Doors",
+            "type": "doors",
+            "min_gap_minutes": 30,
+            "check_all_events": True,
+        }]}
+        
+        result = parser._apply_derived_event_rules(events, rules)
+        doors_events = [e for e in result if e.get("type") == "doors"]
+        
+        # Doors at 11:30 PM would fall inside Crazy Quest (11:20 PM - 12:00 AM) → Blocked
+        assert len(doors_events) == 0
+    
+    def test_doors_allowed_when_not_overlapping_any_event(self):
+        """Doors should be created when there's no overlap with any running event."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Scenario: Crazy Quest ends at 11:00 PM, RED Nightclub at 12:00 AM
+        # Doors for RED would be at 11:30 PM, which is AFTER Crazy Quest ends
+        events = [
+            {"title": "Crazy Quest", "start_dt": datetime(2025, 1, 15, 22, 0), 
+             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "game"},  # Ends at 11:00 PM
+            {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 16, 0, 0), 
+             "end_dt": datetime(2025, 1, 16, 2, 0), "category": "party"},
+        ]
+        
+        rules = {"doors": [{
+            "match_categories": ["party"],
+            "offset_minutes": -30,  # 30 min before = 11:30 PM
+            "duration_minutes": 15,
+            "title_template": "Doors",
+            "type": "doors",
+            "min_gap_minutes": 30,
+            "check_all_events": True,
+        }]}
+        
+        result = parser._apply_derived_event_rules(events, rules)
+        doors_events = [e for e in result if e.get("type") == "doors"]
+        
+        # Doors at 11:30 PM is after Crazy Quest ends (11:00 PM) → Allowed
+        assert len(doors_events) == 1
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

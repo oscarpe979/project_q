@@ -1362,6 +1362,25 @@ Return ONLY valid JSON matching the schema."""
                                 if gap_minutes >= min_gap:
                                     should_fire = True  # Sufficient gap, start new block
                             
+                            if should_fire and check_all:
+                                # ADDITIONAL CHECK: Verify derived event won't overlap with any running event
+                                # Calculate where the derived event would be placed
+                                offset_mins = rule.get("offset_minutes", 0)
+                                derived_start = current_start + timedelta(minutes=offset_mins)
+                                derived_date = derived_start.date()  # Use derived event's date (may differ for midnight crossover)
+                                
+                                # Check if this time falls INSIDE any event's range
+                                # Need to check events from derived_date (not event_date) for midnight crossover
+                                events_to_check = all_events_by_date.get(derived_date, [])
+                                for evt in events_to_check:
+                                    evt_start = evt.get('start_dt')
+                                    evt_end = evt.get('end_dt')
+                                    # If derived_start is inside an event's range (start < derived < end), don't fire
+                                    if evt_start and evt_end and evt_start < derived_start < evt_end:
+                                        should_fire = False
+                                        print(f"DEBUG: Doors blocked - would overlap with '{evt.get('title')}' ({evt_start.strftime('%I:%M %p')} - {evt_end.strftime('%I:%M %p')})")
+                                        break
+                            
                             if should_fire:
                                 derived = self._create_derived_event(parent_event, rule)
                                 if derived:
