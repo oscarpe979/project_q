@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { ChevronDown, FileSpreadsheet, LogOut } from 'lucide-react';
+import { ChevronDown, FileSpreadsheet, LogOut, Save } from 'lucide-react';
 import { VoyageSelector } from './components/VoyageSelector';
 import { authService } from '../../services/authService';
 import { Backdrop } from '../../components/UI/Backdrop';
@@ -18,6 +18,7 @@ interface ScheduleHeaderProps {
     canUndo?: boolean;
     canRedo?: boolean;
     onPublishClick: () => void;
+    onPublishAsClick: () => void;
     onDeleteClick: () => void;
     startDate?: string;
     onSearch?: (term: string) => void;
@@ -203,6 +204,12 @@ export const ScheduleHeader: React.FC<ScheduleHeaderProps> = (props) => {
                                     onClick={() => handleMenuAction(handleExportClick)}
                                     icon={<FileSpreadsheet size={16} />}
                                     label={isExporting ? "Exporting..." : "Export to Excel"}
+                                    disabled={!currentVoyageNumber}
+                                />
+                                <MenuItem
+                                    onClick={() => handleMenuAction(props.onPublishAsClick)}
+                                    icon={<Save size={16} />}
+                                    label="Publish As"
                                     disabled={!currentVoyageNumber}
                                 />
                                 <div className="dropdown-divider"></div>

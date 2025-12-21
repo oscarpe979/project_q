@@ -14,6 +14,7 @@ interface ScheduleModalsProps {
     deleteError?: string;
     onPublishConfirm: () => void;
     onDeleteConfirm: () => void;
+    isPublishAsMode?: boolean;
 }
 
 type PublishFocus = 'cancel' | 'publish';
@@ -33,7 +34,8 @@ export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
         isDeleting,
         deleteError,
         onPublishConfirm,
-        onDeleteConfirm
+        onDeleteConfirm,
+        isPublishAsMode
     } = props;
 
     // Focus state for publish modal buttons
@@ -112,15 +114,21 @@ export const ScheduleModals: React.FC<ScheduleModalsProps> = (props) => {
                         onPointerDown={() => setIsPublishModalOpen(false)}
                     />
                     <div className="modal-content publish-modal-content">
-                        <h3 className="publish-modal-header">Publish Schedule</h3>
-                        <p className="publish-modal-text">Enter the Voyage Number to publish this schedule.</p>
+                        <h3 className="publish-modal-header">
+                            {isPublishAsMode ? 'Publish As' : 'Publish Schedule'}
+                        </h3>
+                        <p className="publish-modal-text">
+                            {isPublishAsMode
+                                ? 'Enter a new Voyage Number to save a copy of this schedule.'
+                                : 'Enter the Voyage Number to publish this schedule.'}
+                        </p>
                         <input
                             type="text"
                             placeholder=""
                             value={voyageNumber}
                             onChange={(e) => setVoyageNumber(e.target.value)}
                             className="voyage-input"
-                            autoFocus={!currentVoyageNumber}
+                            autoFocus={isPublishAsMode || !currentVoyageNumber}
                         />
                         {publishError && (
                             <div className="modal-error-text">

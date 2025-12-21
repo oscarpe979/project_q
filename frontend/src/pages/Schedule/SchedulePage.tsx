@@ -84,6 +84,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
     const [voyageNumberInput, setVoyageNumberInput] = useState('');
     const [isPublishing, setIsPublishing] = useState(false);
     const [publishError, setPublishError] = useState<string | undefined>(undefined);
+    const [isPublishAsMode, setIsPublishAsMode] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | undefined>(undefined);
 
@@ -236,6 +237,14 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
     const handlePublishClick = () => {
         setVoyageNumberInput(currentVoyageNumber || '');
         setPublishError(undefined);
+        setIsPublishAsMode(false);
+        setIsPublishModalOpen(true);
+    };
+
+    const handlePublishAsClick = () => {
+        setVoyageNumberInput('');
+        setPublishError(undefined);
+        setIsPublishAsMode(true);
         setIsPublishModalOpen(true);
     };
 
@@ -253,9 +262,11 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
 
         // --- SAFE PUBLISH CHECKS (Frontend UX) ---
         // Backend raises 409, but we can give immediate feedback if we know the list.
-        const isCollision = voyages.some(
-            v => v.voyage_number === voyageNumberInput && v.voyage_number !== currentVoyageNumber
-        );
+        // In "Publish As" mode, check against ALL existing voyages (treat as new schedule)
+        // In normal mode, allow the current voyage number (updating same schedule)
+        const isCollision = isPublishAsMode
+            ? voyages.some(v => v.voyage_number === voyageNumberInput)
+            : voyages.some(v => v.voyage_number === voyageNumberInput && v.voyage_number !== currentVoyageNumber);
 
         if (isCollision) {
             setPublishError(`Voyage Number "${voyageNumberInput}" already exists. Cannot overwrite.`);
@@ -264,8 +275,9 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
 
         setIsPublishing(true);
         try {
-            // Pass currentVoyageNumber as originalVoyageNumber to enforce Safe Publish
-            await scheduleService.publishSchedule(voyageNumberInput, events, itinerary, otherVenueShows, currentVoyageNumber);
+            // Pass originalVoyageNumber only in normal mode (not Publish As)
+            const originalVoyage = isPublishAsMode ? undefined : currentVoyageNumber;
+            await scheduleService.publishSchedule(voyageNumberInput, events, itinerary, otherVenueShows, originalVoyage);
 
             setUploadSuccess(true);
             setCurrentVoyageNumber(voyageNumberInput);
@@ -399,6 +411,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
                         canUndo={historyIndex > 0}
                         canRedo={historyIndex < history.length - 1}
                         onPublishClick={handlePublishClick}
+                        onPublishAsClick={handlePublishAsClick}
                         onDeleteClick={handleDeleteClick}
                         startDate={itinerary.length > 0 ? itinerary[0].date : undefined}
                         onSearch={loadSchedules}
@@ -442,6 +455,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
                 deleteError={deleteError}
                 onPublishConfirm={handlePublishConfirm}
                 onDeleteConfirm={handleDeleteConfirm}
+                isPublishAsMode={isPublishAsMode}
             />
 
             <UnsavedChangesModal
