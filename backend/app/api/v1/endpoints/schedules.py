@@ -935,14 +935,15 @@ def export_schedule(
                 if slots > 1:
                     if i == title_row_offset - 1:
                         cell.value = time_str
-                        cell.font = Font(name='Arial', size=11, bold=True, color=text_color) # Smaller font for time
+                        cell.font = Font(name='Arial', size=11, bold=True, color=text_color)
                     elif i == title_row_offset: 
                         cell.value = event.title
-                        cell.font = Font(name='Arial', size=11, bold=True, color=text_color) # Reduced size to 10
+                        cell.font = Font(name='Arial', size=11, bold=True, color=text_color)
                 else:
-                    # Single slot
-                    cell.value = event.title
-                    cell.font = Font(name='Arial', size=11, bold=True, color=text_color) # Reduced size to 10
+                    # Single slot - combine start time and title
+                    start_time_only = event.time_display if event.time_display else event.start_time.strftime('%-I:%M%p').lower()
+                    cell.value = f"{start_time_only} - {event.title}"
+                    cell.font = Font(name='Arial', size=11, bold=True, color=text_color)
     
     # 6. Final Formatting
     # Freeze Panes (Rows 1-6)
