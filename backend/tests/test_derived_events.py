@@ -1245,3 +1245,426 @@ class TestHighlightsFilteringAlgorithm:
         # Ice Skating blocked, Battle of the Sexes is the only remaining event
         assert len(result) == 1
         assert result[0]["title"] == "Battle of the Sexes"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST GROUP 10: Floor Transition Logic (Studio B specific)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestFloorTransitionLogic:
+    """
+    Tests for automatic strike/set events when floor requirements change.
+    Only applies to venues with floor_requirements config (e.g., Studio B).
+    """
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # Helper: Floor requirements config for tests
+    # ─────────────────────────────────────────────────────────────────────────
+    
+    @pytest.fixture
+    def floor_config(self):
+        """Sample floor requirements config for Studio B."""
+        return {
+            "floor_requirements": {
+                # Events that need the floor (ice covered)
+                "floor": {
+                    "match_titles": ["Laser Tag", "RED: Nightclub Experience", "Nightclub",
+                                   "Family SHUSH!", "Battle of the Sexes", "Crazy Quest", 
+                                   "Bingo", "Glow Party", "Top Tier"],
+                },
+                # Events that need ice exposed (no floor)
+                "ice": {
+                    "match_titles": ["Ice Show: 365", "Ice Skating", "Open Ice Skating", 
+                                   "Private Ice Skating", "Teens Skate", "Teens Ice Skate"],
+                },
+            },
+            "floor_transition": {
+                "duration_minutes": 60,
+                "titles": {
+                    "floor_to_ice": "Strike Floor & Set Ice",
+                    "ice_to_floor": "Strike Ice & Set Floor",
+                },
+                "type": "strike",
+            },
+        }
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # Basic Transition Tests
+    # ─────────────────────────────────────────────────────────────────────────
+    
+    def test_ice_to_floor_transition_same_day(self, floor_config):
+        """Ice event followed by floor event should generate 'Strike Ice & Set Floor'."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Ice Show 3 PM, Laser Tag 6 PM
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 15, 0), 
+             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "show"},
+            {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 18, 0), 
+             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        # Should have original 2 events + 1 transition event
+        assert len(result) == 3
+        
+        transition = [e for e in result if e.get("title") == "Strike Ice & Set Floor"]
+        assert len(transition) == 1
+        
+        # Should start immediately after Ice Show ends (4 PM)
+        assert transition[0]["start_dt"] == datetime(2025, 1, 15, 16, 0)
+        assert transition[0]["end_dt"] == datetime(2025, 1, 15, 17, 0)  # 1 hour duration
+    
+    def test_floor_to_ice_transition_same_day(self, floor_config):
+        """Floor event followed by ice event should generate 'Strike Floor & Set Ice'."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Laser Tag 2 PM, Ice Skating 5 PM
+        events = [
+            {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 14, 0), 
+             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "activity"},
+            {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 17, 0), 
+             "end_dt": datetime(2025, 1, 15, 19, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        transition = [e for e in result if e.get("title") == "Strike Floor & Set Ice"]
+        assert len(transition) == 1
+        
+        # Should start immediately after Laser Tag ends (3 PM)
+        assert transition[0]["start_dt"] == datetime(2025, 1, 15, 15, 0)
+        assert transition[0]["end_dt"] == datetime(2025, 1, 15, 16, 0)
+    
+    def test_same_floor_state_no_transition(self, floor_config):
+        """Consecutive events with same floor state should NOT generate transition."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Both are floor events
+        events = [
+            {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 14, 0), 
+             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "activity"},
+            {"title": "Bingo", "start_dt": datetime(2025, 1, 15, 17, 0), 
+             "end_dt": datetime(2025, 1, 15, 18, 0), "category": "game"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        # No transition event - only original 2 events
+        assert len(result) == 2
+        transition = [e for e in result if "Strike" in e.get("title", "")]
+        assert len(transition) == 0
+    
+    def test_same_ice_state_no_transition(self, floor_config):
+        """Consecutive ice events should NOT generate transition."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Both are ice events
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 15, 0), 
+             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "show"},
+            {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 17, 0), 
+             "end_dt": datetime(2025, 1, 15, 19, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        # No transition event
+        assert len(result) == 2
+        transition = [e for e in result if "Strike" in e.get("title", "")]
+        assert len(transition) == 0
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # After-Midnight Deferral Tests
+    # ─────────────────────────────────────────────────────────────────────────
+    
+    def test_after_midnight_deferral_to_next_event(self, floor_config):
+        """Event ending after midnight should defer strike to BEFORE next event."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Party ends at 2 AM, Ice Skating at 9 AM next day
+        events = [
+            {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 15, 23, 0), 
+             "end_dt": datetime(2025, 1, 16, 2, 0), "category": "party"},  # Ends 2 AM
+            {"title": "Ice Skating", "start_dt": datetime(2025, 1, 16, 9, 0), 
+             "end_dt": datetime(2025, 1, 16, 11, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        transition = [e for e in result if e.get("title") == "Strike Floor & Set Ice"]
+        assert len(transition) == 1
+        
+        # Should be anchored BEFORE Ice Skating (8 AM - 9 AM)
+        assert transition[0]["start_dt"] == datetime(2025, 1, 16, 8, 0)
+        assert transition[0]["end_dt"] == datetime(2025, 1, 16, 9, 0)
+    
+    def test_after_midnight_no_transition_if_same_floor_state(self, floor_config):
+        """After-midnight event followed by same floor type → no transition."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Party ends at 2 AM, Laser Tag at 1 PM (both need floor)
+        events = [
+            {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 15, 23, 0), 
+             "end_dt": datetime(2025, 1, 16, 2, 0), "category": "party"},
+            {"title": "Laser Tag", "start_dt": datetime(2025, 1, 16, 13, 0), 
+             "end_dt": datetime(2025, 1, 16, 17, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        # No transition - both need floor
+        transition = [e for e in result if "Strike" in e.get("title", "")]
+        assert len(transition) == 0
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # "Don't Care" Events Tests
+    # ─────────────────────────────────────────────────────────────────────────
+    
+    def test_dont_care_event_ignored_in_transition_logic(self, floor_config):
+        """Events not in floor/ice lists should be ignored (floor state continues)."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Ice Show → Port Talk (don't care) → Ice Skating
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 15, 0), 
+             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "show"},
+            {"title": "Port & Shopping Talk", "start_dt": datetime(2025, 1, 15, 16, 30), 
+             "end_dt": datetime(2025, 1, 15, 17, 0), "category": "other"},  # Don't care
+            {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 18, 0), 
+             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        # No transition - Ice Show and Ice Skating are both ice events
+        # Port Talk is ignored
+        transition = [e for e in result if "Strike" in e.get("title", "")]
+        assert len(transition) == 0
+    
+    def test_dont_care_event_between_different_floor_states(self, floor_config):
+        """'Don't care' event between ice and floor should still trigger transition."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Ice Show → Port Talk (don't care) → Laser Tag
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 15, 0), 
+             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "show"},
+            {"title": "Port & Shopping Talk", "start_dt": datetime(2025, 1, 15, 16, 30), 
+             "end_dt": datetime(2025, 1, 15, 17, 0), "category": "other"},  # Don't care
+            {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 18, 0), 
+             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        # Transition between Ice Show and Laser Tag (Port Talk ignored)
+        transition = [e for e in result if e.get("title") == "Strike Ice & Set Floor"]
+        assert len(transition) == 1
+        
+        # Anchored after Ice Show ends (4 PM)
+        assert transition[0]["start_dt"] == datetime(2025, 1, 15, 16, 0)
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # Multiple Transitions Tests
+    # ─────────────────────────────────────────────────────────────────────────
+    
+    def test_multiple_transitions_in_one_day(self, floor_config):
+        """Ice → Floor → Ice should generate TWO transition events."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Ice Show → Laser Tag → Ice Skating
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 10, 0), 
+             "end_dt": datetime(2025, 1, 15, 11, 0), "category": "show"},
+            {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 13, 0), 
+             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "activity"},
+            {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 18, 0), 
+             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        # Should have 3 original events + 2 transitions
+        assert len(result) == 5
+        
+        ice_to_floor = [e for e in result if e.get("title") == "Strike Ice & Set Floor"]
+        floor_to_ice = [e for e in result if e.get("title") == "Strike Floor & Set Ice"]
+        
+        assert len(ice_to_floor) == 1
+        assert len(floor_to_ice) == 1
+        
+        # First transition after Ice Show (11 AM)
+        assert ice_to_floor[0]["start_dt"] == datetime(2025, 1, 15, 11, 0)
+        
+        # Second transition after Laser Tag (4 PM)
+        assert floor_to_ice[0]["start_dt"] == datetime(2025, 1, 15, 16, 0)
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # Edge Cases
+    # ─────────────────────────────────────────────────────────────────────────
+    
+    def test_first_event_of_day_no_transition(self, floor_config):
+        """First event that cares about floor should not trigger transition."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Only one event - no previous state to transition from
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 19, 0), 
+             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "show"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        # No transition
+        assert len(result) == 1
+    
+    def test_empty_floor_config_skips_logic(self, floor_config):
+        """Venues without floor_requirements config should skip floor logic entirely."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 15, 0), 
+             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "show"},
+            {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 18, 0), 
+             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "activity"},
+        ]
+        
+        # Empty config - no floor_requirements
+        result = parser._apply_floor_transition_rules(events, {})
+        
+        # Should return events unchanged (no transitions added)
+        assert len(result) == 2
+    
+    def test_events_ending_at_exactly_midnight(self, floor_config):
+        """Event ending at exactly midnight should still trigger normal transition (not deferred)."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Laser Tag ends at exactly midnight, Ice Skating at 9 AM
+        events = [
+            {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 20, 0), 
+             "end_dt": datetime(2025, 1, 16, 0, 0), "category": "activity"},  # Ends exactly midnight
+            {"title": "Ice Skating", "start_dt": datetime(2025, 1, 16, 9, 0), 
+             "end_dt": datetime(2025, 1, 16, 11, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        transition = [e for e in result if e.get("title") == "Strike Floor & Set Ice"]
+        assert len(transition) == 1
+        
+        # Exactly midnight counts as "after midnight" - Ice Skating at 9 AM means anchor before it
+        assert transition[0]["start_dt"] == datetime(2025, 1, 16, 8, 0)
+    
+    def test_9am_preferred_for_late_morning_event(self, floor_config):
+        """If next event is at 11 AM or later, use 9 AM as preferred strike time."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Party ends at 2 AM, Ice Skating at 12 PM (noon)
+        events = [
+            {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 15, 23, 0), 
+             "end_dt": datetime(2025, 1, 16, 2, 0), "category": "party"},
+            {"title": "Ice Skating", "start_dt": datetime(2025, 1, 16, 12, 0), 
+             "end_dt": datetime(2025, 1, 16, 14, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        transition = [e for e in result if e.get("title") == "Strike Floor & Set Ice"]
+        assert len(transition) == 1
+        
+        # Next event at noon → Use preferred 9 AM time
+        assert transition[0]["start_dt"] == datetime(2025, 1, 16, 9, 0)
+        assert transition[0]["end_dt"] == datetime(2025, 1, 16, 10, 0)
+    
+    def test_overlap_combines_titles(self, floor_config):
+        """Floor transition overlapping with existing strike event should combine titles."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Ice Show ends at 10 PM with Strike & Ice Scrape after
+        # Laser Tag at midnight needs floor transition
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 20, 15), 
+             "end_dt": datetime(2025, 1, 15, 21, 15), "category": "show"},
+            # Existing strike event that overlaps with floor transition
+            {"title": "Strike & Ice Scrape", "start_dt": datetime(2025, 1, 15, 21, 15), 
+             "end_dt": datetime(2025, 1, 15, 21, 45), "category": "strike", "type": "strike"},
+            {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 22, 15), 
+             "end_dt": datetime(2025, 1, 16, 0, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        # Should have combined the floor transition into the existing strike event
+        strike_events = [e for e in result if e.get("type") == "strike"]
+        
+        # Should only be one strike event (combined)
+        assert len(strike_events) == 1
+        
+        # Title should be combined
+        assert "Strike & Ice Scrape" in strike_events[0]["title"]
+        assert "Set Floor" in strike_events[0]["title"]
+    
+    def test_adjacent_events_combine(self, floor_config):
+        """Adjacent events (one ends exactly when other starts) should combine."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Strike Laser Tag ends at 7 PM, floor transition starts at 7 PM (adjacent)
+        events = [
+            {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 13, 0), 
+             "end_dt": datetime(2025, 1, 15, 18, 0), "category": "activity"},
+            # Strike Laser Tag - ends at 7 PM
+            {"title": "Strike Laser Tag", "start_dt": datetime(2025, 1, 15, 18, 0), 
+             "end_dt": datetime(2025, 1, 15, 19, 0), "category": "strike", "type": "strike"},
+            {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 20, 0), 
+             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "activity"},
+        ]
+        
+        result = parser._apply_floor_transition_rules(events, floor_config)
+        
+        # Floor transition (Strike Floor) should combine with Strike Laser Tag
+        strike_events = [e for e in result if e.get("type") == "strike"]
+        
+        # Should only be one strike event (combined)
+        assert len(strike_events) == 1
+        
+        # Title should be combined
+        assert "Strike Laser Tag" in strike_events[0]["title"]
+        assert "Strike Floor" in strike_events[0]["title"]
+        
+        # Duration should be longest of the two (both 1 hour), starting from earliest
+        # Strike Laser Tag: 6 PM - 7 PM, Strike Floor: 7 PM - 8 PM
+        # Result: 6 PM start, 1 hour duration = 7 PM end
+        assert strike_events[0]["start_dt"] == datetime(2025, 1, 15, 18, 0)
+        assert strike_events[0]["end_dt"] == datetime(2025, 1, 15, 19, 0)

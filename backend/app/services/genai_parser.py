@@ -171,8 +171,14 @@ class GenAIParser:
         renaming_map = venue_rules.get("self_extraction_policy", {}).get("renaming_map", {})
         derived_event_rules = venue_rules.get("derived_event_rules", {})
         
+        # Floor transition config (only for venues like Studio B)
+        floor_config = {
+            "floor_requirements": venue_rules.get("self_extraction_policy", {}).get("floor_requirements"),
+            "floor_transition": venue_rules.get("self_extraction_policy", {}).get("floor_transition"),
+        }
+        
         print("DEBUG: Step 6 - Formatting response...")
-        return self._transform_to_api_format(result, master_duration_map, renaming_map, cross_policies, derived_event_rules)
+        return self._transform_to_api_format(result, master_duration_map, renaming_map, cross_policies, derived_event_rules, floor_config)
     
     def _discover_structure(
         self, 
@@ -683,7 +689,7 @@ Return ONLY valid JSON matching the schema."""
             "required": ["itinerary", "events"]
         }
     
-    def _transform_to_api_format(self, result: Dict[str, Any], default_durations: Dict[str, int] = {}, renaming_map: Dict[str, str] = {}, cross_venue_policies: Dict = {}, derived_event_rules: Dict = {}) -> Dict[str, Any]:
+    def _transform_to_api_format(self, result: Dict[str, Any], default_durations: Dict[str, int] = {}, renaming_map: Dict[str, str] = {}, cross_venue_policies: Dict = {}, derived_event_rules: Dict = {}, floor_config: Dict = {}) -> Dict[str, Any]:
         """Transform parsed result to API response format."""
         
         # Process events
@@ -883,6 +889,10 @@ Return ONLY valid JSON matching the schema."""
         # Apply derived event rules (doors, rehearsals, etc.)
         if derived_event_rules:
             final_events = self._apply_derived_event_rules(final_events, derived_event_rules)
+        
+        # Apply floor transition rules (Studio B only - ice/floor changes)
+        if floor_config.get("floor_requirements"):
+            final_events = self._apply_floor_transition_rules(final_events, floor_config)
         
         # Format for API
         formatted_events = [self._format_event_for_api(e) for e in final_events]
@@ -1406,6 +1416,233 @@ Return ONLY valid JSON matching the schema."""
         all_events.sort(key=lambda x: x['start_dt'])
         
         return all_events
+    
+    def _apply_floor_transition_rules(
+        self,
+        events: List[Dict],
+        floor_config: Dict
+    ) -> List[Dict]:
+        """
+        Generate strike/set events when floor requirement changes.
+        
+        Only runs for venues with floor_requirements config (e.g., Studio B).
+        
+        Args:
+            events: List of events with start_dt, end_dt, title
+            floor_config: Dict containing floor_requirements and floor_transition config
+        
+        Returns:
+            Original events + generated transition events, sorted by start time
+        """
+        # Skip if no floor config
+        floor_requirements = floor_config.get("floor_requirements")
+        transition_config = floor_config.get("floor_transition")
+        
+        if not floor_requirements or not transition_config:
+            return events
+        
+        # Sort events chronologically
+        sorted_events = sorted(events, key=lambda x: x.get('start_dt'))
+        
+        # Track floor state and transitions
+        transition_events = []
+        current_floor_state = None  # True = floor, False = ice, None = unknown
+        prev_event_with_floor_need = None
+        
+        for event in sorted_events:
+            floor_need = self._get_floor_need(event, floor_requirements)
+            
+            # Skip events that don't care about floor state
+            if floor_need is None:
+                continue
+            
+            # First event that cares - establish state, no transition
+            if current_floor_state is None:
+                current_floor_state = floor_need
+                prev_event_with_floor_need = event
+                continue
+            
+            # Check for transition
+            if floor_need != current_floor_state:
+                # TRANSITION DETECTED!
+                transition = self._create_floor_transition(
+                    prev_event_with_floor_need,
+                    event,
+                    current_floor_state,
+                    floor_need,
+                    transition_config
+                )
+                if transition:
+                    transition_events.append(transition)
+            
+            # Update state
+            current_floor_state = floor_need
+            prev_event_with_floor_need = event
+        
+        # Check for overlaps and combine titles with existing events
+        all_events = self._merge_floor_transitions_with_existing(events, transition_events)
+        all_events.sort(key=lambda x: x['start_dt'])
+        
+        return all_events
+    
+    def _merge_floor_transitions_with_existing(
+        self,
+        events: List[Dict],
+        transition_events: List[Dict]
+    ) -> List[Dict]:
+        """
+        Merge floor transition events with existing events that overlap.
+        
+        If a floor transition overlaps with an existing strike event (like "Strike & Ice Scrape"),
+        combine them into one event with a combined title.
+        """
+        if not transition_events:
+            return events
+        
+        final_events = list(events)  # Copy to avoid modifying original
+        
+        for transition in transition_events:
+            trans_start = transition.get('start_dt')
+            trans_end = transition.get('end_dt')
+            trans_title = transition.get('title', '')
+            
+            # Find overlapping events
+            overlapping = None
+            overlapping_idx = None
+            
+            for i, evt in enumerate(final_events):
+                evt_start = evt.get('start_dt')
+                evt_end = evt.get('end_dt')
+                
+                if not evt_start or not evt_end:
+                    continue
+                
+                # Check for overlap OR adjacent (touching at same time point)
+                # Events are combinable if they overlap OR one ends exactly when other starts
+                # Original: not (trans_end <= evt_start or trans_start >= evt_end)
+                # New: not (trans_end < evt_start or trans_start > evt_end)
+                # This allows combining when trans_end == evt_start (adjacent)
+                if not (trans_end < evt_start or trans_start > evt_end):
+                    # Check if it's a strike/setup type event we can merge with
+                    if evt.get('type') in ['strike', 'preset', 'setup']:
+                        overlapping = evt
+                        overlapping_idx = i
+                        break
+            
+            if overlapping:
+                # Combine titles
+                existing_title = overlapping.get('title', '')
+                if trans_title and trans_title not in existing_title:
+                    combined_title = f"{existing_title} & {trans_title}"
+                    final_events[overlapping_idx]['title'] = combined_title
+                
+                # Take earliest start time
+                existing_start = overlapping.get('start_dt')
+                existing_end = overlapping.get('end_dt')
+                
+                new_start = min(trans_start, existing_start)
+                
+                # Keep the LONGEST duration (not add durations)
+                existing_duration = existing_end - existing_start
+                trans_duration = trans_end - trans_start
+                longest_duration = max(existing_duration, trans_duration)
+                
+                final_events[overlapping_idx]['start_dt'] = new_start
+                final_events[overlapping_idx]['end_dt'] = new_start + longest_duration
+            else:
+                # No overlap - add as new event
+                final_events.append(transition)
+        
+        return final_events
+    
+    def _get_floor_need(self, event: Dict, floor_requirements: Dict) -> Optional[bool]:
+        """
+        Determine if an event needs the floor (True), ice (False), or doesn't care (None).
+        """
+        title = event.get('title', '')
+        
+        # Check floor events (needs_floor: True)
+        floor_config = floor_requirements.get('floor', {})
+        floor_titles = floor_config.get('match_titles', [])
+        for match_title in floor_titles:
+            if match_title.lower() in title.lower():
+                return True
+        
+        # Check ice events (needs_floor: False)
+        ice_config = floor_requirements.get('ice', {})
+        ice_titles = ice_config.get('match_titles', [])
+        for match_title in ice_titles:
+            if match_title.lower() in title.lower():
+                return False
+        
+        # Not in either list - doesn't care
+        return None
+    
+    def _create_floor_transition(
+        self,
+        prev_event: Dict,
+        next_event: Dict,
+        prev_floor_state: bool,
+        next_floor_state: bool,
+        transition_config: Dict
+    ) -> Optional[Dict]:
+        """
+        Create a floor transition event between two events.
+        
+        Timing:
+        - If prev_event ends before midnight: anchor AFTER prev_event ends
+        - If prev_event ends after midnight: anchor BEFORE next_event starts
+        """
+        duration = timedelta(minutes=transition_config.get('duration_minutes', 60))
+        titles = transition_config.get('titles', {})
+        event_type = transition_config.get('type', 'strike')
+        
+        # Determine title based on transition direction
+        if prev_floor_state and not next_floor_state:
+            # floor → ice
+            title = titles.get('floor_to_ice', 'Strike Floor & Set Ice')
+        else:
+            # ice → floor
+            title = titles.get('ice_to_floor', 'Strike Ice & Set Floor')
+        
+        prev_end = prev_event.get('end_dt')
+        next_start = next_event.get('start_dt')
+        
+        if not prev_end or not next_start:
+            return None
+        
+        # Check if prev_event ends after midnight (hour 0-5)
+        # Events ending at midnight (hour 0) or later (1-5 AM) are "after midnight"
+        if prev_end.hour >= 0 and prev_end.hour < 6:
+            # After midnight - prefer 9 AM for morning strikes
+            # But if next event needs floor earlier, anchor before it
+            preferred_9am = next_start.replace(hour=9, minute=0, second=0, microsecond=0)
+            
+            # If next event starts before 10 AM, anchor 1 hour before it instead
+            if next_start.hour < 10:
+                transition_end = next_start
+                transition_start = transition_end - duration
+            else:
+                # Use preferred 9 AM time
+                transition_start = preferred_9am
+                transition_end = transition_start + duration
+        else:
+            # Normal - anchor AFTER prev event ends
+            transition_start = prev_end
+            transition_end = transition_start + duration
+        
+        return {
+            "title": title,
+            "start_dt": transition_start,
+            "end_dt": transition_end,
+            "category": event_type,
+            "type": event_type,
+            "venue": prev_event.get("venue", ""),
+            "raw_date": transition_start.strftime("%Y-%m-%d"),
+            "is_derived": True,
+            "is_floor_transition": True,
+        }
+
     
     def _format_event_for_api(self, event: Dict) -> Dict:
         """Format event for API response."""

@@ -57,6 +57,15 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                 },
             ],
             "preset": [
+                # Ice Make - 30 min before Specialty Ice Warm Up (4 hours before Ice Show)
+                {
+                    "match_titles": ["Ice Show: 365"],
+                    "offset_minutes": -240,  # 4 hours before (30 min before Specialty Ice Warm Up)
+                    "duration_minutes": 30,
+                    "title_template": "Ice Make",
+                    "type": "preset",
+                    "first_per_day": True,
+                },
                 # Ice Make & Presets - 1.5 hours before first Ice Show
                 {
                     "match_titles": ["Ice Show: 365"],
@@ -136,9 +145,17 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "match_categories": ["toptier"],
                     "offset_minutes": -75,  # 30 min before event + 60 min duration - 15 min overlap
                     "duration_minutes": 60,
-                    "title_template": "Set Up - Top Tier",
+                    "title_template": "Set Up Top Tier",
                     "type": "setup",
                     "min_gap_minutes": 75,  # Skip if stacked
+                },
+                # Set Up - Laser Tag: 1 hour before event, lasting 1 hour
+                {
+                    "match_titles": ["Laser Tag"],
+                    "offset_minutes": -60,  # 1 hour before
+                    "duration_minutes": 60,
+                    "title_template": "Set Up Laser Tag",
+                    "type": "setup",
                 },
             ],
             "strike": [
@@ -152,7 +169,50 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "type": "strike",
                     "last_per_day": True,  # Only after the last show
                 },
+                # Strike Skates - After skating sessions (30 min, immediately after)
+                {
+                    "match_titles": ["Ice Skating", "Open Ice Skating", "Private Ice Skating", 
+                                    "Teens Skate", "Teens Ice Skate", "Open Skate"],
+                    "offset_minutes": 0,  # Starts immediately after session ends
+                    "anchor": "end",
+                    "duration_minutes": 30,
+                    "title_template": "Strike Skates",
+                    "type": "strike",
+                    "last_per_day": True,  # Only after last skating session of the day
+                },
+                # Strike - Laser Tag: After event ends, lasting 1 hour
+                {
+                    "match_titles": ["Laser Tag"],
+                    "offset_minutes": 0,  # Starts immediately after event ends
+                    "anchor": "end",
+                    "duration_minutes": 60,
+                    "title_template": "Strike Laser Tag",
+                    "type": "strike",
+                },
             ],
+        },
+        # Floor transition config - for switching between ice and floor events
+        "floor_requirements": {
+            # Events that need the floor (ice covered)
+            "floor": {
+                "match_titles": ["Laser Tag", "RED: Nightclub Experience", "Nightclub",
+                               "Family SHUSH!", "Battle of the Sexes", "Crazy Quest", 
+                               "Glow Party", "Top Tier"],
+            },
+            # Events that need ice exposed (no floor)
+            "ice": {
+                "match_titles": ["Ice Show: 365", "Ice Skating", "Open Ice Skating", 
+                               "Private Ice Skating", "Teens Skate", "Teens Ice Skate",
+                               "Ice Make", "Warm Up"],
+            },
+        },
+        "floor_transition": {
+            "duration_minutes": 60,
+            "titles": {
+                "floor_to_ice": "Strike Floor",
+                "ice_to_floor": "Set Floor",
+            },
+            "type": "strike",
         },
     },
     ("WN", "AquaTheater"): {
