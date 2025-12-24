@@ -86,17 +86,7 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "skip_last_per_day": True,  # Fire after all shows except the last
                     "min_per_day": 2,  # Only when 2+ shows per day
                 },
-                # Ice Make for skating sessions (handles stacked sessions)
-                # Only fires when there's at least 30 min gap from previous session
-                {
-                    "match_titles": ["Ice Skating", "Open Ice Skating", "Private Ice Skating", 
-                                    "Teens Skate", "Open Skates", "Open Skate", "Teens Ice Skate"],
-                    "offset_minutes": -30,  # 30 min before session starts
-                    "duration_minutes": 30,
-                    "title_template": "Ice Make",
-                    "type": "preset",
-                    "min_gap_minutes": 30,  # Only fire if gap from previous session >= 30 min
-                },
+                # NOTE: Ice Make for skating sessions is in "ice_make" category below
             ],
             "doors": [
                 # Specific: Ice Show doors
@@ -108,6 +98,16 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "type": "doors",
                     "min_gap_minutes": 45,  # Skip if stacked with previous event
                     "check_all_events": True,  # Check gap against ALL events, not just same-type
+                },
+                # Specific: Family Shush doors - only 15 mins before (setup is 45 mins before)
+                {
+                    "match_titles": ["Family SHUSH!", "Family Shush!"],
+                    "offset_minutes": -15,
+                    "duration_minutes": 15,
+                    "title_template": "Doors",
+                    "type": "doors",
+                    "min_gap_minutes": 15,
+                    "check_all_events": True,
                 },
                 {
                     "match_categories": ["game", "movie", "party"],
@@ -157,9 +157,61 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "title_template": "Set Up Laser Tag",
                     "type": "setup",
                 },
+                # Set Up - Family SHUSH!: 45 mins before (doors only 15 mins before)
+                {
+                    "match_titles": ["Family SHUSH!", "Family Shush!"],
+                    "offset_minutes": -45,  # 45 mins before (15 mins later than others)
+                    "duration_minutes": 30,
+                    "title_template": "Set Up Family Shush!",
+                    "type": "setup",
+                    "min_gap_minutes": 60,
+                },
+                # Set Up - Other Game Shows & Parties: 1 hour before, 30 min duration
+                {
+                    "match_titles": ["Battle of the Sexes", "Crazy Quest",
+                                    "Glow Party", "RED: Nightclub Experience", "Nightclub"],
+                    "offset_minutes": -60,  # 1 hour before
+                    "duration_minutes": 30,
+                    "title_template": "Set Up {parent_title}",
+                    "type": "setup",
+                    "min_gap_minutes": 60,  # Skip if stacked (only first of block gets setup)
+                },
+                # Set Up Skates - Only before the FIRST skating session of the day
+                # MUST be before catch-all so specific rule matches first
+                {
+                    "match_titles": ["Ice Skating", "Open Ice Skating", "Private Ice Skating", 
+                                    "Teens Skate", "Teens Ice Skate", "Open Skate"],
+                    "offset_minutes": -30,  # 30 min before first session
+                    "duration_minutes": 30,
+                    "title_template": "Set Up Skates",
+                    "type": "setup",
+                    "first_per_day": True,  # Only before first skating session
+                },
+                # CATCH-ALL: Set Up for any game/party/music not matched above
+                # Note: 'activity' excluded - skating has its own rule with first_per_day
+                {
+                    "match_categories": ["game", "party", "music"],
+                    "offset_minutes": -60,  # 1 hour before
+                    "duration_minutes": 30,
+                    "title_template": "Set Up {parent_title}",
+                    "type": "setup",
+                    "min_gap_minutes": 60,  # Skip if stacked
+                },
+            ],
+            "ice_make": [
+                # Ice Make - 30 min before EACH skating session (skips if back-to-back)
+                {
+                    "match_titles": ["Ice Skating", "Open Ice Skating", "Private Ice Skating", 
+                                    "Teens Skate", "Teens Ice Skate", "Open Skate"],
+                    "offset_minutes": -30,  # 30 min before session
+                    "duration_minutes": 30,
+                    "title_template": "Ice Make",
+                    "type": "ice_make",  # Unique type - NOT merged with setup/strike/preset
+                    "min_gap_minutes": 30,  # Skip if sessions are back-to-back
+                },
             ],
             "strike": [
-                # Strike & Ice Scrape - After the last Ice Show of the night
+                # Strike & Ice Scrape - After the last Ice Show of the day
                 {
                     "match_titles": ["Ice Show: 365"],
                     "offset_minutes": 0,  # Starts immediately after show ends
@@ -167,9 +219,10 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "duration_minutes": 30,
                     "title_template": "Strike & Ice Scrape",
                     "type": "strike",
-                    "last_per_day": True,  # Only after the last show
+                    "last_per_day": True,  # Simply fires after the LAST Ice Show of the day
                 },
-                # Strike Skates - After skating sessions (30 min, immediately after)
+                # Strike Skates - After each skating session
+                # Skips if the next venue event is also a skating session (contiguous sessions)
                 {
                     "match_titles": ["Ice Skating", "Open Ice Skating", "Private Ice Skating", 
                                     "Teens Skate", "Teens Ice Skate", "Open Skate"],
@@ -178,7 +231,8 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "duration_minutes": 30,
                     "title_template": "Strike Skates",
                     "type": "strike",
-                    "last_per_day": True,  # Only after last skating session of the day
+                    "last_per_day": True,
+                    "skip_if_next_matches": True,  # Skip if next venue event is also a skating session
                 },
                 # Strike - Laser Tag: After event ends, lasting 1 hour
                 {
@@ -189,6 +243,27 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "title_template": "Strike Laser Tag",
                     "type": "strike",
                 },
+                # Strike - Game Shows & Parties: After EACH event ends, 30 min
+                # Note: Overlap resolution will omit strikes that overlap with next event
+                {
+                    "match_titles": ["Battle of the Sexes", "Crazy Quest", "Family SHUSH!", "Family Shush!",
+                                    "Glow Party", "RED: Nightclub Experience", "Nightclub"],
+                    "offset_minutes": 0,  # Starts immediately after event ends
+                    "anchor": "end",
+                    "duration_minutes": 30,
+                    "title_template": "Strike {parent_title}",
+                    "type": "strike",
+                },
+                # CATCH-ALL: Strike for any game/party not matched above
+                # Note: 'activity' excluded - skating has its own rule
+                {
+                    "match_categories": ["game", "party"],
+                    "offset_minutes": 0,  # Starts immediately after event ends
+                    "anchor": "end",
+                    "duration_minutes": 30,
+                    "title_template": "Strike {parent_title}",
+                    "type": "strike",
+                },
             ],
         },
         # Floor transition config - for switching between ice and floor events
@@ -196,7 +271,7 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
             # Events that need the floor (ice covered)
             "floor": {
                 "match_titles": ["Laser Tag", "RED: Nightclub Experience", "Nightclub",
-                               "Family SHUSH!", "Battle of the Sexes", "Crazy Quest", 
+                               "Family SHUSH!", "Family Shush!", "Battle of the Sexes", "Crazy Quest", 
                                "Glow Party", "Top Tier"],
             },
             # Events that need ice exposed (no floor)
@@ -213,6 +288,13 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                 "ice_to_floor": "Set Floor",
             },
             "type": "strike",
+        },
+        # Late night handling - derived events in late-night window get rescheduled
+        "late_night_config": {
+            "cutoff_hour": 1,               # Events starting at 1 AM+ are always rescheduled
+            "end_hour": 6,                  # Late night window ends at 6 AM
+            "reschedule_hour": 9,           # Reschedule late-night events to 9 AM
+            "long_event_threshold_minutes": 60,  # Events after midnight but >60min also reschedule
         },
     },
     ("WN", "AquaTheater"): {

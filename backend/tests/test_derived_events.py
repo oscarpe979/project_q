@@ -6,7 +6,7 @@ Tests the functionality for automatically generating derived events
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from unittest.mock import MagicMock
 
 
@@ -1668,3 +1668,909 @@ class TestFloorTransitionLogic:
         # Result: 6 PM start, 1 hour duration = 7 PM end
         assert strike_events[0]["start_dt"] == datetime(2025, 1, 15, 18, 0)
         assert strike_events[0]["end_dt"] == datetime(2025, 1, 15, 19, 0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST GROUP 11: Game Show Setup/Strike Rules
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestGameShowSetupStrike:
+    """
+    Tests for game show and party setup/strike derived event rules.
+    - Setup: 1 hour before, 30 min duration
+    - Strike: After event ends, 30 min duration
+    - Stacked events share one setup and one strike
+    """
+    
+    @pytest.fixture
+    def game_show_rules(self):
+        """Sample derived event rules for game shows with event-specific titles."""
+        return {
+            "setup": [
+                {
+                    "match_titles": ["Battle of the Sexes", "Crazy Quest", "Family SHUSH!",
+                                   "RED: Nightclub Experience"],
+                    "offset_minutes": -60,
+                    "duration_minutes": 30,
+                    "title_template": "Set Up {parent_title}",  # Event-specific title
+                    "type": "setup",
+                    "min_gap_minutes": 60,  # Skip if stacked
+                },
+            ],
+            "strike": [
+                {
+                    "match_titles": ["Battle of the Sexes", "Crazy Quest", "Family SHUSH!",
+                                   "RED: Nightclub Experience"],
+                    "offset_minutes": 0,
+                    "anchor": "end",
+                    "duration_minutes": 30,
+                    "title_template": "Strike {parent_title}",  # Event-specific title
+                    "type": "strike",
+                    "last_per_day": True,
+                },
+            ],
+        }
+    
+    def test_single_game_show_setup_and_strike(self, game_show_rules):
+        """Single game show should have setup before and strike after with event-specific titles."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        events = [
+            {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 21, 0), 
+             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "game",
+             "raw_date": "2025-01-15"},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, game_show_rules)
+        
+        # Should have: Setup + Event + Strike
+        assert len(result) == 3
+        
+        # Event-specific titles using {parent_title}
+        setup = [e for e in result if e.get("title") == "Set Up Battle of the Sexes"]
+        strike = [e for e in result if e.get("title") == "Strike Battle of the Sexes"]
+        
+        assert len(setup) == 1
+        assert len(strike) == 1
+        
+        # Setup: 1 hour before (8 PM), 30 min duration (8:00 - 8:30 PM)
+        assert setup[0]["start_dt"] == datetime(2025, 1, 15, 20, 0)
+        assert setup[0]["end_dt"] == datetime(2025, 1, 15, 20, 30)
+        
+        # Strike: After event ends (10 PM), 30 min (10:00 - 10:30 PM)
+        assert strike[0]["start_dt"] == datetime(2025, 1, 15, 22, 0)
+        assert strike[0]["end_dt"] == datetime(2025, 1, 15, 22, 30)
+    
+    def test_stacked_game_shows_one_setup_one_strike(self, game_show_rules):
+        """Stacked game shows on SAME DAY should have ONE setup before first and ONE strike after last."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Three stacked events on same day: BOTS 7 PM → Quest 8 PM → Family SHUSH 9:30 PM
+        events = [
+            {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 19, 0), 
+             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "game",
+             "raw_date": "2025-01-15"},
+            {"title": "Crazy Quest", "start_dt": datetime(2025, 1, 15, 20, 0), 
+             "end_dt": datetime(2025, 1, 15, 21, 30), "category": "game",
+             "raw_date": "2025-01-15"},
+            {"title": "Family SHUSH!", "start_dt": datetime(2025, 1, 15, 21, 30), 
+             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "game",
+             "raw_date": "2025-01-15"},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, game_show_rules)
+        
+        # Event-specific titles: setup for first event (BOTS), strike for last event (Family SHUSH!)
+        setup = [e for e in result if "Set Up" in e.get("title", "")]
+        strike = [e for e in result if "Strike" in e.get("title", "")]
+        
+        # Only ONE setup (before first event) due to min_gap_minutes
+        assert len(setup) == 1
+        assert setup[0]["title"] == "Set Up Battle of the Sexes"  # First event's title
+        assert setup[0]["start_dt"] == datetime(2025, 1, 15, 18, 0)  # 1 hour before BOTS
+        
+        # Only ONE strike (after last event) due to last_per_day
+        assert len(strike) == 1
+        assert strike[0]["title"] == "Strike Family SHUSH!"  # Last event's title
+        assert strike[0]["start_dt"] == datetime(2025, 1, 15, 23, 0)  # After Family SHUSH ends
+    
+    def test_gap_between_events_triggers_multiple_setups(self, game_show_rules):
+        """Events with sufficient gap should each get their own event-specific setup."""
+        from backend.app.services.genai_parser import GenAIParser
+        
+        parser = GenAIParser(api_key="dummy")
+        
+        # Two events with 6 hour gap (plenty of time for separate setup)
+        events = [
+            {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 14, 0), 
+             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "game",
+             "raw_date": "2025-01-15"},
+            {"title": "Crazy Quest", "start_dt": datetime(2025, 1, 15, 21, 0), 
+             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "game",
+             "raw_date": "2025-01-15"},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, game_show_rules)
+        
+        setup = [e for e in result if "Set Up" in e.get("title", "")]
+        
+        # Should have TWO setups (enough gap between events) with event-specific titles
+        assert len(setup) == 2
+        
+        # First setup: "Set Up Battle of the Sexes" at 1 PM
+        assert setup[0]["title"] == "Set Up Battle of the Sexes"
+        assert setup[0]["start_dt"] == datetime(2025, 1, 15, 13, 0)
+        
+        # Second setup: "Set Up Crazy Quest" at 8 PM  
+        assert setup[1]["title"] == "Set Up Crazy Quest"
+        assert setup[1]["start_dt"] == datetime(2025, 1, 15, 20, 0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST GROUP 12: INTEGRATION TESTS - Full Pipeline with Production Rules
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestStudioBIntegration:
+    """
+    Integration tests using ACTUAL production venue rules from venue_rules.py.
+    These test the full pipeline end-to-end, catching issues that unit tests miss.
+    """
+    
+    @pytest.fixture
+    def studio_b_rules(self):
+        """Load actual production rules for Studio B."""
+        from backend.app.config.venue_rules import VENUE_METADATA
+        return VENUE_METADATA.get(("WN", "Studio B"), {})
+    
+    @pytest.fixture
+    def parser(self):
+        """Create parser instance."""
+        from backend.app.services.genai_parser import GenAIParser
+        return GenAIParser(api_key="dummy")
+    
+    def test_ice_show_generates_all_warmups(self, parser, studio_b_rules):
+        """Ice Show should generate BOTH Specialty Ice AND Cast warm ups."""
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        
+        # Two Ice Shows on same day (triggers preset + multiple warm ups)
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 19, 0),
+             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "show",
+             "raw_date": "2025-01-15", "venue": "Studio B"},
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 22, 0),
+             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "show",
+             "raw_date": "2025-01-15", "venue": "Studio B"},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        
+        # Should have both warm up types
+        warmups = [e for e in result if "Warm Up" in e.get("title", "")]
+        warmup_titles = [e.get("title") for e in warmups]
+        
+        assert "Warm Up - Specialty Ice" in warmup_titles, "Missing Specialty Ice warm up"
+        assert "Warm Up - Cast" in warmup_titles, "Missing Cast warm up"
+    
+    def test_game_show_title_rule_no_duplicate_from_catchall(self, parser, studio_b_rules):
+        """Battle of the Sexes should match title rule, NOT also match category catch-all."""
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        
+        events = [
+            {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 21, 0),
+             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "game",
+             "raw_date": "2025-01-15", "venue": "Studio B"},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        
+        # Should have exactly ONE setup (not two from title + catch-all)
+        setups = [e for e in result if "Set Up" in e.get("title", "") and "Battle" in e.get("title", "")]
+        assert len(setups) == 1, f"Expected 1 setup, got {len(setups)}: {[e.get('title') for e in setups]}"
+    
+    def test_ice_to_floor_transition_merges_with_strike(self, parser, studio_b_rules):
+        """Floor transition should merge with Strike & Ice Scrape when adjacent."""
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        floor_config = {
+            "floor_requirements": studio_b_rules.get("floor_requirements"),
+            "floor_transition": studio_b_rules.get("floor_transition"),
+        }
+        
+        # Ice Show followed by game show (triggers floor transition + strike)
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 20, 0),
+             "end_dt": datetime(2025, 1, 15, 21, 0), "category": "show",
+             "raw_date": "2025-01-15", "venue": "Studio B"},
+            {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 22, 0),
+             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "game",
+             "raw_date": "2025-01-15", "venue": "Studio B"},
+        ]
+        
+        # Apply derived events first
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        
+        # Then apply floor transitions
+        result = parser._apply_floor_transition_rules(result, floor_config)
+        
+        # Then merge overlapping operations
+        result = parser._merge_overlapping_operations(result)
+        
+        # Check that Strike & Ice Scrape and Set Floor are combined
+        combined = [e for e in result if "Strike" in e.get("title", "") and "Set Floor" in e.get("title", "")]
+        assert len(combined) >= 1, "Floor transition should merge with Strike & Ice Scrape"
+    
+    def test_overlapping_setup_and_strike_merge(self, parser, studio_b_rules):
+        """Overlapping setup and strike events should merge together."""
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        floor_config = {
+            "floor_requirements": studio_b_rules.get("floor_requirements"),
+            "floor_transition": studio_b_rules.get("floor_transition"),
+        }
+        
+        # Ice Show followed by Nightclub (creates Strike + Set Up that overlap)
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 21, 0),
+             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "show",
+             "raw_date": "2025-01-15", "venue": "Studio B"},
+            {"title": "Nightclub", "start_dt": datetime(2025, 1, 15, 23, 0),
+             "end_dt": datetime(2025, 1, 16, 1, 0), "category": "party",
+             "raw_date": "2025-01-15", "venue": "Studio B"},
+        ]
+        
+        # Full pipeline
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        result = parser._apply_floor_transition_rules(result, floor_config)
+        result = parser._merge_overlapping_operations(result)
+        
+        # Count how many separate strike/setup events there are
+        operations = [e for e in result if e.get("type") in ["setup", "strike", "preset"]]
+        
+        # Get titles for debugging
+        op_titles = [e.get("title") for e in operations]
+        
+        # Should not have both "Strike & Ice Scrape" AND "Set Up Nightclub" as separate events
+        # if they overlap - they should be merged
+        has_separate_strike = any("Strike" in t and "Set Up" not in t for t in op_titles)
+        has_separate_setup = any("Set Up Nightclub" in t and "Strike" not in t for t in op_titles)
+        
+        # If they're supposed to overlap, one should contain both
+        if has_separate_strike and has_separate_setup:
+            # Check times - if they overlap, this is a bug
+            strike_evt = [e for e in operations if "Strike" in e.get("title", "") and "Set Up" not in e.get("title", "")]
+            setup_evt = [e for e in operations if "Set Up Nightclub" in e.get("title", "") and "Strike" not in e.get("title", "")]
+            
+            if strike_evt and setup_evt:
+                strike_end = strike_evt[0].get("end_dt")
+                setup_start = setup_evt[0].get("start_dt")
+                
+                # They should NOT overlap (if they do, merge failed)
+                assert strike_end <= setup_start, f"Overlapping events not merged: Strike ends {strike_end}, Setup starts {setup_start}"
+    
+    def test_strike_never_overlaps_with_actual_events(self, parser, studio_b_rules):
+        """
+        Critical: Strikes must NEVER overlap with actual events.
+        
+        Scenario: Crazy Quest ends, Strike Crazy Quest should fire, but RED starts
+        before the strike would finish. Strike should defer to AFTER RED ends.
+        """
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        floor_config = {
+            "floor_requirements": studio_b_rules.get("floor_requirements"),
+            "floor_transition": studio_b_rules.get("floor_transition"),
+        }
+        
+        # Scenario: Crazy Quest at 11:20 PM - 12:00 AM, RED at 12:00 AM - 1:00 AM
+        # Strike Crazy Quest (30 min) would be 12:00 - 12:30, overlapping RED!
+        events = [
+            {"title": "Crazy Quest", "start_dt": datetime(2025, 1, 15, 23, 20),
+             "end_dt": datetime(2025, 1, 16, 0, 0), "category": "game",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
+            {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 16, 0, 0),
+             "end_dt": datetime(2025, 1, 16, 1, 0), "category": "party",
+             "raw_date": "2025-01-16", "venue": "Studio B", "type": "party"},
+        ]
+        
+        # Full pipeline with overlap resolution
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        result = parser._apply_floor_transition_rules(result, floor_config)
+        result = parser._merge_overlapping_operations(result)
+        result = parser._resolve_operation_overlaps(result)
+        
+        # Get all actual events (non-operational)
+        actual_events = [e for e in result if e.get('type') not in ['setup', 'strike', 'preset']]
+        operations = [e for e in result if e.get('type') in ['setup', 'strike', 'preset']]
+        
+        # Verify NO operation overlaps with ANY actual event
+        for op in operations:
+            op_start = op.get('start_dt')
+            op_end = op.get('end_dt')
+            op_title = op.get('title', '')
+            
+            for actual in actual_events:
+                actual_start = actual.get('start_dt')
+                actual_end = actual.get('end_dt')
+                actual_title = actual.get('title', '')
+                
+                # Check for overlap (not adjacent - adjacent is OK)
+                has_overlap = not (op_end <= actual_start or op_start >= actual_end)
+                
+                assert not has_overlap, (
+                    f"Operation '{op_title}' ({op_start} - {op_end}) "
+                    f"overlaps with actual event '{actual_title}' ({actual_start} - {actual_end})"
+                )
+    
+    def test_separate_blocks_get_separate_strikes(self, parser, studio_b_rules):
+        """
+        Events with gap >= 60 min should be in separate blocks, each getting a strike.
+        
+        Scenario: Family Shush! (7-8 PM) then Battle of Sexes (10-11 PM) with 2-hour gap
+        Should generate TWO strikes - after Family Shush AND after Battle of Sexes.
+        """
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        
+        events = [
+            {"title": "Family SHUSH!", "start_dt": datetime(2025, 1, 15, 19, 0),
+             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "game",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
+            {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 22, 0),
+             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "game",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        
+        # Get all strikes
+        strikes = [e for e in result if "Strike" in e.get("title", "") and e.get("type") == "strike"]
+        
+        # Should have TWO strikes (one per block) due to 2-hour gap
+        assert len(strikes) >= 2, f"Expected 2+ strikes for separate blocks, got {len(strikes)}: {[s.get('title') for s in strikes]}"
+        
+        # Verify one is after Family Shush (8 PM) and one after Battle (11 PM)
+        strike_starts = [s.get("start_dt") for s in strikes]
+        has_family_strike = any(s.hour == 20 for s in strike_starts)  # 8 PM
+        has_battle_strike = any(s.hour == 23 for s in strike_starts)  # 11 PM
+        
+        assert has_family_strike, f"Missing strike after Family Shush! at 8 PM. Strike starts: {strike_starts}"
+        assert has_battle_strike, f"Missing strike after Battle of Sexes at 11 PM. Strike starts: {strike_starts}"
+    
+    def test_multiple_ice_shows_between_presets_dont_merge_with_strike(self, parser, studio_b_rules):
+        """
+        Critical: There should be only ONE Strike & Ice Scrape (after the LAST Ice Show of the day)
+        
+        Even with a 75-min gap between shows, last_per_day should fire only once.
+        """
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        
+        # Two Ice Shows - 75 min gap to test calendar-day logic
+        events = [
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 19, 0),
+             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "show",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "show"},
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 21, 15),
+             "end_dt": datetime(2025, 1, 15, 22, 15), "category": "show",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "show"},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        
+        # Get ALL strikes for Ice Shows
+        all_ice_strikes = [e for e in result 
+                          if e.get("type") == "strike" 
+                          and "Ice Scrape" in e.get("title", "")]
+        
+        # CRITICAL: Should have exactly ONE Strike & Ice Scrape (after last show)
+        assert len(all_ice_strikes) == 1, (
+            f"Expected 1 Strike & Ice Scrape, got {len(all_ice_strikes)}: "
+            f"{[(s.get('title'), s.get('start_dt')) for s in all_ice_strikes]}"
+        )
+        
+        # Verify it's after the LAST show (22:15)
+        assert all_ice_strikes[0].get("start_dt") == datetime(2025, 1, 15, 22, 15), (
+            f"Strike should be after last show at 22:15, got {all_ice_strikes[0].get('start_dt')}"
+        )
+    
+    def test_skating_session_only_gets_one_setup(self, parser, studio_b_rules):
+        """
+        Skating sessions should only get "Set Up Skates", NOT also a catch-all "Set Up [title]".
+        
+        The specific title rule (Set Up Skates) should prevent the category catch-all from also firing.
+        """
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        
+        events = [
+            {"title": "Private Ice Skating", "start_dt": datetime(2025, 1, 15, 14, 0),
+             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "activity",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        
+        # Get all setups
+        setups = [e for e in result if e.get("type") == "setup"]
+        
+        # Should have exactly ONE setup titled "Set Up Skates"
+        assert len(setups) == 1, f"Expected 1 setup, got {len(setups)}: {[s.get('title') for s in setups]}"
+        assert setups[0].get("title") == "Set Up Skates", f"Expected 'Set Up Skates', got '{setups[0].get('title')}'"
+        
+        # Verify it does NOT contain "Set Up Private Ice Skating" (catch-all)
+        for setup in setups:
+            assert "Private Ice Skating" not in setup.get("title", ""), (
+                f"Catch-all incorrectly fired for skating: {setup.get('title')}"
+            )
+    
+    def test_skating_sessions_only_one_strike_per_day(self, parser, studio_b_rules):
+        """
+        Multiple skating sessions with NO events in between should only get ONE strike at the end.
+        
+        Scenario: Skating at 9 AM and 9 PM (12 hour gap) but NO other Studio B events between.
+        Should still only get one Strike Skates at the very end.
+        """
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        
+        events = [
+            {"title": "Open Ice Skating", "start_dt": datetime(2025, 1, 15, 9, 0),
+             "end_dt": datetime(2025, 1, 15, 11, 0), "category": "activity",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
+            {"title": "Private Ice Skating", "start_dt": datetime(2025, 1, 15, 21, 0),
+             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "activity",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        
+        # Get all strikes for skating
+        strikes = [e for e in result if e.get("type") == "strike" and "Skates" in e.get("title", "")]
+        
+        # Should have exactly ONE strike (after the last session at 23:00)
+        assert len(strikes) == 1, f"Expected 1 strike, got {len(strikes)}: {[s.get('title') for s in strikes]}"
+        
+        # Strike should be after the evening session (9 PM ends at 11 PM)
+        assert strikes[0].get("start_dt") == datetime(2025, 1, 15, 23, 0), (
+            f"Strike should be at 23:00, got {strikes[0].get('start_dt')}"
+        )
+    
+    def test_skating_sessions_strike_when_intervening_event(self, parser, studio_b_rules):
+        """
+        When there's an actual Studio B event between skating sessions, we MUST strike.
+        
+        Scenario: Skating 9-11 AM, Ice Show 2-3 PM, Skating 6-8 PM
+        Should get TWO strikes: after morning skating (before Ice Show) and after evening skating.
+        """
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        
+        events = [
+            {"title": "Open Ice Skating", "start_dt": datetime(2025, 1, 15, 9, 0),
+             "end_dt": datetime(2025, 1, 15, 11, 0), "category": "activity",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
+            {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 14, 0),
+             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "show",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "show"},
+            {"title": "Private Ice Skating", "start_dt": datetime(2025, 1, 15, 18, 0),
+             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "activity",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        
+        # Get all strikes for skating
+        strikes = [e for e in result if e.get("type") == "strike" and "Skates" in e.get("title", "")]
+        
+        # Should have TWO strikes (after morning and evening skating)
+        assert len(strikes) == 2, f"Expected 2 strikes, got {len(strikes)}: {[s.get('title') for s in strikes]}"
+        
+        # Strikes should be at 11:00 and 20:00
+        strike_times = sorted([s.get("start_dt") for s in strikes])
+        assert strike_times[0] == datetime(2025, 1, 15, 11, 0), f"First strike should be at 11:00, got {strike_times[0]}"
+        assert strike_times[1] == datetime(2025, 1, 15, 20, 0), f"Second strike should be at 20:00, got {strike_times[1]}"
+    
+    def test_overlapping_strike_is_omitted(self, parser, studio_b_rules):
+        """
+        Critical: If a strike would overlap with the next event, it should be OMITTED.
+        
+        Scenario: Family SHUSH! 7-8 PM, Battle of Sexes 8:15-9:15 PM
+        Strike Family SHUSH would be 8:00-8:30 PM, overlapping Battle of Sexes start.
+        The strike should be omitted - Battle of Sexes will have its own strike.
+        
+        This test uses the FULL pipeline including overlap resolution.
+        """
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        floor_config = {
+            "floor_requirements": studio_b_rules.get("floor_requirements"),
+            "floor_transition": studio_b_rules.get("floor_transition"),
+        }
+        
+        # Back-to-back game shows with only 15 min gap
+        events = [
+            {"title": "Family SHUSH!", "start_dt": datetime(2025, 1, 15, 19, 0),
+             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "game",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
+            {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 20, 15),
+             "end_dt": datetime(2025, 1, 15, 21, 15), "category": "game",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
+        ]
+        
+        # FULL pipeline with overlap resolution
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        result = parser._apply_floor_transition_rules(result, floor_config)
+        result = parser._merge_overlapping_operations(result)
+        result = parser._resolve_operation_overlaps(result)
+        
+        # Get all strikes
+        strikes = [e for e in result if e.get("type") == "strike"]
+        
+        # Should have exactly ONE strike - for Battle of Sexes (the one that doesn't overlap)
+        # Strike Family SHUSH would overlap with Battle of Sexes start and should be omitted
+        strike_titles = [s.get("title", "") for s in strikes]
+        
+        # Verify Strike Family SHUSH is NOT present (it was omitted due to overlap)
+        family_strikes = [s for s in strikes if "Family SHUSH" in s.get("title", "")]
+        assert len(family_strikes) == 0, (
+            f"Strike Family SHUSH! should be OMITTED (overlaps with Battle of Sexes), "
+            f"but found: {family_strikes}"
+        )
+        
+        # Verify Battle of Sexes still has its strike
+        battle_strikes = [s for s in strikes if "Battle" in s.get("title", "")]
+        assert len(battle_strikes) >= 1, (
+            f"Missing Strike Battle of the Sexes. All strikes: {strike_titles}"
+        )
+    
+    def test_non_overlapping_strikes_both_fire(self, parser, studio_b_rules):
+        """
+        When game shows have enough gap, BOTH should get strikes.
+        
+        Scenario: Family SHUSH! 7-8 PM, Battle of Sexes 10-11 PM (2 hour gap)
+        Both should get strikes since Strike Family SHUSH (8:00-8:30) doesn't overlap.
+        
+        This test uses the FULL pipeline including overlap resolution.
+        """
+        derived_rules = studio_b_rules.get("derived_event_rules", {})
+        floor_config = {
+            "floor_requirements": studio_b_rules.get("floor_requirements"),
+            "floor_transition": studio_b_rules.get("floor_transition"),
+        }
+        
+        events = [
+            {"title": "Family SHUSH!", "start_dt": datetime(2025, 1, 15, 19, 0),
+             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "game",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
+            {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 22, 0),
+             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "game",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
+        ]
+        
+        # FULL pipeline
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        result = parser._apply_floor_transition_rules(result, floor_config)
+        result = parser._merge_overlapping_operations(result)
+        result = parser._resolve_operation_overlaps(result)
+        
+        # Get all strikes
+        strikes = [e for e in result if e.get("type") == "strike"]
+        strike_titles = [s.get("title", "") for s in strikes]
+        
+        # Both should have strikes
+        family_strikes = [s for s in strikes if "Family SHUSH" in s.get("title", "")]
+        battle_strikes = [s for s in strikes if "Battle" in s.get("title", "")]
+        
+        assert len(family_strikes) >= 1, f"Missing Strike Family SHUSH! Strikes: {strike_titles}"
+        assert len(battle_strikes) >= 1, f"Missing Strike Battle of the Sexes. Strikes: {strike_titles}"
+
+
+class TestLateNightHandling:
+    """Tests for late-night derived event handling."""
+    
+    @pytest.fixture
+    def parser(self):
+        from backend.app.services.genai_parser import GenAIParser
+        return GenAIParser(api_key="dummy")
+    
+    @pytest.fixture
+    def late_night_config(self):
+        return {
+            "cutoff_hour": 1,
+            "reschedule_hour": 9,
+        }
+    
+    def test_late_night_event_removed_on_last_day(self, parser, late_night_config):
+        """
+        Derived events starting in late-night window ON the last day should be rescheduled to 9 AM.
+        Events AFTER the last day should be removed.
+        """
+        voyage_end_date = date(2025, 1, 20)  # Last day is Jan 20
+        
+        events = [
+            # Event ON the last day (Jan 20) - should be rescheduled to 9 AM
+            {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 20, 0, 0),
+             "end_dt": datetime(2025, 1, 20, 1, 0), "category": "party",
+             "raw_date": "2025-01-20", "venue": "Studio B", "type": "party"},
+            {"title": "Strike RED", "start_dt": datetime(2025, 1, 20, 1, 0),
+             "end_dt": datetime(2025, 1, 20, 1, 30), "type": "strike",
+             "is_derived": True, "venue": "Studio B"},
+        ]
+        
+        result = parser._handle_late_night_derived_events(events, late_night_config, voyage_end_date)
+        
+        # Strike should be rescheduled to 9 AM on last day
+        strikes = [e for e in result if e.get("type") == "strike"]
+        assert len(strikes) == 1, f"Expected 1 strike rescheduled to 9 AM on last day, got: {strikes}"
+        assert strikes[0].get("start_dt").hour == 9, f"Strike should be at 9 AM, got: {strikes[0].get('start_dt')}"
+    
+    def test_late_night_event_rescheduled_to_9am(self, parser, late_night_config):
+        """
+        Derived events starting after 1 AM (not last day) should be rescheduled to 9 AM.
+        """
+        voyage_end_date = date(2025, 1, 20)  # Last day
+        
+        # Event on Jan 15 (not last day)
+        events = [
+            {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 15, 0, 0),
+             "end_dt": datetime(2025, 1, 15, 1, 0), "category": "party",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "party"},
+            {"title": "Strike RED", "start_dt": datetime(2025, 1, 15, 1, 0),
+             "end_dt": datetime(2025, 1, 15, 1, 30), "type": "strike",
+             "is_derived": True, "venue": "Studio B"},
+        ]
+        
+        result = parser._handle_late_night_derived_events(events, late_night_config, voyage_end_date)
+        
+        # Strike should be rescheduled to 9 AM
+        strikes = [e for e in result if e.get("type") == "strike"]
+        assert len(strikes) == 1, f"Expected 1 strike, got: {strikes}"
+        assert strikes[0].get("start_dt").hour == 9, f"Strike should be at 9 AM, got: {strikes[0].get('start_dt')}"
+    
+    def test_multiple_late_night_events_merge_at_9am(self, parser, late_night_config):
+        """
+        Multiple late-night derived events should be merged when rescheduled to 9 AM.
+        """
+        voyage_end_date = date(2025, 1, 20)
+        
+        events = [
+            # Two events ending in late-night window (after 1 AM)
+            {"title": "Family SHUSH!", "start_dt": datetime(2025, 1, 16, 0, 0),
+             "end_dt": datetime(2025, 1, 16, 1, 0), "category": "game",
+             "raw_date": "2025-01-16", "venue": "Studio B", "type": "game"},
+            {"title": "Strike Family SHUSH!", "start_dt": datetime(2025, 1, 16, 1, 0),
+             "end_dt": datetime(2025, 1, 16, 1, 30), "type": "strike",
+             "is_derived": True, "venue": "Studio B"},
+            {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 16, 1, 30),
+             "end_dt": datetime(2025, 1, 16, 2, 30), "category": "party",
+             "raw_date": "2025-01-16", "venue": "Studio B", "type": "party"},
+            {"title": "Strike RED", "start_dt": datetime(2025, 1, 16, 2, 30),
+             "end_dt": datetime(2025, 1, 16, 3, 0), "type": "strike",
+             "is_derived": True, "venue": "Studio B"},
+        ]
+        
+        result = parser._handle_late_night_derived_events(events, late_night_config, voyage_end_date)
+        
+        # Both strikes should be rescheduled to 9 AM Jan 16 and merged
+        strikes = [e for e in result if e.get("type") == "strike"]
+        
+        # Should be merged into one (since they overlap at 9 AM)
+        assert len(strikes) <= 1, f"Expected merged strikes, got: {[s.get('title') for s in strikes]}"
+    
+    def test_late_night_event_dropped_if_overlaps_actual_at_9am(self, parser, late_night_config):
+        """
+        Late-night derived events should be dropped if they would overlap with
+        an actual event at the reschedule time (9 AM).
+        """
+        voyage_end_date = date(2025, 1, 20)
+        
+        events = [
+            # Late night strike
+            {"title": "Strike RED", "start_dt": datetime(2025, 1, 15, 1, 30),
+             "end_dt": datetime(2025, 1, 15, 2, 0), "type": "strike",
+             "is_derived": True, "venue": "Studio B"},
+            # But there's an actual event at 9 AM!
+            {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 9, 0),
+             "end_dt": datetime(2025, 1, 15, 11, 0), "category": "activity",
+             "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
+        ]
+        
+        result = parser._handle_late_night_derived_events(events, late_night_config, voyage_end_date)
+        
+        # Strike should be dropped (would overlap with Ice Skating at 9 AM)
+        strikes = [e for e in result if e.get("type") == "strike"]
+        assert len(strikes) == 0, f"Expected no strikes (overlap with actual), got: {strikes}"
+    
+    def test_late_night_event_removed_after_voyage_end(self, parser, late_night_config):
+        """
+        Derived events that occur AFTER the voyage end date should be removed completely.
+        """
+        voyage_end_date = date(2025, 1, 20)  # Last day is Jan 20
+        
+        events = [
+            # Event AFTER the last day (Jan 21) - should be removed
+            {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 21, 0, 0),
+             "end_dt": datetime(2025, 1, 21, 1, 0), "category": "party",
+             "raw_date": "2025-01-21", "venue": "Studio B", "type": "party"},
+            {"title": "Strike RED", "start_dt": datetime(2025, 1, 21, 1, 0),
+             "end_dt": datetime(2025, 1, 21, 1, 30), "type": "strike",
+             "is_derived": True, "venue": "Studio B"},
+        ]
+        
+        result = parser._handle_late_night_derived_events(events, late_night_config, voyage_end_date)
+        
+        # Strike should be removed (after voyage end)
+        strikes = [e for e in result if e.get("type") == "strike"]
+        assert len(strikes) == 0, f"Expected no strikes after voyage end, got: {strikes}"
+
+
+class TestMergedEventStrikeHandling:
+    """
+    Tests for strikes that overlap with merged events (like Parades from other venues).
+    """
+    
+    @pytest.fixture
+    def parser(self):
+        from backend.app.services.genai_parser import GenAIParser
+        return GenAIParser(api_key="dummy")
+    
+    def test_strike_overlaps_merged_event_merges_with_next_setup(self, parser):
+        """
+        When a strike overlaps with a merged event (Parade), and there's a next 
+        Setup event that day, the strike should be merged into that Setup.
+        """
+        from backend.app.config.venue_rules import get_venue_rules
+        
+        venue_rules = get_venue_rules('WN', 'Studio B')
+        derived_rules = venue_rules.get('derived_event_rules', {})
+        floor_config = {
+            'floor_requirements': venue_rules.get('self_extraction_policy', {}).get('floor_requirements'),
+            'floor_transition': venue_rules.get('self_extraction_policy', {}).get('floor_transition'),
+        }
+        
+        # Laser Tag -> Parade (merged) -> Ice Show (has setup)
+        events = [
+            {'title': 'Laser Tag', 'start_dt': datetime(2025, 7, 24, 13, 0),
+             'end_dt': datetime(2025, 7, 24, 15, 30), 'category': 'activity',
+             'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'activity'},
+            {'title': 'Anchors Aweigh Parade', 'start_dt': datetime(2025, 7, 24, 15, 30),
+             'end_dt': datetime(2025, 7, 24, 16, 0), 'category': 'parade',
+             'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'parade', 'is_merged': True},
+            {'title': 'Ice Show: 365', 'start_dt': datetime(2025, 7, 24, 19, 0),
+             'end_dt': datetime(2025, 7, 24, 20, 0), 'category': 'show',
+             'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'show'},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        result = parser._apply_floor_transition_rules(result, floor_config)
+        result = parser._merge_overlapping_operations(result)
+        result = parser._resolve_operation_overlaps(result)
+        
+        # Find the setup for ice show and verify it contains "Strike Laser Tag"
+        setups = [e for e in result if e.get('type') == 'setup']
+        setup_titles = [s.get('title', '') for s in setups]
+        
+        # "Strike Laser Tag" should be merged into one of the setups
+        has_strike_laser_tag = any('Strike Laser Tag' in t for t in setup_titles)
+        assert has_strike_laser_tag, f"Strike Laser Tag should be merged into a setup. Setups: {setup_titles}"
+    
+    def test_strike_overlaps_merged_event_no_next_setup_schedules_after(self, parser):
+        """
+        When a strike overlaps with a merged event (Parade), and there's no next 
+        Setup event that day, the strike should be scheduled after the merged event.
+        """
+        from backend.app.config.venue_rules import get_venue_rules
+        
+        venue_rules = get_venue_rules('WN', 'Studio B')
+        derived_rules = venue_rules.get('derived_event_rules', {})
+        floor_config = {
+            'floor_requirements': venue_rules.get('self_extraction_policy', {}).get('floor_requirements'),
+            'floor_transition': venue_rules.get('self_extraction_policy', {}).get('floor_transition'),
+        }
+        
+        # Laser Tag -> Parade (merged) -> no more events
+        events = [
+            {'title': 'Laser Tag', 'start_dt': datetime(2025, 7, 24, 13, 0),
+             'end_dt': datetime(2025, 7, 24, 15, 30), 'category': 'activity',
+             'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'activity'},
+            {'title': 'Anchors Aweigh Parade', 'start_dt': datetime(2025, 7, 24, 15, 30),
+             'end_dt': datetime(2025, 7, 24, 16, 0), 'category': 'parade',
+             'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'parade', 'is_merged': True},
+        ]
+        
+        result = parser._apply_derived_event_rules(events, derived_rules)
+        result = parser._apply_floor_transition_rules(result, floor_config)
+        result = parser._merge_overlapping_operations(result)
+        result = parser._resolve_operation_overlaps(result)
+        
+        # Find strike for Laser Tag
+        strikes = [e for e in result if e.get('type') == 'strike' and 'Laser Tag' in e.get('title', '')]
+        
+        assert len(strikes) == 1, f"Expected Strike Laser Tag, got: {[s.get('title') for s in strikes]}"
+        
+        # Strike should start after parade ends (16:00)
+        strike_start = strikes[0].get('start_dt')
+        parade_end = datetime(2025, 7, 24, 16, 0)
+        assert strike_start >= parade_end, f"Strike should start after parade ends. Strike: {strike_start}, Parade end: {parade_end}"
+
+
+class TestFullPipelineIntegration:
+    """
+    Integration tests that exercise the full pipeline to catch errors like undefined variables.
+    These tests call _transform_to_api_format with real venue_rules.
+    """
+    
+    @pytest.fixture
+    def parser(self):
+        from backend.app.services.genai_parser import GenAIParser
+        return GenAIParser(api_key="dummy")
+    
+    @pytest.fixture
+    def full_venue_rules(self):
+        """Full venue rules structure similar to what get_venue_rules returns."""
+        return {
+            "self_extraction_policy": {
+                "known_shows": ["Ice Show: 365"],
+                "renaming_map": {},
+                "default_durations": {"Ice Show: 365": 60},
+                "late_night_config": {
+                    "cutoff_hour": 1,
+                    "reschedule_hour": 9,
+                },
+                "floor_requirements": {
+                    "floor": {"match_titles": ["Laser Tag"]},
+                    "ice": {"match_titles": ["Ice Show: 365"]},
+                },
+                "floor_transition": {
+                    "duration_minutes": 60,
+                    "titles": {"floor_to_ice": "Strike Floor", "ice_to_floor": "Set Floor"},
+                    "type": "strike",
+                },
+            },
+            "derived_event_rules": {
+                "strike": [
+                    {
+                        "match_titles": ["Family SHUSH!"],
+                        "offset_minutes": 0,
+                        "anchor": "end",
+                        "duration_minutes": 30,
+                        "title_template": "Strike {parent_title}",
+                        "type": "strike",
+                    },
+                ],
+            },
+        }
+    
+    def test_transform_to_api_format_with_late_night_config(self, parser, full_venue_rules):
+        """
+        Integration test: _transform_to_api_format should access late_night_config
+        from venue_rules without errors.
+        
+        This test would have caught the 'self_policy is not defined' error.
+        """
+        llm_result = {
+            "itinerary": [
+                {"day_number": 1, "date": "2025-01-15", "port": "MIAMI"},
+                {"day_number": 2, "date": "2025-01-16", "port": "CRUISING"},
+            ],
+            "events": [
+                {"title": "Family SHUSH!", "start_time": "23:00", "end_time": None,
+                 "date": "2025-01-15", "category": "game"},
+            ],
+        }
+        
+        derived_rules = full_venue_rules.get("derived_event_rules", {})
+        floor_config = {
+            "floor_requirements": full_venue_rules["self_extraction_policy"].get("floor_requirements"),
+            "floor_transition": full_venue_rules["self_extraction_policy"].get("floor_transition"),
+        }
+        
+        # This should NOT raise any errors
+        result = parser._transform_to_api_format(
+            llm_result,
+            default_durations={"Family SHUSH!": 60},
+            renaming_map={},
+            cross_venue_policies={},
+            derived_event_rules=derived_rules,
+            floor_config=floor_config,
+            venue_rules=full_venue_rules,
+        )
+        
+        # Basic validation that it worked
+        assert "events" in result
+        assert "itinerary" in result
