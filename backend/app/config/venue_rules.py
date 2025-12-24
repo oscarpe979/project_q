@@ -99,9 +99,9 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "min_gap_minutes": 45,  # Skip if stacked with previous event
                     "check_all_events": True,  # Check gap against ALL events, not just same-type
                 },
-                # Specific: Family Shush doors - only 15 mins before (setup is 45 mins before)
+                # Specific: Family Shush & Bingo doors - only 15 mins before
                 {
-                    "match_titles": ["Family SHUSH!", "Family Shush!"],
+                    "match_titles": ["Family SHUSH!", "Family Shush!", "Bingo", "Royal Bingo", "Spa Bingo"],
                     "offset_minutes": -15,
                     "duration_minutes": 15,
                     "title_template": "Doors",
