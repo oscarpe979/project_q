@@ -22,7 +22,9 @@ const SNAP_MINUTES = 5;
 const MIN_HEIGHT = 25; // Minimum 15 minutes
 
 const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containerStyle, isLate, onUpdate, onDelete, onContextMenu, isCopyDrag }) => {
-    const defaultTimeLabel = `${format(event.start, 'h:mm a')} - ${isLate ? 'Late' : format(event.end, 'h:mm a')}`;
+    // Combine grid overflow (isLate prop) with API flag (event.endIsLate)
+    const showLateEnd = isLate || event.endIsLate;
+    const defaultTimeLabel = `${format(event.start, 'h:mm a')} - ${showLateEnd ? 'Late' : format(event.end, 'h:mm a')}`;
 
     // Separate edit states
     const [isEditingTitle, setIsEditingTitle] = React.useState(false);
@@ -208,8 +210,8 @@ const EventBlockComponent: React.FC<EventBlockProps> = ({ event, style: containe
 
     const { start: displayStart, end: displayEnd } = getPreviewTimes();
     const timeLabel = (isDragging || isResizingBottom || isResizingTop)
-        ? `${format(displayStart, 'h:mm a')} - ${isLate ? 'Late' : format(displayEnd, 'h:mm a')}`
-        : (event.timeDisplay || `${format(displayStart, 'h:mm a')} - ${isLate ? 'Late' : format(displayEnd, 'h:mm a')}`);
+        ? `${format(displayStart, 'h:mm a')} - ${showLateEnd ? 'Late' : format(displayEnd, 'h:mm a')}`
+        : (event.timeDisplay || `${format(displayStart, 'h:mm a')} - ${showLateEnd ? 'Late' : format(displayEnd, 'h:mm a')}`);
     const isInteracting = isDragging || isResizingBottom || isResizingTop;
 
     React.useEffect(() => {

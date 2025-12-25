@@ -6,6 +6,7 @@ export interface Event {
     color?: string;
     timeDisplay?: string;
     notes?: string;
+    endIsLate?: boolean;  // True if end time should display as "Late"
 }
 
 export interface ItineraryItem {

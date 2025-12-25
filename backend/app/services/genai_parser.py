@@ -520,7 +520,7 @@ Please note the below rules:
 
 RULES FOR TIME PARSING:
 - **Midnight**: If the text says "Midnight", set `start_time` to "00:00".
-- **Late**: If an end time is "Late", record it as "03:00" (3 AM).
+- **Late**: If an end time is "Late", record it as "01:00" (1 AM).
 - **Overnight**: If an event starts before midnight (e.g., 23:00) and ends after (e.g., 00:30), the start date is the current day.
 - **24-Hour Format**: Convert all times to HH:MM 24-hour format.
 - **Noon**: Convert "Noon" to "12:00".
@@ -1095,10 +1095,17 @@ Return ONLY valid JSON matching the schema."""
 
                 except ValueError:
                     # Fallback if invalid format
-                    end_dt = self._calculate_default_end(start_dt, event.get("title", ""), default_durations)
+                    end_dt, end_is_late = self._calculate_default_end(start_dt, event.get("title", ""), default_durations)
+                    event['end_is_late'] = end_is_late
             else:
                 # No end time provided: Use Rule-based or Standard Duration
-                end_dt = self._calculate_default_end(start_dt, event.get("title", ""), default_durations)
+                end_dt, end_is_late = self._calculate_default_end(start_dt, event.get("title", ""), default_durations)
+                event['end_is_late'] = end_is_late
+            
+            # Check if LLM returned 01:00 for end time (indicating "Late")
+            if event.get('end_time_str') == '01:00' and not event.get('end_is_late'):
+                # LLM converted "Late" to "01:00" - mark it as late
+                event['end_is_late'] = True
             
             # Simple sanity check: If end_dt overlaps drastically with next start, maybe truncate?
             if i + 1 < len(events):
@@ -1111,8 +1118,19 @@ Return ONLY valid JSON matching the schema."""
         
         return resolved_events
 
-    def _calculate_default_end(self, start_dt: datetime, title: str, duration_map: Dict[str, int]) -> datetime:
-        """Calculate end time based on title match or default 45 mins."""
+    def _calculate_default_end(self, start_dt: datetime, title: str, duration_map: Dict[str, int]) -> tuple:
+        """
+        Calculate end time based on title match or default 45 mins.
+        Returns: (end_dt, is_late) - is_late is True if end time represents "Late"
+        """
+        title_lower = title.lower()
+        
+        # Special handling for RED party / Nightclub events - they end "late" (1 AM)
+        if 'red' in title_lower and ('nightclub' in title_lower or 'party' in title_lower):
+            # End at 1 AM next day - mark as "late"
+            next_day = start_dt.date() + timedelta(days=1)
+            return (datetime.combine(next_day, dt_time(1, 0)), True)
+        
         # Find best matching duration
         minutes = 60 # Fallback
         
@@ -1120,11 +1138,11 @@ Return ONLY valid JSON matching the schema."""
         # duration_map keys might be 'inTENse', 'Ice Spectacular'
         # title might be 'inTENse' (cleaned) or 'Ice Spectacular 365' (raw)
         for key, duration in duration_map.items():
-            if key.lower() in title.lower():
+            if key.lower() in title_lower:
                 minutes = duration
                 break
         
-        return start_dt + timedelta(minutes=minutes)
+        return (start_dt + timedelta(minutes=minutes), False)
     
     # ═══════════════════════════════════════════════════════════════════════════
     # DERIVED EVENT RULES ENGINE
@@ -2123,6 +2141,10 @@ Return ONLY valid JSON matching the schema."""
         if event.get("is_derived"):
             formatted["is_derived"] = True
             formatted["parent_title"] = event.get("parent_title")
+        
+        # Include end_is_late flag for "Late" display
+        if event.get("end_is_late"):
+            formatted["end_is_late"] = True
         
         return formatted
     

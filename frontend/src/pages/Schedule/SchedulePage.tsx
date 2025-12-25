@@ -155,6 +155,7 @@ export function SchedulePage({ user, onLogout }: SchedulePageProps) {
                     start: new Date(e.start),
                     end: new Date(e.end),
                     color: color,
+                    endIsLate: e.end_is_late || false,  // Pass Late flag from API
                 };
             });
 
