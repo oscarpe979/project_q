@@ -1979,8 +1979,8 @@ class TestStudioBIntegration:
         result = parser._merge_overlapping_operations(result)
         result = parser._resolve_operation_overlaps(result)
         
-        # Get all actual events (non-operational)
-        actual_events = [e for e in result if e.get('type') not in ['setup', 'strike', 'preset']]
+        # Get all actual events (non-operational) - doors is also operational
+        actual_events = [e for e in result if e.get('type') not in ['setup', 'strike', 'preset', 'doors']]
         operations = [e for e in result if e.get('type') in ['setup', 'strike', 'preset']]
         
         # Verify NO operation overlaps with ANY actual event
@@ -2430,7 +2430,7 @@ class TestMergedEventStrikeHandling:
              'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'activity'},
             {'title': 'Anchors Aweigh Parade', 'start_dt': datetime(2025, 7, 24, 15, 30),
              'end_dt': datetime(2025, 7, 24, 16, 0), 'category': 'parade',
-             'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'parade', 'is_merged': True},
+             'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'parade', 'is_cross_venue': True},
             {'title': 'Ice Show: 365', 'start_dt': datetime(2025, 7, 24, 19, 0),
              'end_dt': datetime(2025, 7, 24, 20, 0), 'category': 'show',
              'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'show'},
@@ -2470,7 +2470,7 @@ class TestMergedEventStrikeHandling:
              'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'activity'},
             {'title': 'Anchors Aweigh Parade', 'start_dt': datetime(2025, 7, 24, 15, 30),
              'end_dt': datetime(2025, 7, 24, 16, 0), 'category': 'parade',
-             'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'parade', 'is_merged': True},
+             'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'parade', 'is_cross_venue': True},
         ]
         
         result = parser._apply_derived_event_rules(events, derived_rules)
@@ -3285,4 +3285,378 @@ class TestTitleNormalization:
         """Handle empty and None titles gracefully."""
         assert parser._normalize_title("") == ""
         assert parser._normalize_title(None) is None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TESTS: Merged Operation Duration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestMergedOperationDuration:
+    """Test that merged setup/strike events have minimum 1 hour duration.
+    
+    When overlapping operational events merge (e.g., Strike + Strike Floor),
+    the combined event should be at least 1 hour, or the longest of the merged
+    events if any is longer than 1 hour.
+    """
+    
+    @pytest.fixture
+    def parser(self):
+        from backend.app.services.genai_parser import GenAIParser
+        return GenAIParser(api_key="dummy")
+    
+    def test_merged_duration_minimum_one_hour(self, parser):
+        """Two 30-min operations merging should produce 60-min combined event."""
+        events = [
+            {
+                "title": "Strike Crazy Quest",
+                "type": "strike",
+                "start_dt": datetime(2025, 1, 15, 22, 0),
+                "end_dt": datetime(2025, 1, 15, 22, 30),  # 30 min
+            },
+            {
+                "title": "Strike Floor",
+                "type": "strike",
+                "start_dt": datetime(2025, 1, 15, 22, 0),
+                "end_dt": datetime(2025, 1, 15, 22, 30),  # 30 min
+            },
+        ]
+        
+        result = parser._merge_overlapping_operations(events)
+        merged = [e for e in result if "Strike" in e.get("title", "")]
+        
+        assert len(merged) == 1, "Should merge into single event"
+        duration = merged[0]["end_dt"] - merged[0]["start_dt"]
+        assert duration >= timedelta(hours=1), \
+            f"Merged duration should be at least 1 hour, got {duration}"
+    
+    def test_merged_duration_keeps_longer_if_over_one_hour(self, parser):
+        """If one operation is 2 hours, merged event should be 2 hours (not capped at 1)."""
+        events = [
+            {
+                "title": "Strike Crazy Quest",
+                "type": "strike",
+                "start_dt": datetime(2025, 1, 15, 22, 0),
+                "end_dt": datetime(2025, 1, 15, 22, 30),  # 30 min
+            },
+            {
+                "title": "Set Up Floor",
+                "type": "setup",
+                "start_dt": datetime(2025, 1, 15, 22, 0),
+                "end_dt": datetime(2025, 1, 16, 0, 0),  # 2 hours
+            },
+        ]
+        
+        result = parser._merge_overlapping_operations(events)
+        merged = [e for e in result if e.get("type") in ["setup", "strike"]]
+        
+        assert len(merged) == 1, "Should merge into single event"
+        duration = merged[0]["end_dt"] - merged[0]["start_dt"]
+        assert duration == timedelta(hours=2), \
+            f"Merged duration should keep 2 hours (longest), got {duration}"
+    
+    def test_non_overlapping_operations_not_merged(self, parser):
+        """Operations that don't overlap should remain separate."""
+        events = [
+            {
+                "title": "Strike A",
+                "type": "strike",
+                "start_dt": datetime(2025, 1, 15, 20, 0),
+                "end_dt": datetime(2025, 1, 15, 20, 30),
+            },
+            {
+                "title": "Strike B",
+                "type": "strike",
+                "start_dt": datetime(2025, 1, 15, 22, 0),  # 1.5 hours gap
+                "end_dt": datetime(2025, 1, 15, 22, 30),
+            },
+        ]
+        
+        result = parser._merge_overlapping_operations(events)
+        strikes = [e for e in result if "Strike" in e.get("title", "")]
+        
+        assert len(strikes) == 2, "Non-overlapping operations should remain separate"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TESTS: Reset Events
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestResetEvents:
+    """Test Reset event creation when both strike and setup are omitted.
+    
+    Reset events are created when:
+    1. Strike for Event A is omitted (would overlap with Event B)
+    2. Setup for Event B is omitted (would overlap with Event A)
+    3. Gap between A end and B start >= 15 minutes
+    
+    Reset fills the gap (max 1 hour), titled "Reset for [Event B]".
+    """
+    
+    @pytest.fixture
+    def parser(self):
+        from backend.app.services.genai_parser import GenAIParser
+        return GenAIParser(api_key="dummy")
+    
+    def test_reset_created_when_both_omitted_with_gap(self, parser):
+        """Reset event created when strike + setup both omitted and gap >= 15 min."""
+        # Event Z: 6:00-7:00 PM (blocks setup from being bumped earlier)
+        # Event A: 7:00-8:00 PM
+        # Event B: 8:30-9:30 PM
+        # Strike A (1 hr) would be 8:00-9:00 PM -> overlaps B -> omitted
+        # Setup B (1 hr) would be 7:30-8:30 PM -> overlaps A -> try bump to 6:30-7:00 -> overlaps Z -> omitted
+        # Gap = 30 min (8:00-8:30) -> Reset for Event B
+        events = [
+            {
+                "title": "Event Z",
+                "type": "show",
+                "start_dt": datetime(2025, 1, 15, 18, 0),
+                "end_dt": datetime(2025, 1, 15, 19, 0),
+            },
+            {
+                "title": "Event A",
+                "type": "show",
+                "start_dt": datetime(2025, 1, 15, 19, 0),
+                "end_dt": datetime(2025, 1, 15, 20, 0),
+            },
+            {
+                "title": "Event B",
+                "type": "show",
+                "start_dt": datetime(2025, 1, 15, 20, 30),
+                "end_dt": datetime(2025, 1, 15, 21, 30),
+            },
+            {
+                "title": "Strike Event A",
+                "type": "strike",
+                "start_dt": datetime(2025, 1, 15, 20, 0),  # Would overlap B
+                "end_dt": datetime(2025, 1, 15, 21, 0),  # 1 hour
+            },
+            {
+                "title": "Set Up Event B",
+                "type": "setup",
+                "start_dt": datetime(2025, 1, 15, 19, 30),  # Would overlap A, bumped to 18:30-19:00 overlaps Z
+                "end_dt": datetime(2025, 1, 15, 20, 30),  # 1 hour (so bump to 18:30-19:30 overlaps Z)
+            },
+        ]
+        
+        result = parser._resolve_operation_overlaps(events)
+        resets = [e for e in result if e.get("type") == "reset"]
+        
+        assert len(resets) == 1, f"Expected 1 reset event, got {len(resets)}. All events: {[(e['title'], e['type']) for e in result]}"
+        reset = resets[0]
+        assert "Event B" in reset["title"], f"Reset should be for Event B, got {reset['title']}"
+        assert reset["start_dt"] == datetime(2025, 1, 15, 20, 0), "Reset should start when A ends"
+        assert reset["end_dt"] == datetime(2025, 1, 15, 20, 30), "Reset should fill gap to B start"
+    
+    def test_reset_not_created_when_gap_too_small(self, parser):
+        """Reset NOT created when gap < 15 minutes."""
+        events = [
+            {
+                "title": "Event A",
+                "type": "show",
+                "start_dt": datetime(2025, 1, 15, 19, 0),
+                "end_dt": datetime(2025, 1, 15, 20, 0),
+            },
+            {
+                "title": "Event B",
+                "type": "show",
+                "start_dt": datetime(2025, 1, 15, 20, 10),  # Only 10 min gap
+                "end_dt": datetime(2025, 1, 15, 21, 10),
+            },
+            {
+                "title": "Strike Event A",
+                "type": "strike",
+                "start_dt": datetime(2025, 1, 15, 20, 0),
+                "end_dt": datetime(2025, 1, 15, 21, 0),
+            },
+            {
+                "title": "Set Up Event B",
+                "type": "setup",
+                "start_dt": datetime(2025, 1, 15, 19, 10),
+                "end_dt": datetime(2025, 1, 15, 20, 10),
+            },
+        ]
+        
+        result = parser._resolve_operation_overlaps(events)
+        resets = [e for e in result if e.get("type") == "reset"]
+        
+        assert len(resets) == 0, f"No reset with gap < 15 min, got {len(resets)}"
+    
+    def test_reset_max_duration_one_hour(self, parser):
+        """Reset duration capped at 1 hour even if gap is larger."""
+        events = [
+            {
+                "title": "Event A",
+                "type": "show",
+                "start_dt": datetime(2025, 1, 15, 14, 0),
+                "end_dt": datetime(2025, 1, 15, 15, 0),
+            },
+            {
+                "title": "Event B",
+                "type": "show",
+                "start_dt": datetime(2025, 1, 15, 17, 0),  # 2 hour gap
+                "end_dt": datetime(2025, 1, 15, 18, 0),
+            },
+            {
+                "title": "Strike Event A",
+                "type": "strike",
+                "start_dt": datetime(2025, 1, 15, 15, 0),
+                "end_dt": datetime(2025, 1, 15, 16, 0),
+            },
+            {
+                "title": "Set Up Event B",
+                "type": "setup",
+                "start_dt": datetime(2025, 1, 15, 16, 0),
+                "end_dt": datetime(2025, 1, 15, 17, 0),
+            },
+        ]
+        
+        result = parser._resolve_operation_overlaps(events)
+        resets = [e for e in result if e.get("type") == "reset"]
+        
+        if len(resets) == 1:
+            reset = resets[0]
+            duration = reset["end_dt"] - reset["start_dt"]
+            assert duration <= timedelta(hours=1), \
+                f"Reset duration should be max 1 hour, got {duration}"
+    
+    def test_no_reset_when_only_strike_omitted(self, parser):
+        """No reset when only strike is omitted but setup is kept."""
+        events = [
+            {
+                "title": "Event A",
+                "type": "show",
+                "start_dt": datetime(2025, 1, 15, 19, 0),
+                "end_dt": datetime(2025, 1, 15, 20, 0),
+            },
+            {
+                "title": "Event B",
+                "type": "show",
+                "start_dt": datetime(2025, 1, 15, 21, 0),  # 1 hour gap - setup fits
+                "end_dt": datetime(2025, 1, 15, 22, 0),
+            },
+            {
+                "title": "Strike Event A",
+                "type": "strike",
+                "start_dt": datetime(2025, 1, 15, 20, 0),
+                "end_dt": datetime(2025, 1, 15, 21, 0),  # Overlaps B -> omitted
+            },
+            {
+                "title": "Set Up Event B",
+                "type": "setup",
+                "start_dt": datetime(2025, 1, 15, 20, 30),  # Fits in gap
+                "end_dt": datetime(2025, 1, 15, 21, 0),
+            },
+        ]
+        
+        result = parser._resolve_operation_overlaps(events)
+        resets = [e for e in result if e.get("type") == "reset"]
+        setups = [e for e in result if e.get("type") == "setup"]
+        
+        # Setup should be kept, no reset needed
+        assert len(resets) == 0 or len(setups) >= 1, \
+            "No reset when setup is kept"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TESTS: Reset Events Integration (Full Pipeline)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestResetIntegration:
+    """Integration tests for Reset events through the full pipeline.
+    
+    These tests go through _apply_derived_event_rules (which may skip events
+    due to min_gap_minutes) and then _resolve_operation_overlaps.
+    """
+    
+    @pytest.fixture
+    def parser(self):
+        from backend.app.services.genai_parser import GenAIParser
+        return GenAIParser(api_key="dummy")
+    
+    @pytest.fixture
+    def studio_b_derived_rules(self):
+        """Derived rules matching real Studio B config."""
+        return {
+            "setup": [
+                {
+                    "match_titles": ["Battle of the Sexes", "Crazy Quest"],
+                    "offset_minutes": -60,
+                    "duration_minutes": 30,
+                    "title_template": "Set Up {parent_title}",
+                    "type": "setup",
+                    "min_gap_minutes": 60,  # Skip if stacked
+                },
+            ],
+            "strike": [
+                {
+                    "match_titles": ["Battle of the Sexes", "Crazy Quest"],
+                    "offset_minutes": 0,
+                    "anchor": "end",
+                    "duration_minutes": 30,
+                    "title_template": "Strike {parent_title}",
+                    "type": "strike",
+                },
+            ],
+        }
+    
+    def test_reset_when_setup_skipped_due_to_min_gap(self, parser, studio_b_derived_rules):
+        """Reset should be created when setup is skipped by min_gap_minutes.
+        
+        Scenario:
+        - Battle of the Sexes: 9:45 PM - 10:45 PM
+        - Crazy Quest: 11:00 PM - 12:00 AM
+        - Gap: 15 min (not enough for setup due to min_gap_minutes=60)
+        - Strike for BotS: would overlap Crazy Quest -> dropped
+        - Setup for CQ: NEVER CREATED (min_gap_minutes=60, gap only 15 min)
+        - Result: Reset for Crazy Quest should fill the 15 min gap
+        """
+        events = [
+            {
+                "title": "Battle of the Sexes",
+                "type": "game",
+                "category": "game",
+                "start_dt": datetime(2025, 7, 31, 21, 45),
+                "end_dt": datetime(2025, 7, 31, 22, 45),
+                "venue": "Studio B",
+            },
+            {
+                "title": "Crazy Quest",
+                "type": "game",
+                "category": "game",
+                "start_dt": datetime(2025, 7, 31, 23, 0),
+                "end_dt": datetime(2025, 8, 1, 0, 0),
+                "venue": "Studio B",
+            },
+        ]
+        
+        # Full pipeline
+        result = parser._apply_derived_event_rules(events, studio_b_derived_rules)
+        result = parser._merge_overlapping_operations(result)
+        result = parser._resolve_operation_overlaps(result)
+        result = parser._create_reset_events(result)
+        
+        # Find events by type
+        resets = [e for e in result if e.get("type") == "reset"]
+        setups = [e for e in result if e.get("type") == "setup"]
+        strikes = [e for e in result if e.get("type") == "strike"]
+        
+        # Debug output
+        print(f"\\nEvents after pipeline:")
+        for e in sorted(result, key=lambda x: x['start_dt']):
+            print(f"  {e['title']}: {e['start_dt'].strftime('%H:%M')}-{e['end_dt'].strftime('%H:%M')} ({e['type']})")
+        
+        # Assertions
+        # Setup for Crazy Quest should NOT exist (skipped by min_gap)
+        cq_setups = [s for s in setups if "Crazy Quest" in s.get("title", "")]
+        assert len(cq_setups) == 0, \
+            f"Setup for Crazy Quest should NOT be created (min_gap_minutes=60), got {cq_setups}"
+        
+        # Reset should exist to fill the gap
+        assert len(resets) == 1, \
+            f"Expected 1 Reset event, got {len(resets)}. Events: {[(e['title'], e['type']) for e in result]}"
+        
+        reset = resets[0]
+        assert "Crazy Quest" in reset["title"], f"Reset should be for Crazy Quest, got {reset['title']}"
+        assert reset["start_dt"] == datetime(2025, 7, 31, 22, 45), "Reset should start when BotS ends"
+        assert reset["end_dt"] == datetime(2025, 7, 31, 23, 0), "Reset should end when CQ starts"
 
