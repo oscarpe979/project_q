@@ -1212,6 +1212,12 @@ Return ONLY valid JSON matching the schema."""
         if "match_categories" in rule:
             event_category = event.get("category", "other")
             if event_category in rule["match_categories"]:
+                # Check exclude_titles - if event matches any excluded title, skip this rule
+                if "exclude_titles" in rule:
+                    event_title = event.get("title", "").lower()
+                    for excluded in rule["exclude_titles"]:
+                        if excluded.lower() in event_title or event_title in excluded.lower():
+                            return False
                 return True
         
         return False
@@ -1592,6 +1598,10 @@ Return ONLY valid JSON matching the schema."""
         prev_event_with_floor_need = None
         
         for event in sorted_events:
+            # Skip derived events (setup, strike, doors, etc.) - only original events trigger floor transitions
+            if event.get('is_derived'):
+                continue
+            
             floor_need = self._get_floor_need(event, floor_requirements)
             
             # Skip events that don't care about floor state
@@ -1764,6 +1774,11 @@ Return ONLY valid JSON matching the schema."""
                 
                 merged[merge_target_idx]['start_dt'] = new_start
                 merged[merge_target_idx]['end_dt'] = new_start + longest_duration
+                
+                # Preserve is_floor_transition flag - if either event is a floor transition,
+                # the merged event should be treated as one (for late night handling)
+                if event.get('is_floor_transition') or target.get('is_floor_transition'):
+                    merged[merge_target_idx]['is_floor_transition'] = True
             else:
                 # No overlap - add as new event
                 merged.append(event)
@@ -1933,10 +1948,17 @@ Return ONLY valid JSON matching the schema."""
             return events
         
         # Find late-night derived events (between cutoff_hour and reschedule_hour)
+        # NOTE: Floor transitions are excluded - they handle their own timing based on parent event end time
         late_night_derived = []
         normal_derived = []
         
         for d in derived_events:
+            # Floor transitions already handle late night scheduling in _create_floor_transition
+            # based on parent event's end time, so skip them here
+            if d.get('is_floor_transition'):
+                normal_derived.append(d)
+                continue
+                
             start_dt = d.get('start_dt')
             end_dt = d.get('end_dt')
             if not start_dt:
@@ -1944,21 +1966,15 @@ Return ONLY valid JSON matching the schema."""
                 continue
             
             hour = start_dt.hour
+            minute = start_dt.minute
             end_hour = late_night_config.get("end_hour", 6)
-            long_threshold = late_night_config.get("long_event_threshold_minutes", 60)
             
-            # Calculate duration in minutes
-            duration_mins = 0
-            if end_dt and start_dt:
-                duration_mins = (end_dt - start_dt).total_seconds() / 60
+            # Late night if event starts AFTER midnight (00:00) but before end_hour (06:00)
+            # - 00:00 exactly = midnight = NOT after midnight → OK to happen at night
+            # - 00:01+ = after midnight → reschedule to morning
+            is_after_midnight = (hour == 0 and minute > 0) or (hour > 0 and hour < end_hour)
             
-            # Late night if:
-            # 1) Starts at cutoff_hour (1 AM) or later but before end_hour (6 AM), OR
-            # 2) Starts after midnight (hour 0) and duration > threshold (60 min)
-            is_in_cutoff_window = cutoff_hour <= hour < end_hour
-            is_long_midnight_event = hour == 0 and duration_mins > long_threshold
-            
-            if is_in_cutoff_window or is_long_midnight_event:
+            if is_after_midnight:
                 late_night_derived.append(d)
             else:
                 normal_derived.append(d)
@@ -2104,9 +2120,12 @@ Return ONLY valid JSON matching the schema."""
         if not prev_end or not next_start:
             return None
         
-        # Check if prev_event ends after midnight (hour 0-5)
-        # Events ending at midnight (hour 0) or later (1-5 AM) are "after midnight"
-        if prev_end.hour >= 0 and prev_end.hour < 6:
+        # Check if prev_event ends AFTER midnight (not at midnight exactly)
+        # - 00:00 exactly = midnight = NOT after midnight → transition can happen at night
+        # - 00:01+ = after midnight → reschedule to morning (9 AM)
+        is_after_midnight = (prev_end.hour == 0 and prev_end.minute > 0) or (prev_end.hour > 0 and prev_end.hour < 6)
+        
+        if is_after_midnight:
             # After midnight - prefer 9 AM for morning strikes
             # But if next event needs floor earlier, anchor before it
             preferred_9am = next_start.replace(hour=9, minute=0, second=0, microsecond=0)

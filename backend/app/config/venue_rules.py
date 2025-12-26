@@ -22,7 +22,7 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
             "Ice Show: 365", "Battle of the Sexes", "Open Ice Skating", "Private Ice Skating",
             "Teens Skate", "Laser Tag", "Bingo", "Perfect Couple Game Show", "Top Tier",
             "RED: A Nightclub Experience", "Crazy Quest", "Nightclub", "Family Shush!",
-            "Glow Party", "Red Party", "Port & Shopping", "Spa Bingo"
+            "Glow Party", "Red Party", "Port & Shopping", "Spa Bingo", "Cast Install", "Ice Melt"
         ],
         "renaming_map": {
             "Ice Spectacular 365": "Ice Show: 365",
@@ -177,8 +177,9 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "min_gap_minutes": 60,
                 },
                 # Set Up - Other Game Shows & Parties: 1 hour before, 30 min duration
+                # Note: 'Nightclub' removed - it substring-matches 'RED: A Nightclub Experience'
                 {
-                    "match_titles": ["Battle of the Sexes", "Crazy Quest", "Glow Party", "Nightclub"],
+                    "match_titles": ["Battle of the Sexes", "Crazy Quest", "Glow Party"],
                     "offset_minutes": -60,  # 1 hour before
                     "duration_minutes": 30,
                     "title_template": "Set Up {parent_title}",
@@ -198,6 +199,8 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                 },
                 # CATCH-ALL: Set Up for any game/party/music not matched above
                 # Note: 'activity' excluded - skating has its own rule with first_per_day
+                # Rules process in order; specific match_titles rules fire first
+                # and add to matched_parent_keys, so catch-all skips those events
                 {
                     "match_categories": ["game", "party", "music"],
                     "offset_minutes": -60,  # 1 hour before
@@ -255,7 +258,7 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                 # Strike - RED Party: Use short title "RED" instead of full name
                 {
                     "match_titles": ["RED: Nightclub Experience", "RED: A Nightclub Experience",
-                                    "RED! Nightclub Experience", "Nightclub"],
+                                    "RED! Nightclub Experience", "RED Party", "RED! Party", "Nightclub"],
                     "offset_minutes": 0,  # Starts immediately after event ends
                     "anchor": "end",
                     "duration_minutes": 30,
@@ -275,6 +278,8 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                 },
                 # CATCH-ALL: Strike for any game/party not matched above
                 # Note: 'activity' excluded - skating has its own rule
+                # Rules process in order; specific match_titles rules fire first
+                # and add to matched_parent_keys, so catch-all skips those events
                 {
                     "match_categories": ["game", "party"],
                     "offset_minutes": 0,  # Starts immediately after event ends
