@@ -166,10 +166,19 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "type": "setup",
                     "min_gap_minutes": 60,
                 },
+                # Set Up - RED Party: Use short title "RED" instead of full name
+                {
+                    "match_titles": ["RED: Nightclub Experience", "RED: A Nightclub Experience",
+                                    "RED! Nightclub Experience", "RED Party", "RED! Party"],
+                    "offset_minutes": -60,  # 1 hour before
+                    "duration_minutes": 30,
+                    "title_template": "Set Up RED",
+                    "type": "setup",
+                    "min_gap_minutes": 60,
+                },
                 # Set Up - Other Game Shows & Parties: 1 hour before, 30 min duration
                 {
-                    "match_titles": ["Battle of the Sexes", "Crazy Quest",
-                                    "Glow Party", "RED: Nightclub Experience", "Nightclub"],
+                    "match_titles": ["Battle of the Sexes", "Crazy Quest", "Glow Party", "Nightclub"],
                     "offset_minutes": -60,  # 1 hour before
                     "duration_minutes": 30,
                     "title_template": "Set Up {parent_title}",
@@ -243,11 +252,21 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "title_template": "Strike Laser Tag",
                     "type": "strike",
                 },
+                # Strike - RED Party: Use short title "RED" instead of full name
+                {
+                    "match_titles": ["RED: Nightclub Experience", "RED: A Nightclub Experience",
+                                    "RED! Nightclub Experience", "Nightclub"],
+                    "offset_minutes": 0,  # Starts immediately after event ends
+                    "anchor": "end",
+                    "duration_minutes": 30,
+                    "title_template": "Strike RED",
+                    "type": "strike",
+                },
                 # Strike - Game Shows & Parties: After EACH event ends, 30 min
                 # Note: Overlap resolution will omit strikes that overlap with next event
                 {
                     "match_titles": ["Battle of the Sexes", "Crazy Quest", "Family SHUSH!", "Family Shush!",
-                                    "Glow Party", "RED: Nightclub Experience", "Nightclub"],
+                                    "Glow Party"],
                     "offset_minutes": 0,  # Starts immediately after event ends
                     "anchor": "end",
                     "duration_minutes": 30,

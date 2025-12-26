@@ -134,6 +134,17 @@ class GenAIParser:
         
         # Step 5: Validate and Repair (Deterministic)
         print("DEBUG: Step 5 - Validating results...")
+        
+        # Filter out events with null/missing start times (LLM sometimes returns "null" string)
+        original_event_count = len(result.get("events", []))
+        result["events"] = [
+            e for e in result.get("events", [])
+            if e.get("start_time") and str(e.get("start_time")).lower() != "null"
+        ]
+        filtered_count = original_event_count - len(result["events"])
+        if filtered_count > 0:
+            print(f"DEBUG: Filtered out {filtered_count} events with null/missing start times")
+        
         validation = self.validator.validate(
             result, raw_data, target_venue, combined_other_venues
         )
@@ -506,6 +517,9 @@ OUTPUT FORMAT - Present as JSON with:
    - Guest shows: productions, movies, comedy, headliners
    - Technical events: Aerial Install, Tech Run, Rehearsal, Sound Check
    - Any text with times that reserves venue time
+   
+   **CRITICAL: ONLY extract items that have a clearly stated time (e.g., "7:30 pm", "10:00 am - 2:00 pm", etc.).**
+   **SKIP informational notes or labels that don't have times (e.g., "New Cast on Muster 2.0", "Group Notes", dress codes).**
    
    Fields:
    - title: String (event name, excluding time information)
