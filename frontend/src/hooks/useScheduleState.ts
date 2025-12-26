@@ -221,6 +221,7 @@ export function useScheduleState() {
                 timeDisplay: e.time_display,
                 notes: e.notes,
                 color: e.color,
+                type: e.type,
             }));
             processedEvents = assignEventColors(newEvents);
         }

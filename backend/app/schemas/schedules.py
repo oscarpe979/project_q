@@ -9,6 +9,7 @@ class EventInput(BaseModel):
     color: Optional[str] = None
     time_display: Optional[str] = None
     notes: Optional[str] = None
+    type: Optional[str] = None
 
 class ItineraryInput(BaseModel):
     day: int

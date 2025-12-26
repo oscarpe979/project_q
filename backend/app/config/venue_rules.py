@@ -63,7 +63,7 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "offset_minutes": -240,  # 4 hours before (30 min before Specialty Ice Warm Up)
                     "duration_minutes": 30,
                     "title_template": "Ice Make",
-                    "type": "preset",
+                    "type": "ice_make",
                     "first_per_day": True,
                 },
                 # Ice Make & Presets - 1.5 hours before first Ice Show

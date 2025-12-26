@@ -49,10 +49,10 @@ class Venue(SQLModel, table=True):
 class EventType(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
-    category: str # e.g., "Production Show", "Comedy"
     default_duration_minutes: int
+    default_color: Optional[str] = None
     
-    venues: List[Venue] = Relationship(back_populates="capabilities", link_model=VenueCapability)
+    venues: List["Venue"] = Relationship(back_populates="capabilities", link_model=VenueCapability)
     schedule_items: List["ScheduleItem"] = Relationship(back_populates="event_type")
 
 # --- Voyage & Schedule ---

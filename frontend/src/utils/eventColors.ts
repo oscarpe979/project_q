@@ -19,6 +19,7 @@ export const COLORS = {
     PARADE: '#b3ff51ff',            // Green (for parade events)
     TOPTIER: '#ff7979ff',            // Coral Red (for top tier events)
     SETUP: '#e3ded3',              // Warm Taupe (for setup events)
+    ICE_MAKE: '#e3ded3',          // Ice Blue
     OTHER: '#e3ded3',             // Warm Grey
 };
 
@@ -47,6 +48,8 @@ export const getColorForType = (type: string): string => {
             return COLORS.DOORS;
         case 'warm_up':
             return COLORS.WARM_UP;
+        case 'ice_make':
+            return COLORS.ICE_MAKE;
         case 'preset':
             return COLORS.PRESET;
         case 'strike':

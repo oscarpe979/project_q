@@ -6,6 +6,7 @@ export interface Event {
     color?: string;
     timeDisplay?: string;
     notes?: string;
+    type?: string;
     endIsLate?: boolean;  // True if end time should display as "Late"
 }
 

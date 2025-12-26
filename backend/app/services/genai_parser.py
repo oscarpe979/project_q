@@ -588,17 +588,18 @@ EVENT NAMES RULES:
 - **Red Carpet Movie**: If an event starts with "Red Carpet Movie" followed by a dash and movie name (e.g., "Red Carpet Movie - Minecraft Movie"), extract it as just "Red Carpet Movie". The specific movie title changes weekly and should be stripped.
 
 TYPE RULES:
-Assign a `type` to each event based on its kind. Use ONLY these types:
-- **Production Shows** (category: "show"): e.g., "Cats", "Hairspray", "Mamma Mia!", "Saturday Night Fever", "We Will Rock You", "Grease", "The Wizard of Oz", "The Effectors", "The Effectors II: Crash 'n' Burn", "Flight", "Hiro", "inTENse", "1977", "Aqua80", "Aqua80Too", "Big Daddy's Hideaway Heist", "Blue Planet", "Live. Love. Legs.", "The Gift", "Sonic Odyssey", "Starwater", "Spectra's Cabaret", "Showgirl™", "Columbus The Musical", "Can't Stop the Rock", "Fast Forward", "Gallery of Dreams", "Jackpot", "Marquee", "Music in Pictures", "Now and Forever", "Once Upon A Time", "One Sky", "Piano Man", "Pure Country", "Sequins & Feathers", "Stage to Screen", "Tango Buenos Aires", "The Beautiful Dream", "The Fine Line", "The Silk Road™", "Vibeology", "Voices", "West End to Broadway", "Wild Cool & Swingin'", "iSkate 2.0", "Ice Games", "Ice Odyssey", "Invitation to Dance", "Ballroom Fever", "Broadway Rhythm & Rhyme", "City of Dreams", "Hot Ice!", "Oceanides".
-- **Headliners** (category: "headliner"): e.g., events starting with "Headliner:".
-- **Movies** (category: "movie").
-- **Game Shows** (category: "game"): e.g., "Love & Marriage", "Battle of the Sexes", "The Quest", "Majority Rules", "Friendly Feud", "Who Wants to Be a Royal Caribbeanaire", "The Virtual Concert", "Late-Night DJ Music and Dancing", "NextStage", "The Voice".
-- **Activities** (category: "activity"): e.g., "Trivia", "Dance Class", "Karaoke", "Laser Tags", "Ice Skating".
-- **Music** (category: "music"): e.g., "Live Music", "Piano", "Band", "Live Concert", "Live Performance".
-- **Comedy** (category: "comedy"): e.g., "Stand-up Comedy", "Comedian", "Comedy Show", "Adult Comedy Show".
-- **Party** (category: "party"): e.g., "RED: Nightclub Experience", "Nightclub".
-- **Parade** (category: "parade"): e.g., "Parade", "Anchors Aweigh Parade".
-- **Top Tier Event** (category: "toptier"): e.g., "Top Tier Event", "Top Tier".
+Assign a `type` to each event based on its kind. Use ONLY these exact string values for the `type` field:
+- **Production Shows** (type: "show"): e.g., "Cats", "Hairspray", "Mamma Mia!", "Saturday Night Fever", "We Will Rock You", "Grease", "The Wizard of Oz".
+- **Headliners** (type: "headliner"): e.g., events starting with "Headliner:".
+- **Movies** (type: "movie").
+- **Game Shows** (type: "game"): e.g., "Love & Marriage", "Battle of the Sexes", "The Quest", "Majority Rules", "Friendly Feud", "The Voice".
+- **Activities** (type: "activity"): e.g., "Trivia", "Dance Class", "Karaoke", "Laser Tags", "Ice Skating".
+- **Music** (type: "music"): e.g., "Live Music", "Piano", "Band", "Live Concert", "Live Performance".
+- **Comedy** (type: "comedy"): e.g., "Stand-up Comedy", "Comedian", "Comedy Show", "Adult Comedy Show".
+- **Party** (type: "party"): e.g., "RED: Nightclub Experience", "Nightclub".
+- **Parade** (type: "parade"): e.g., "Parade", "Anchors Aweigh Parade".
+- **Top Tier Event** (type: "toptier"): e.g., "Top Tier Event", "Top Tier".
+- **Maintenance** (type: "maintenance"): e.g., "Maintenance", "Safety Test".
 - **Other** (type: "other"): Rehearsals, Maintenance, or anything else.
 {type_instructions}
 

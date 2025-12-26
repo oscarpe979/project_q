@@ -12,6 +12,7 @@ interface PublishScheduleRequest {
         color?: string;
         time_display?: string;
         notes?: string;
+        type?: string;
     }[];
     itinerary: {
         day: number;
@@ -47,7 +48,8 @@ export const scheduleService = {
                 end: toLocalISOString(e.end),
                 color: e.color,
                 time_display: e.timeDisplay,
-                notes: e.notes // Assuming Event type has notes, if not we might need to extend it or ignore
+                notes: e.notes,
+                type: e.type,
             })),
             itinerary: itinerary.map(i => ({
                 day: i.day,

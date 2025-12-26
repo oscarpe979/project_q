@@ -225,24 +225,34 @@ def publish_schedule(
     
     for item in existing_items:
         session.delete(item)
+
+    # Fetch all EventTypes for lookup
+    all_event_types = session.exec(select(EventType)).all()
+    # Map name -> EventType object (so we can access id and default_color)
+    event_type_map = {et.name.lower(): et for et in all_event_types}
+    other_type_obj = event_type_map.get("other")
         
     # Insert new items
     for event in request.events:
-        # Find or create EventType? 
-        # For MVP, we might just store the type string if we don't strictly enforce EventType table yet
-        # But ScheduleItem requires event_type_id (Optional).
-        # Let's try to find an EventType by name, if not found, maybe leave null or create?
-        # Model: event_type_id is Optional.
+        # Resolve EventType
+        input_type = (event.type or "other").lower()
+        event_type_obj = event_type_map.get(input_type, other_type_obj)
         
-        # We need to map frontend 'type' to backend 'type' field in ScheduleItem
+        event_type_id = event_type_obj.id if event_type_obj else None
+        
+        # Resolve Color: Use provided color OR fallback to default_color
+        final_color = event.color
+        if not final_color and event_type_obj:
+            final_color = event_type_obj.default_color
         
         new_item = ScheduleItem(
             voyage_id=voyage.id,
             venue_id=current_user.venue_id,
+            event_type_id=event_type_id,
             title=event.title,
             start_time=event.start,
             end_time=event.end,
-            color=event.color,
+            color=final_color,
             time_display=event.time_display,
             notes=event.notes
         )
@@ -351,7 +361,8 @@ def get_latest_schedule(
             "end": item.end_time.isoformat(),
             "color": item.color,
             "time_display": item.time_display,
-            "notes": item.notes
+            "notes": item.notes,
+            "type": item.event_type.name if item.event_type else None
         }
         for item in schedule_items
     ]
@@ -469,7 +480,8 @@ def get_schedule_by_voyage(
             "end": item.end_time.isoformat(),
             "color": item.color,
             "time_display": item.time_display,
-            "notes": item.notes
+            "notes": item.notes,
+            "type": item.event_type.name if item.event_type else None
         }
         for item in schedule_items
     ]
