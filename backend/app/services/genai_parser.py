@@ -19,6 +19,11 @@ from .parser_validator import ParserValidator
 # Venue Rules Configuration
 from backend.app.config.venue_rules import get_source_venues, get_venue_rules
 
+# Database imports for dynamic schema generation
+from sqlmodel import Session, select
+from backend.app.db.session import engine
+from backend.app.db.models import EventType
+
 # Thinking budget for speed/quality tradeoff (0=off, -1=dynamic, 1-24576=fixed)
 THINKING_BUDGET = 1024
 
@@ -600,7 +605,8 @@ Assign a `type` to each event based on its kind. Use ONLY these exact string val
 - **Parade** (type: "parade"): e.g., "Parade", "Anchors Aweigh Parade".
 - **Top Tier Event** (type: "toptier"): e.g., "Top Tier Event", "Top Tier".
 - **Maintenance** (type: "maintenance"): e.g., "Maintenance", "Safety Test".
-- **Other** (type: "other"): Rehearsals, Maintenance, or anything else.
+- **Cast Install** (type: "cast_install"): e.g., "Cast Install".
+- **Other** (type: "other"): Rehearsals, or anything else.
 {type_instructions}
 
 Return ONLY valid JSON matching the schema."""
@@ -649,11 +655,15 @@ Return ONLY valid JSON matching the schema."""
     
     def _get_interpretation_schema(self) -> Dict:
         """JSON schema for Pass 2 interpretation."""
-        enum_values = [
-            "show", "movie", "game", "activity", "music", 
-            "party", "comedy", "headliner", "rehearsal", 
-            "maintenance", "other", "parade", "toptier"
-        ]
+        # Dynamically pull event types from database - no more hardcoding!
+        
+        with Session(engine) as session:
+            event_types = session.exec(select(EventType)).all()
+            enum_values = [et.name for et in event_types]
+        
+        # Ensure 'other' is always present as fallback
+        if 'other' not in enum_values:
+            enum_values.append('other')
         
         return {
             "type": "object",
@@ -2127,26 +2137,31 @@ Return ONLY valid JSON matching the schema."""
             if gap_minutes < MIN_GAP_MINUTES:
                 continue
             
-            # Find operations that fall within this gap
-            ops_in_gap = []
-            for op in operations:
-                op_start = op.get('start_dt')
-                op_end = op.get('end_dt')
+            # Find ANY event (not just operations) that fills this gap
+            # This catches Cast Install, rehearsals, and other non-operation events
+            events_in_gap = []
+            for evt in events:
+                evt_start = evt.get('start_dt')
+                evt_end = evt.get('end_dt')
                 
-                if not op_start or not op_end:
+                if not evt_start or not evt_end:
                     continue
                 
-                # Operation is in the gap if it overlaps with [prev_end, next_start]
-                if op_start < next_start and op_end > prev_end:
-                    ops_in_gap.append(op)
+                # Skip the prev and next events themselves
+                if evt is prev_event or evt is next_event:
+                    continue
+                
+                # Event is in the gap if it overlaps with [prev_end, next_start]
+                if evt_start < next_start and evt_end > prev_end:
+                    events_in_gap.append(evt)
             
-            # Find the earliest operation start in the gap
-            if ops_in_gap:
-                earliest_op_start = min(op.get('start_dt') for op in ops_in_gap)
-                # If there's a gap BEFORE the earliest operation, create Reset for that
-                unfilled_gap = (earliest_op_start - prev_end).total_seconds() / 60
+            # Find the earliest event start in the gap
+            if events_in_gap:
+                earliest_evt_start = min(evt.get('start_dt') for evt in events_in_gap)
+                # If there's a gap BEFORE the earliest event, create Reset for that
+                unfilled_gap = (earliest_evt_start - prev_end).total_seconds() / 60
                 if unfilled_gap >= MIN_GAP_MINUTES:
-                    reset_duration = min(earliest_op_start - prev_end, MAX_RESET_DURATION)
+                    reset_duration = min(earliest_evt_start - prev_end, MAX_RESET_DURATION)
                     reset_event = {
                         'title': f"Reset for {next_event.get('title', 'Event')}",
                         'type': 'reset',
@@ -2157,7 +2172,7 @@ Return ONLY valid JSON matching the schema."""
                     }
                     reset_events.append(reset_event)
             else:
-                # No operations at all - create Reset for the full gap
+                # No events at all in the gap - create Reset for the full gap
                 reset_duration = min(gap, MAX_RESET_DURATION)
                 reset_event = {
                     'title': f"Reset for {next_event.get('title', 'Event')}",

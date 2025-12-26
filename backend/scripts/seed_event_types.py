@@ -25,6 +25,7 @@ def seed_event_types():
         {"name": "preset", "default_duration_minutes": 60, "default_color": "#e3ded3"},
         {"name": "toptier", "default_duration_minutes": 60, "default_color": "#ff7979ff"},
         {"name": "ice_make", "default_duration_minutes": 60, "default_color": "#dcf0fa"},
+        {"name": "cast_install", "default_duration_minutes": 60, "default_color": "#e3ded3"},
         {"name": "doors", "default_duration_minutes": 15, "default_color": "#000000"},
     ]
 
