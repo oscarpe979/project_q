@@ -115,8 +115,8 @@ class ParserValidator:
             if not start_time:
                 errors.append(f"Event {i}: Missing start time")
             
-            # Validate event type/category (LLM uses 'category', API uses 'type')
-            event_type = event.get("category") or event.get("type", "other")
+            # Validate event type
+            event_type = event.get("type") or event.get("category", "other")
             if event_type not in self.valid_types:
                 warnings.append(f"Event {i}: Unknown type '{event_type}', defaulting to 'other'")
             

@@ -110,7 +110,7 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                     "check_all_events": True,
                 },
                 {
-                    "match_categories": ["game", "movie", "party"],
+                    "match_types": ["game", "movie", "party"],
                     "offset_minutes": -30,
                     "duration_minutes": 15,
                     "title_template": "Doors",
@@ -120,7 +120,7 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                 },
                 # Default: All shows and headliners get standard doors
                 {
-                    "match_categories": ["show", "headliner"],
+                    "match_types": ["show", "headliner"],
                     "offset_minutes": -45,
                     "duration_minutes": 15,
                     "title_template": "Doors",
@@ -130,7 +130,7 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                 },
                 # Top Tier Event doors - 15 min before event
                 {
-                    "match_categories": ["toptier"],
+                    "match_types": ["toptier"],
                     "offset_minutes": -15,
                     "duration_minutes": 15,
                     "title_template": "Doors",
@@ -142,7 +142,7 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
             "setup": [
                 # Set Up - Top Tier: 1 hour setup, 15 min before doors (30 min before event)
                 {
-                    "match_categories": ["toptier"],
+                    "match_types": ["toptier"],
                     "offset_minutes": -75,  # 30 min before event + 60 min duration - 15 min overlap
                     "duration_minutes": 60,
                     "title_template": "Set Up Top Tier",
@@ -202,7 +202,7 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                 # Rules process in order; specific match_titles rules fire first
                 # and add to matched_parent_keys, so catch-all skips those events
                 {
-                    "match_categories": ["game", "party", "music"],
+                    "match_types": ["game", "party", "music"],
                     "offset_minutes": -60,  # 1 hour before
                     "duration_minutes": 30,
                     "title_template": "Set Up {parent_title}",
@@ -281,7 +281,7 @@ VENUE_METADATA: Dict[tuple, Dict[str, Any]] = {
                 # Rules process in order; specific match_titles rules fire first
                 # and add to matched_parent_keys, so catch-all skips those events
                 {
-                    "match_categories": ["game", "party"],
+                    "match_types": ["game", "party"],
                     "offset_minutes": 0,  # Starts immediately after event ends
                     "anchor": "end",
                     "duration_minutes": 30,

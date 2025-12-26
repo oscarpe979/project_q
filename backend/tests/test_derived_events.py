@@ -21,7 +21,8 @@ def sample_show_event():
         "title": "Ice Show: 365",
         "start_dt": datetime(2024, 1, 15, 19, 0),  # 7:00 PM
         "end_dt": datetime(2024, 1, 15, 20, 0),    # 8:00 PM
-        "category": "show",
+        "type": "show",
+        "type": "show",
         "venue": "Studio B",
         "raw_date": "2024-01-15"
     }
@@ -34,7 +35,8 @@ def sample_headliner_event():
         "title": "Headliner: Randy Cabral",
         "start_dt": datetime(2024, 1, 15, 21, 30),  # 9:30 PM
         "end_dt": datetime(2024, 1, 15, 22, 30),    # 10:30 PM
-        "category": "headliner",
+        "type": "headliner",
+        "type": "headliner",
         "venue": "Royal Theater",
         "raw_date": "2024-01-15"
     }
@@ -47,7 +49,8 @@ def sample_activity_event():
         "title": "Open Ice Skating",
         "start_dt": datetime(2024, 1, 15, 14, 0),  # 2:00 PM
         "end_dt": datetime(2024, 1, 15, 16, 0),    # 4:00 PM
-        "category": "activity",
+        "type": "activity",
+        "type": "activity",
         "venue": "Studio B",
         "raw_date": "2024-01-15"
     }
@@ -57,7 +60,7 @@ def sample_activity_event():
 def doors_rule_basic():
     """Basic doors rule matching shows and headliners."""
     return {
-        "match_categories": ["show", "headliner"],
+        "match_types": ["show", "headliner"],
         "offset_minutes": -45,
         "duration_minutes": 15,
         "title_template": "Doors",
@@ -83,7 +86,7 @@ def doors_rule_specific_title():
 def rehearsal_rule():
     """Rehearsal rule for shows."""
     return {
-        "match_categories": ["show"],
+        "match_types": ["show"],
         "offset_minutes": -180,  # 3 hours before
         "duration_minutes": 90,
         "title_template": "{parent_title} Rehearsal",
@@ -96,7 +99,7 @@ def rehearsal_rule():
 def strike_rule():
     """Strike rule anchored to event end time."""
     return {
-        "match_categories": ["show"],
+        "match_types": ["show"],
         "offset_minutes": 15,
         "anchor": "end",
         "duration_minutes": 45,
@@ -123,8 +126,8 @@ def full_derived_rules(doors_rule_basic, doors_rule_specific_title, rehearsal_ru
 class TestEventMatchesRule:
     """Tests for _event_matches_rule() method."""
     
-    def test_matches_category_show(self, sample_show_event, doors_rule_basic):
-        """Show event should match rule with 'show' in match_categories."""
+    def test_matches_type_show(self, sample_show_event, doors_rule_basic):
+        """Show event should match rule with 'show' in match_types."""
         from backend.app.services.genai_parser import GenAIParser
         
         parser = GenAIParser(api_key="dummy")
@@ -132,8 +135,8 @@ class TestEventMatchesRule:
         
         assert result is True
     
-    def test_matches_category_headliner(self, sample_headliner_event, doors_rule_basic):
-        """Headliner event should match rule with 'headliner' in match_categories."""
+    def test_matches_type_headliner(self, sample_headliner_event, doors_rule_basic):
+        """Headliner event should match rule with 'headliner' in match_types."""
         from backend.app.services.genai_parser import GenAIParser
         
         parser = GenAIParser(api_key="dummy")
@@ -141,8 +144,8 @@ class TestEventMatchesRule:
         
         assert result is True
     
-    def test_no_match_activity_category(self, sample_activity_event, doors_rule_basic):
-        """Activity event should NOT match rule without 'activity' in match_categories."""
+    def test_no_match_activity_type(self, sample_activity_event, doors_rule_basic):
+        """Activity event should NOT match rule without 'activity' in match_types."""
         from backend.app.services.genai_parser import GenAIParser
         
         parser = GenAIParser(api_key="dummy")
@@ -174,7 +177,7 @@ class TestEventMatchesRule:
         
         event = {
             "title": "ICE SHOW: 365",  # Different case
-            "category": "show"
+            "type": "show"
         }
         
         parser = GenAIParser(api_key="dummy")
@@ -189,7 +192,7 @@ class TestEventMatchesRule:
         # Rule looks for "Ice Show: 365"
         event = {
             "title": "Special Ice Show: 365 Premiere",  # Contains target string
-            "category": "show"
+            "type": "show"
         }
         
         parser = GenAIParser(api_key="dummy")
@@ -322,13 +325,13 @@ class TestDerivedEventEdgeCases:
             "title": "Late Night Comedy",
             "start_dt": datetime(2024, 1, 16, 0, 30),  # 12:30 AM
             "end_dt": datetime(2024, 1, 16, 1, 30),
-            "category": "show",
+            "type": "show",
             "venue": "Studio B",
             "raw_date": "2024-01-16"
         }
         
         rule = {
-            "match_categories": ["show"],
+            "match_types": ["show"],
             "offset_minutes": -60,
             "duration_minutes": 15,
             "title_template": "Doors",
@@ -371,7 +374,7 @@ class TestDerivedEventEdgeCases:
         event = {
             "start_dt": datetime(2024, 1, 15, 19, 0),
             "end_dt": datetime(2024, 1, 15, 20, 0),
-            "category": "show",
+            "type": "show",
             "venue": "Studio B",
             "raw_date": "2024-01-15"
             # No "title" key
@@ -388,7 +391,7 @@ class TestDerivedEventEdgeCases:
         from backend.app.services.genai_parser import GenAIParser
         
         rule = {
-            "match_categories": ["show"],
+            "match_types": ["show"],
             "offset_minutes": -30,
             "duration_minutes": 0,
             "title_template": "Marker",
@@ -406,7 +409,7 @@ class TestDerivedEventEdgeCases:
         from backend.app.services.genai_parser import GenAIParser
         
         rule = {
-            "match_categories": ["show"],
+            "match_types": ["show"],
             "offset_minutes": -360,  # 6 hours before
             "duration_minutes": 60,
             "title_template": "All-Day Setup",
@@ -614,13 +617,13 @@ class TestCheckAllEventsOption:
         # With 30-min doors offset, doors would start at 2:45 PM (overlaps Movie)
         events = [
             {"title": "Movie", "start_dt": datetime(2025, 1, 15, 14, 0), 
-             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "movie"},
+             "end_dt": datetime(2025, 1, 15, 15, 0), "type": "movie"},
             {"title": "Bingo", "start_dt": datetime(2025, 1, 15, 15, 15), 
-             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "game"},
+             "end_dt": datetime(2025, 1, 15, 16, 0), "type": "game"},
         ]
         
         rules = {"doors": [{
-            "match_categories": ["game"],
+            "match_types": ["game"],
             "offset_minutes": -30,
             "duration_minutes": 15,
             "title_template": "Doors",
@@ -644,13 +647,13 @@ class TestCheckAllEventsOption:
         # Movie ends at 2:00 PM, Bingo starts at 3:15 PM (75-min gap)
         events = [
             {"title": "Movie", "start_dt": datetime(2025, 1, 15, 13, 0), 
-             "end_dt": datetime(2025, 1, 15, 14, 0), "category": "movie"},
+             "end_dt": datetime(2025, 1, 15, 14, 0), "type": "movie"},
             {"title": "Bingo", "start_dt": datetime(2025, 1, 15, 15, 15), 
-             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "game"},
+             "end_dt": datetime(2025, 1, 15, 16, 0), "type": "game"},
         ]
         
         rules = {"doors": [{
-            "match_categories": ["game"],
+            "match_types": ["game"],
             "offset_minutes": -30,
             "duration_minutes": 15,
             "title_template": "Doors",
@@ -675,13 +678,13 @@ class TestCheckAllEventsOption:
         # Without check_all_events, this should still create doors (only checks game vs game)
         events = [
             {"title": "Movie", "start_dt": datetime(2025, 1, 15, 14, 0), 
-             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "movie"},
+             "end_dt": datetime(2025, 1, 15, 15, 0), "type": "movie"},
             {"title": "Bingo", "start_dt": datetime(2025, 1, 15, 15, 15), 
-             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "game"},
+             "end_dt": datetime(2025, 1, 15, 16, 0), "type": "game"},
         ]
         
         rules = {"doors": [{
-            "match_categories": ["game"],
+            "match_types": ["game"],
             "offset_minutes": -30,
             "duration_minutes": 15,
             "title_template": "Doors",
@@ -705,11 +708,11 @@ class TestCheckAllEventsOption:
         # Only one event on this day
         events = [
             {"title": "Bingo", "start_dt": datetime(2025, 1, 15, 15, 0), 
-             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "game"},
+             "end_dt": datetime(2025, 1, 15, 16, 0), "type": "game"},
         ]
         
         rules = {"doors": [{
-            "match_categories": ["game"],
+            "match_types": ["game"],
             "offset_minutes": -30,
             "duration_minutes": 15,
             "title_template": "Doors",
@@ -734,13 +737,13 @@ class TestCheckAllEventsOption:
         # Doors for RED would be at 11:30 PM, which falls INSIDE Crazy Quest
         events = [
             {"title": "Crazy Quest", "start_dt": datetime(2025, 1, 15, 23, 20), 
-             "end_dt": datetime(2025, 1, 16, 0, 0), "category": "game"},
+             "end_dt": datetime(2025, 1, 16, 0, 0), "type": "game"},
             {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 16, 0, 0), 
-             "end_dt": datetime(2025, 1, 16, 2, 0), "category": "party"},
+             "end_dt": datetime(2025, 1, 16, 2, 0), "type": "party"},
         ]
         
         rules = {"doors": [{
-            "match_categories": ["party"],
+            "match_types": ["party"],
             "offset_minutes": -30,  # 30 min before = 11:30 PM
             "duration_minutes": 15,
             "title_template": "Doors",
@@ -765,13 +768,13 @@ class TestCheckAllEventsOption:
         # Doors for RED would be at 11:30 PM, which is AFTER Crazy Quest ends
         events = [
             {"title": "Crazy Quest", "start_dt": datetime(2025, 1, 15, 22, 0), 
-             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "game"},  # Ends at 11:00 PM
+             "end_dt": datetime(2025, 1, 15, 23, 0), "type": "game"},  # Ends at 11:00 PM
             {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 16, 0, 0), 
-             "end_dt": datetime(2025, 1, 16, 2, 0), "category": "party"},
+             "end_dt": datetime(2025, 1, 16, 2, 0), "type": "party"},
         ]
         
         rules = {"doors": [{
-            "match_categories": ["party"],
+            "match_types": ["party"],
             "offset_minutes": -30,  # 30 min before = 11:30 PM
             "duration_minutes": 15,
             "title_template": "Doors",
@@ -791,69 +794,69 @@ class TestCheckAllEventsOption:
 # TEST GROUP 8: Category Inference for Merged Events
 # ═══════════════════════════════════════════════════════════════════════════════
 
-class TestMergedEventCategoryInference:
-    """Tests for category inference on merged events from other venues."""
+class TestMergedEventTypeInference:
+    """Tests for type inference on merged events from other venues."""
     
-    def test_parade_title_infers_parade_category(self):
-        """Events with 'parade' in title should get category 'parade'."""
-        # This tests the logic in _transform_to_api_format that infers category
+    def test_parade_title_infers_parade_type(self):
+        """Events with 'parade' in title should get type 'parade'."""
+        # This tests the logic in _transform_to_api_format that infers type
         # before calling _parse_single_event
         
         # Simulate what happens in the merge logic
         show = {"title": "Anchors Aweigh Parade", "date": "2025-01-15", 
                 "start_time": "12:30", "venue": "Royal Promenade"}
         
-        # Infer category from title (this is the logic we added)
-        if not show.get("category"):
+        # Infer type from title (this is the logic we added)
+        if not show.get("type"):
             title_lower = show.get("title", "").lower()
             if "parade" in title_lower:
-                show["category"] = "parade"
+                show["type"] = "parade"
         
-        assert show["category"] == "parade"
+        assert show["type"] == "parade"
     
-    def test_party_title_infers_party_category(self):
-        """Events with 'party' in title should get category 'party'."""
+    def test_party_title_infers_party_type(self):
+        """Events with 'party' in title should get type 'party'."""
         show = {"title": "Deck Party", "date": "2025-01-15", 
                 "start_time": "21:00", "venue": "Pool Deck"}
         
-        if not show.get("category"):
+        if not show.get("type"):
             title_lower = show.get("title", "").lower()
             if "parade" in title_lower:
-                show["category"] = "parade"
+                show["type"] = "parade"
             elif "party" in title_lower:
-                show["category"] = "party"
+                show["type"] = "party"
         
-        assert show["category"] == "party"
+        assert show["type"] == "party"
     
-    def test_movie_title_infers_movie_category(self):
-        """Events with 'movie' in title should get category 'movie'."""
+    def test_movie_title_infers_movie_type(self):
+        """Events with 'movie' in title should get type 'movie'."""
         show = {"title": "Movie Night", "date": "2025-01-15", 
                 "start_time": "20:00", "venue": "Royal Theater"}
         
-        if not show.get("category"):
+        if not show.get("type"):
             title_lower = show.get("title", "").lower()
             if "parade" in title_lower:
-                show["category"] = "parade"
+                show["type"] = "parade"
             elif "party" in title_lower:
-                show["category"] = "party"
+                show["type"] = "party"
             elif "movie" in title_lower:
-                show["category"] = "movie"
+                show["type"] = "movie"
         
-        assert show["category"] == "movie"
+        assert show["type"] == "movie"
     
-    def test_existing_category_not_overwritten(self):
-        """If category already exists, it should NOT be overwritten."""
+    def test_existing_type_not_overwritten(self):
+        """If type already exists, it should NOT be overwritten."""
         show = {"title": "Parade Party", "date": "2025-01-15", 
                 "start_time": "18:00", "venue": "Promenade", 
-                "category": "activity"}  # Already has category
+                "type": "activity"}  # Already has type
         
-        if not show.get("category"):
+        if not show.get("type"):
             title_lower = show.get("title", "").lower()
             if "parade" in title_lower:
-                show["category"] = "parade"
+                show["type"] = "parade"
         
-        # Category should remain "activity" (not overwritten to "parade")
-        assert show["category"] == "activity"
+        # Type should remain "activity" (not overwritten to "parade")
+        assert show["type"] == "activity"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -871,9 +874,9 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Studio B", "date": "2025-10-13", "title": "Private Ice Skating", 
-             "time": "11:30am-12:30pm", "category": "activity"},
+             "time": "11:30am-12:30pm", "type": "activity"},
             {"venue": "Studio B", "date": "2025-10-13", "title": "Ice Spectacular 365", 
-             "time": "8:15 pm & 10:30 pm", "category": "show"},
+             "time": "8:15 pm & 10:30 pm", "type": "show"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -882,9 +885,9 @@ class TestHighlightsFilteringAlgorithm:
         assert len(result) == 1
         # Show should win over activity
         assert result[0]["title"] == "Ice Spectacular 365"
-        assert result[0]["category"] == "show"
+        assert result[0]["type"] == "show"
     
-    def test_evening_time_beats_morning_same_category(self):
+    def test_evening_time_beats_morning_same_type(self):
         """Evening events should be preferred over morning events."""
         from backend.app.services.genai_parser import GenAIParser
         
@@ -892,9 +895,9 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Studio B", "date": "2025-10-13", "title": "Morning Show", 
-             "time": "10:00 am", "category": "show"},
+             "time": "10:00 am", "type": "show"},
             {"venue": "Studio B", "date": "2025-10-13", "title": "Evening Show", 
-             "time": "8:00 pm", "category": "show"},
+             "time": "8:00 pm", "type": "show"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -911,9 +914,9 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Trivia Night", 
-             "time": "7:00 pm", "category": "game"},
+             "time": "7:00 pm", "type": "game"},
             {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Comedy Special", 
-             "time": "9:00 pm", "category": "headliner"},
+             "time": "9:00 pm", "type": "headliner"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -929,9 +932,9 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Let's Dance", 
-             "time": "11:00 pm", "category": "party"},
+             "time": "11:00 pm", "type": "party"},
             {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Open Skating", 
-             "time": "2:00 pm", "category": "activity"},
+             "time": "2:00 pm", "type": "activity"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -947,11 +950,11 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Studio B", "date": "2025-10-13", "title": "Event A", 
-             "time": "7:00 pm", "category": "show"},
+             "time": "7:00 pm", "type": "show"},
             {"venue": "Studio B", "date": "2025-10-13", "title": "Event B", 
-             "time": "9:00 pm", "category": "show"},
+             "time": "9:00 pm", "type": "show"},
             {"venue": "Studio B", "date": "2025-10-13", "title": "Event C", 
-             "time": "10:00 pm", "category": "party"},
+             "time": "10:00 pm", "type": "party"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -967,11 +970,11 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Studio B", "date": "2025-10-13", "title": "Ice Show", 
-             "time": "8:00 pm", "category": "show"},
+             "time": "8:00 pm", "type": "show"},
             {"venue": "AquaTheater", "date": "2025-10-13", "title": "Aqua Show", 
-             "time": "8:00 pm", "category": "show"},
+             "time": "8:00 pm", "type": "show"},
             {"venue": "Studio B", "date": "2025-10-14", "title": "Ice Show 2", 
-             "time": "8:00 pm", "category": "show"},
+             "time": "8:00 pm", "type": "show"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -993,9 +996,9 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Studio B", "date": "2025-10-13", "title": "Ice Show", 
-             "time": "7:00 pm", "category": "show"},
+             "time": "7:00 pm", "type": "show"},
             {"venue": "Studio B", "date": "2025-10-13", "title": "Ice Show", 
-             "time": "9:30 pm", "category": "show"},
+             "time": "9:30 pm", "type": "show"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1013,9 +1016,9 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "AquaTheater", "date": "2025-10-16", "title": "Aqua Backup", 
-             "time": "8:00 pm", "category": "backup"},
+             "time": "8:00 pm", "type": "backup"},
             {"venue": "AquaTheater", "date": "2025-10-16", "title": "Other Event", 
-             "time": "8:00 pm", "category": "other"},
+             "time": "8:00 pm", "type": "other"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1024,7 +1027,7 @@ class TestHighlightsFilteringAlgorithm:
         # "other" (priority 7) beats "backup" (priority 8)
         assert result[0]["title"] == "Other Event"
     
-    def test_parade_category_priority(self):
+    def test_parade_type_priority(self):
         """Parade should have moderate priority (not highest, not lowest)."""
         from backend.app.services.genai_parser import GenAIParser
         
@@ -1033,9 +1036,9 @@ class TestHighlightsFilteringAlgorithm:
         # Parade vs Activity - parade has higher priority
         shows = [
             {"venue": "Royal Promenade", "date": "2025-10-13", "title": "Costume Parade", 
-             "time": "10:00 pm", "category": "parade"},
+             "time": "10:00 pm", "type": "parade"},
             {"venue": "Royal Promenade", "date": "2025-10-13", "title": "Random Activity", 
-             "time": "2:00 pm", "category": "activity"},
+             "time": "2:00 pm", "type": "activity"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1054,7 +1057,7 @@ class TestHighlightsFilteringAlgorithm:
         # Scenario: Royal Promenade Day 2 only has a late-night party
         shows = [
             {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Let's Dance", 
-             "time": "11:15 pm - midnight", "category": "party"},
+             "time": "11:15 pm - midnight", "type": "party"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1062,7 +1065,7 @@ class TestHighlightsFilteringAlgorithm:
         # Should be kept as the highlight for that day
         assert len(result) == 1
         assert result[0]["title"] == "Let's Dance"
-        assert result[0]["category"] == "party"
+        assert result[0]["type"] == "party"
     
     def test_late_night_party_vs_activity(self):
         """Late-night party should beat afternoon activity even at 11pm."""
@@ -1072,9 +1075,9 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Afternoon Activity", 
-             "time": "2:00 pm", "category": "activity"},
+             "time": "2:00 pm", "type": "activity"},
             {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Let's Dance", 
-             "time": "11:15 pm", "category": "party"},
+             "time": "11:15 pm", "type": "party"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1091,11 +1094,11 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Studio B", "date": "2025-10-14", "title": "RED: Nightclub Experience", 
-             "time": "Midnight - late", "category": "party"},
+             "time": "Midnight - late", "type": "party"},
             {"venue": "AquaTheater", "date": "2025-10-14", "title": "inTENse: Maximum Performance", 
-             "time": "8:15 pm & 10:30 pm", "category": "show"},
+             "time": "8:15 pm & 10:30 pm", "type": "show"},
             {"venue": "Royal Promenade", "date": "2025-10-14", "title": "Let's Dance", 
-             "time": "11:15 pm - midnight", "category": "party"},
+             "time": "11:15 pm - midnight", "type": "party"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1117,11 +1120,11 @@ class TestHighlightsFilteringAlgorithm:
         # Real scenario: Day 5 Studio B - Battle of the Sexes should beat Family SHUSH
         shows = [
             {"venue": "Studio B", "date": "2025-08-21", "title": "Family SHUSH", 
-             "time": "8pm - 9:30 pm", "category": "activity"},
+             "time": "8pm - 9:30 pm", "type": "activity"},
             {"venue": "Studio B", "date": "2025-08-21", "title": "Battle of the Sexes", 
-             "time": "9:45 pm", "category": "game"},
+             "time": "9:45 pm", "type": "game"},
             {"venue": "Studio B", "date": "2025-08-21", "title": "Crazy Quest", 
-             "time": "11:00 pm", "category": "game"},
+             "time": "11:00 pm", "type": "game"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1129,7 +1132,7 @@ class TestHighlightsFilteringAlgorithm:
         assert len(result) == 1
         # Game (priority 3) should beat activity (priority 6)
         # Battle of the Sexes is the first game and both have evening time
-        assert result[0]["category"] == "game"
+        assert result[0]["type"] == "game"
         # Either Battle of the Sexes or Crazy Quest should win
         assert result[0]["title"] in ["Battle of the Sexes", "Crazy Quest"]
     
@@ -1141,9 +1144,9 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Studio B", "date": "2025-08-21", "title": "Morning Activity", 
-             "time": "10:00 am", "category": "activity"},
+             "time": "10:00 am", "type": "activity"},
             {"venue": "Studio B", "date": "2025-08-21", "title": "Evening Game Show", 
-             "time": "9:00 pm", "category": "game"},
+             "time": "9:00 pm", "type": "game"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1160,9 +1163,9 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "AquaTheater", "date": "2025-08-21", "title": "MOVIES ON DECK", 
-             "time": "6:00 pm & 9:30 pm", "category": "movie"},
+             "time": "6:00 pm & 9:30 pm", "type": "movie"},
             {"venue": "AquaTheater", "date": "2025-08-21", "title": "Finish That Lyric", 
-             "time": "8:30 pm", "category": "game"},
+             "time": "8:30 pm", "type": "game"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1180,11 +1183,11 @@ class TestHighlightsFilteringAlgorithm:
         # Only Ice Skating sessions available - should use first one as fallback
         shows = [
             {"venue": "Studio B", "date": "2025-07-23", "title": "Ice Skating", 
-             "time": "5:00 pm - 6:00 pm (1hr) TEENS", "category": "activity"},
+             "time": "5:00 pm - 6:00 pm (1hr) TEENS", "type": "activity"},
             {"venue": "Studio B", "date": "2025-07-23", "title": "Ice Skating", 
-             "time": "6:00 pm - 8:00 pm (2hrs)", "category": "activity"},
+             "time": "6:00 pm - 8:00 pm (2hrs)", "type": "activity"},
             {"venue": "Studio B", "date": "2025-07-23", "title": "Ice Skating", 
-             "time": "8:30 pm - 11:30 pm (3hrs)", "category": "activity"},
+             "time": "8:30 pm - 11:30 pm (3hrs)", "type": "activity"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1201,7 +1204,7 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Studio B", "date": "2025-07-24", "title": "Laser Tag", 
-             "time": "1:00 pm - 7:00 pm (6hrs)", "category": "activity"},
+             "time": "1:00 pm - 7:00 pm (6hrs)", "type": "activity"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1218,7 +1221,7 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Studio B", "date": "2025-07-22", "title": "Ice Spectacular: 365", 
-             "time": "6:45 pm & 9:00 pm", "category": "show"},
+             "time": "6:45 pm & 9:00 pm", "type": "show"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1235,9 +1238,9 @@ class TestHighlightsFilteringAlgorithm:
         
         shows = [
             {"venue": "Studio B", "date": "2025-07-23", "title": "Ice Skating", 
-             "time": "5:00 pm - 8:00 pm", "category": "activity"},
+             "time": "5:00 pm - 8:00 pm", "type": "activity"},
             {"venue": "Studio B", "date": "2025-07-23", "title": "Battle of the Sexes", 
-             "time": "9:15 pm", "category": "game"},
+             "time": "9:15 pm", "type": "game"},
         ]
         
         result = parser._filter_other_venue_shows(shows, {})
@@ -1301,9 +1304,9 @@ class TestFloorTransitionLogic:
         # Ice Show 3 PM, Laser Tag 6 PM
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 15, 0), 
-             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "show"},
+             "end_dt": datetime(2025, 1, 15, 16, 0), "type": "show"},
             {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 18, 0), 
-             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 22, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1327,9 +1330,9 @@ class TestFloorTransitionLogic:
         # Laser Tag 2 PM, Ice Skating 5 PM
         events = [
             {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 14, 0), 
-             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 15, 0), "type": "activity"},
             {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 17, 0), 
-             "end_dt": datetime(2025, 1, 15, 19, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 19, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1350,9 +1353,9 @@ class TestFloorTransitionLogic:
         # Both are floor events
         events = [
             {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 14, 0), 
-             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 16, 0), "type": "activity"},
             {"title": "Bingo", "start_dt": datetime(2025, 1, 15, 17, 0), 
-             "end_dt": datetime(2025, 1, 15, 18, 0), "category": "game"},
+             "end_dt": datetime(2025, 1, 15, 18, 0), "type": "game"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1371,9 +1374,9 @@ class TestFloorTransitionLogic:
         # Both are ice events
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 15, 0), 
-             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "show"},
+             "end_dt": datetime(2025, 1, 15, 16, 0), "type": "show"},
             {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 17, 0), 
-             "end_dt": datetime(2025, 1, 15, 19, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 19, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1396,9 +1399,9 @@ class TestFloorTransitionLogic:
         # Party ends at 2 AM, Ice Skating at 9 AM next day
         events = [
             {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 15, 23, 0), 
-             "end_dt": datetime(2025, 1, 16, 2, 0), "category": "party"},  # Ends 2 AM
+             "end_dt": datetime(2025, 1, 16, 2, 0), "type": "party"},  # Ends 2 AM
             {"title": "Ice Skating", "start_dt": datetime(2025, 1, 16, 9, 0), 
-             "end_dt": datetime(2025, 1, 16, 11, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 16, 11, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1419,9 +1422,9 @@ class TestFloorTransitionLogic:
         # Party ends at 2 AM, Laser Tag at 1 PM (both need floor)
         events = [
             {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 15, 23, 0), 
-             "end_dt": datetime(2025, 1, 16, 2, 0), "category": "party"},
+             "end_dt": datetime(2025, 1, 16, 2, 0), "type": "party"},
             {"title": "Laser Tag", "start_dt": datetime(2025, 1, 16, 13, 0), 
-             "end_dt": datetime(2025, 1, 16, 17, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 16, 17, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1443,11 +1446,11 @@ class TestFloorTransitionLogic:
         # Ice Show → Port Talk (don't care) → Ice Skating
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 15, 0), 
-             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "show"},
+             "end_dt": datetime(2025, 1, 15, 16, 0), "type": "show"},
             {"title": "Port & Shopping Talk", "start_dt": datetime(2025, 1, 15, 16, 30), 
-             "end_dt": datetime(2025, 1, 15, 17, 0), "category": "other"},  # Don't care
+             "end_dt": datetime(2025, 1, 15, 17, 0), "type": "other"},  # Don't care
             {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 18, 0), 
-             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 20, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1466,11 +1469,11 @@ class TestFloorTransitionLogic:
         # Ice Show → Port Talk (don't care) → Laser Tag
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 15, 0), 
-             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "show"},
+             "end_dt": datetime(2025, 1, 15, 16, 0), "type": "show"},
             {"title": "Port & Shopping Talk", "start_dt": datetime(2025, 1, 15, 16, 30), 
-             "end_dt": datetime(2025, 1, 15, 17, 0), "category": "other"},  # Don't care
+             "end_dt": datetime(2025, 1, 15, 17, 0), "type": "other"},  # Don't care
             {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 18, 0), 
-             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 22, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1495,11 +1498,11 @@ class TestFloorTransitionLogic:
         # Ice Show → Laser Tag → Ice Skating
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 10, 0), 
-             "end_dt": datetime(2025, 1, 15, 11, 0), "category": "show"},
+             "end_dt": datetime(2025, 1, 15, 11, 0), "type": "show"},
             {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 13, 0), 
-             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 16, 0), "type": "activity"},
             {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 18, 0), 
-             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 20, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1532,7 +1535,7 @@ class TestFloorTransitionLogic:
         # Only one event - no previous state to transition from
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 19, 0), 
-             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "show"},
+             "end_dt": datetime(2025, 1, 15, 20, 0), "type": "show"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1548,9 +1551,9 @@ class TestFloorTransitionLogic:
         
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 15, 0), 
-             "end_dt": datetime(2025, 1, 15, 16, 0), "category": "show"},
+             "end_dt": datetime(2025, 1, 15, 16, 0), "type": "show"},
             {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 18, 0), 
-             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 22, 0), "type": "activity"},
         ]
         
         # Empty config - no floor_requirements
@@ -1568,9 +1571,9 @@ class TestFloorTransitionLogic:
         # Laser Tag ends at exactly midnight, Ice Skating at 2 PM
         events = [
             {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 20, 0), 
-             "end_dt": datetime(2025, 1, 16, 0, 0), "category": "activity"},  # Ends exactly midnight
+             "end_dt": datetime(2025, 1, 16, 0, 0), "type": "activity"},  # Ends exactly midnight
             {"title": "Ice Skating", "start_dt": datetime(2025, 1, 16, 14, 0), 
-             "end_dt": datetime(2025, 1, 16, 17, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 16, 17, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1590,9 +1593,9 @@ class TestFloorTransitionLogic:
         # Party ends at 2 AM, Ice Skating at 12 PM (noon)
         events = [
             {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 15, 23, 0), 
-             "end_dt": datetime(2025, 1, 16, 2, 0), "category": "party"},
+             "end_dt": datetime(2025, 1, 16, 2, 0), "type": "party"},
             {"title": "Ice Skating", "start_dt": datetime(2025, 1, 16, 12, 0), 
-             "end_dt": datetime(2025, 1, 16, 14, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 16, 14, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1614,12 +1617,12 @@ class TestFloorTransitionLogic:
         # Laser Tag at midnight needs floor transition
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 20, 15), 
-             "end_dt": datetime(2025, 1, 15, 21, 15), "category": "show"},
+             "end_dt": datetime(2025, 1, 15, 21, 15), "type": "show"},
             # Existing strike event that overlaps with floor transition
             {"title": "Strike & Ice Scrape", "start_dt": datetime(2025, 1, 15, 21, 15), 
-             "end_dt": datetime(2025, 1, 15, 21, 45), "category": "strike", "type": "strike"},
+             "end_dt": datetime(2025, 1, 15, 21, 45), "type": "strike"},
             {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 22, 15), 
-             "end_dt": datetime(2025, 1, 16, 0, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 16, 0, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1643,12 +1646,12 @@ class TestFloorTransitionLogic:
         # Strike Laser Tag ends at 7 PM, floor transition starts at 7 PM (adjacent)
         events = [
             {"title": "Laser Tag", "start_dt": datetime(2025, 1, 15, 13, 0), 
-             "end_dt": datetime(2025, 1, 15, 18, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 18, 0), "type": "activity"},
             # Strike Laser Tag - ends at 7 PM
             {"title": "Strike Laser Tag", "start_dt": datetime(2025, 1, 15, 18, 0), 
-             "end_dt": datetime(2025, 1, 15, 19, 0), "category": "strike", "type": "strike"},
+             "end_dt": datetime(2025, 1, 15, 19, 0), "type": "strike"},
             {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 20, 0), 
-             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "activity"},
+             "end_dt": datetime(2025, 1, 15, 22, 0), "type": "activity"},
         ]
         
         result = parser._apply_floor_transition_rules(events, floor_config)
@@ -1719,7 +1722,7 @@ class TestGameShowSetupStrike:
         
         events = [
             {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 21, 0), 
-             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 22, 0), "type": "game",
              "raw_date": "2025-01-15"},
         ]
         
@@ -1752,13 +1755,13 @@ class TestGameShowSetupStrike:
         # Three stacked events on same day: BOTS 7 PM → Quest 8 PM → Family SHUSH 9:30 PM
         events = [
             {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 19, 0), 
-             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 20, 0), "type": "game",
              "raw_date": "2025-01-15"},
             {"title": "Crazy Quest", "start_dt": datetime(2025, 1, 15, 20, 0), 
-             "end_dt": datetime(2025, 1, 15, 21, 30), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 21, 30), "type": "game",
              "raw_date": "2025-01-15"},
             {"title": "Family SHUSH!", "start_dt": datetime(2025, 1, 15, 21, 30), 
-             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 23, 0), "type": "game",
              "raw_date": "2025-01-15"},
         ]
         
@@ -1787,10 +1790,10 @@ class TestGameShowSetupStrike:
         # Two events with 6 hour gap (plenty of time for separate setup)
         events = [
             {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 14, 0), 
-             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 15, 0), "type": "game",
              "raw_date": "2025-01-15"},
             {"title": "Crazy Quest", "start_dt": datetime(2025, 1, 15, 21, 0), 
-             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 22, 0), "type": "game",
              "raw_date": "2025-01-15"},
         ]
         
@@ -1839,10 +1842,10 @@ class TestStudioBIntegration:
         # Two Ice Shows on same day (triggers preset + multiple warm ups)
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 19, 0),
-             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "show",
+             "end_dt": datetime(2025, 1, 15, 20, 0), "type": "show",
              "raw_date": "2025-01-15", "venue": "Studio B"},
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 22, 0),
-             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "show",
+             "end_dt": datetime(2025, 1, 15, 23, 0), "type": "show",
              "raw_date": "2025-01-15", "venue": "Studio B"},
         ]
         
@@ -1856,12 +1859,12 @@ class TestStudioBIntegration:
         assert "Warm Up - Cast" in warmup_titles, "Missing Cast warm up"
     
     def test_game_show_title_rule_no_duplicate_from_catchall(self, parser, studio_b_rules):
-        """Battle of the Sexes should match title rule, NOT also match category catch-all."""
+        """Battle of the Sexes should match title rule, NOT also match type catch-all."""
         derived_rules = studio_b_rules.get("derived_event_rules", {})
         
         events = [
             {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 21, 0),
-             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 22, 0), "type": "game",
              "raw_date": "2025-01-15", "venue": "Studio B"},
         ]
         
@@ -1882,10 +1885,10 @@ class TestStudioBIntegration:
         # Ice Show followed by game show (triggers floor transition + strike)
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 20, 0),
-             "end_dt": datetime(2025, 1, 15, 21, 0), "category": "show",
+             "end_dt": datetime(2025, 1, 15, 21, 0), "type": "show",
              "raw_date": "2025-01-15", "venue": "Studio B"},
             {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 22, 0),
-             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 23, 0), "type": "game",
              "raw_date": "2025-01-15", "venue": "Studio B"},
         ]
         
@@ -1913,10 +1916,10 @@ class TestStudioBIntegration:
         # Ice Show followed by Nightclub (creates Strike + Set Up that overlap)
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 21, 0),
-             "end_dt": datetime(2025, 1, 15, 22, 0), "category": "show",
+             "end_dt": datetime(2025, 1, 15, 22, 0), "type": "show",
              "raw_date": "2025-01-15", "venue": "Studio B"},
             {"title": "Nightclub", "start_dt": datetime(2025, 1, 15, 23, 0),
-             "end_dt": datetime(2025, 1, 16, 1, 0), "category": "party",
+             "end_dt": datetime(2025, 1, 16, 1, 0), "type": "party",
              "raw_date": "2025-01-15", "venue": "Studio B"},
         ]
         
@@ -1966,10 +1969,10 @@ class TestStudioBIntegration:
         # Strike Crazy Quest (30 min) would be 12:00 - 12:30, overlapping RED!
         events = [
             {"title": "Crazy Quest", "start_dt": datetime(2025, 1, 15, 23, 20),
-             "end_dt": datetime(2025, 1, 16, 0, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 16, 0, 0), "type": "game",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
             {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 16, 0, 0),
-             "end_dt": datetime(2025, 1, 16, 1, 0), "category": "party",
+             "end_dt": datetime(2025, 1, 16, 1, 0), "type": "party",
              "raw_date": "2025-01-16", "venue": "Studio B", "type": "party"},
         ]
         
@@ -2013,10 +2016,10 @@ class TestStudioBIntegration:
         
         events = [
             {"title": "Family SHUSH!", "start_dt": datetime(2025, 1, 15, 19, 0),
-             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 20, 0), "type": "game",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
             {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 22, 0),
-             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 23, 0), "type": "game",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
         ]
         
@@ -2047,10 +2050,10 @@ class TestStudioBIntegration:
         # Two Ice Shows - 75 min gap to test calendar-day logic
         events = [
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 19, 0),
-             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "show",
+             "end_dt": datetime(2025, 1, 15, 20, 0), "type": "show",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "show"},
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 21, 15),
-             "end_dt": datetime(2025, 1, 15, 22, 15), "category": "show",
+             "end_dt": datetime(2025, 1, 15, 22, 15), "type": "show",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "show"},
         ]
         
@@ -2082,7 +2085,7 @@ class TestStudioBIntegration:
         
         events = [
             {"title": "Private Ice Skating", "start_dt": datetime(2025, 1, 15, 14, 0),
-             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "activity",
+             "end_dt": datetime(2025, 1, 15, 15, 0), "type": "activity",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
         ]
         
@@ -2112,10 +2115,10 @@ class TestStudioBIntegration:
         
         events = [
             {"title": "Open Ice Skating", "start_dt": datetime(2025, 1, 15, 9, 0),
-             "end_dt": datetime(2025, 1, 15, 11, 0), "category": "activity",
+             "end_dt": datetime(2025, 1, 15, 11, 0), "type": "activity",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
             {"title": "Private Ice Skating", "start_dt": datetime(2025, 1, 15, 21, 0),
-             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "activity",
+             "end_dt": datetime(2025, 1, 15, 23, 0), "type": "activity",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
         ]
         
@@ -2143,13 +2146,13 @@ class TestStudioBIntegration:
         
         events = [
             {"title": "Open Ice Skating", "start_dt": datetime(2025, 1, 15, 9, 0),
-             "end_dt": datetime(2025, 1, 15, 11, 0), "category": "activity",
+             "end_dt": datetime(2025, 1, 15, 11, 0), "type": "activity",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
             {"title": "Ice Show: 365", "start_dt": datetime(2025, 1, 15, 14, 0),
-             "end_dt": datetime(2025, 1, 15, 15, 0), "category": "show",
+             "end_dt": datetime(2025, 1, 15, 15, 0), "type": "show",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "show"},
             {"title": "Private Ice Skating", "start_dt": datetime(2025, 1, 15, 18, 0),
-             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "activity",
+             "end_dt": datetime(2025, 1, 15, 20, 0), "type": "activity",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
         ]
         
@@ -2185,10 +2188,10 @@ class TestStudioBIntegration:
         # Back-to-back game shows with only 15 min gap
         events = [
             {"title": "Family SHUSH!", "start_dt": datetime(2025, 1, 15, 19, 0),
-             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 20, 0), "type": "game",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
             {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 20, 15),
-             "end_dt": datetime(2025, 1, 15, 21, 15), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 21, 15), "type": "game",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
         ]
         
@@ -2235,10 +2238,10 @@ class TestStudioBIntegration:
         
         events = [
             {"title": "Family SHUSH!", "start_dt": datetime(2025, 1, 15, 19, 0),
-             "end_dt": datetime(2025, 1, 15, 20, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 20, 0), "type": "game",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
             {"title": "Battle of the Sexes", "start_dt": datetime(2025, 1, 15, 22, 0),
-             "end_dt": datetime(2025, 1, 15, 23, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 15, 23, 0), "type": "game",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "game"},
         ]
         
@@ -2285,7 +2288,7 @@ class TestLateNightHandling:
         events = [
             # Event ON the last day (Jan 20) - should be rescheduled to 9 AM
             {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 20, 0, 0),
-             "end_dt": datetime(2025, 1, 20, 1, 0), "category": "party",
+             "end_dt": datetime(2025, 1, 20, 1, 0), "type": "party",
              "raw_date": "2025-01-20", "venue": "Studio B", "type": "party"},
             {"title": "Strike RED", "start_dt": datetime(2025, 1, 20, 1, 0),
              "end_dt": datetime(2025, 1, 20, 1, 30), "type": "strike",
@@ -2308,7 +2311,7 @@ class TestLateNightHandling:
         # Event on Jan 15 (not last day)
         events = [
             {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 15, 0, 0),
-             "end_dt": datetime(2025, 1, 15, 1, 0), "category": "party",
+             "end_dt": datetime(2025, 1, 15, 1, 0), "type": "party",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "party"},
             {"title": "Strike RED", "start_dt": datetime(2025, 1, 15, 1, 0),
              "end_dt": datetime(2025, 1, 15, 1, 30), "type": "strike",
@@ -2331,13 +2334,13 @@ class TestLateNightHandling:
         events = [
             # Two events ending in late-night window (after 1 AM)
             {"title": "Family SHUSH!", "start_dt": datetime(2025, 1, 16, 0, 0),
-             "end_dt": datetime(2025, 1, 16, 1, 0), "category": "game",
+             "end_dt": datetime(2025, 1, 16, 1, 0), "type": "game",
              "raw_date": "2025-01-16", "venue": "Studio B", "type": "game"},
             {"title": "Strike Family SHUSH!", "start_dt": datetime(2025, 1, 16, 1, 0),
              "end_dt": datetime(2025, 1, 16, 1, 30), "type": "strike",
              "is_derived": True, "venue": "Studio B"},
             {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 16, 1, 30),
-             "end_dt": datetime(2025, 1, 16, 2, 30), "category": "party",
+             "end_dt": datetime(2025, 1, 16, 2, 30), "type": "party",
              "raw_date": "2025-01-16", "venue": "Studio B", "type": "party"},
             {"title": "Strike RED", "start_dt": datetime(2025, 1, 16, 2, 30),
              "end_dt": datetime(2025, 1, 16, 3, 0), "type": "strike",
@@ -2366,7 +2369,7 @@ class TestLateNightHandling:
              "is_derived": True, "venue": "Studio B"},
             # But there's an actual event at 9 AM!
             {"title": "Ice Skating", "start_dt": datetime(2025, 1, 15, 9, 0),
-             "end_dt": datetime(2025, 1, 15, 11, 0), "category": "activity",
+             "end_dt": datetime(2025, 1, 15, 11, 0), "type": "activity",
              "raw_date": "2025-01-15", "venue": "Studio B", "type": "activity"},
         ]
         
@@ -2385,7 +2388,7 @@ class TestLateNightHandling:
         events = [
             # Event AFTER the last day (Jan 21) - should be removed
             {"title": "RED: Nightclub Experience", "start_dt": datetime(2025, 1, 21, 0, 0),
-             "end_dt": datetime(2025, 1, 21, 1, 0), "category": "party",
+             "end_dt": datetime(2025, 1, 21, 1, 0), "type": "party",
              "raw_date": "2025-01-21", "venue": "Studio B", "type": "party"},
             {"title": "Strike RED", "start_dt": datetime(2025, 1, 21, 1, 0),
              "end_dt": datetime(2025, 1, 21, 1, 30), "type": "strike",
@@ -2426,13 +2429,13 @@ class TestMergedEventStrikeHandling:
         # Laser Tag -> Parade (merged) -> Ice Show (has setup)
         events = [
             {'title': 'Laser Tag', 'start_dt': datetime(2025, 7, 24, 13, 0),
-             'end_dt': datetime(2025, 7, 24, 15, 30), 'category': 'activity',
+             'end_dt': datetime(2025, 7, 24, 15, 30), 'type': 'activity',
              'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'activity'},
             {'title': 'Anchors Aweigh Parade', 'start_dt': datetime(2025, 7, 24, 15, 30),
-             'end_dt': datetime(2025, 7, 24, 16, 0), 'category': 'parade',
+             'end_dt': datetime(2025, 7, 24, 16, 0), 'type': 'parade',
              'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'parade', 'is_cross_venue': True},
             {'title': 'Ice Show: 365', 'start_dt': datetime(2025, 7, 24, 19, 0),
-             'end_dt': datetime(2025, 7, 24, 20, 0), 'category': 'show',
+             'end_dt': datetime(2025, 7, 24, 20, 0), 'type': 'show',
              'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'show'},
         ]
         
@@ -2466,10 +2469,10 @@ class TestMergedEventStrikeHandling:
         # Laser Tag -> Parade (merged) -> no more events
         events = [
             {'title': 'Laser Tag', 'start_dt': datetime(2025, 7, 24, 13, 0),
-             'end_dt': datetime(2025, 7, 24, 15, 30), 'category': 'activity',
+             'end_dt': datetime(2025, 7, 24, 15, 30), 'type': 'activity',
              'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'activity'},
             {'title': 'Anchors Aweigh Parade', 'start_dt': datetime(2025, 7, 24, 15, 30),
-             'end_dt': datetime(2025, 7, 24, 16, 0), 'category': 'parade',
+             'end_dt': datetime(2025, 7, 24, 16, 0), 'type': 'parade',
              'raw_date': '2025-07-24', 'venue': 'Studio B', 'type': 'parade', 'is_cross_venue': True},
         ]
         
@@ -2550,7 +2553,7 @@ class TestFullPipelineIntegration:
             ],
             "events": [
                 {"title": "Family SHUSH!", "start_time": "23:00", "end_time": None,
-                 "date": "2025-01-15", "category": "game"},
+                 "date": "2025-01-15", "type": "game"},
             ],
         }
         
@@ -2602,7 +2605,7 @@ class TestREDPartyShortTitles:
             ],
             "events": [
                 {"title": "RED: Nightclub Experience", "start_time": "21:00", "end_time": "23:00",
-                 "date": "2025-01-15", "category": "party"},
+                 "date": "2025-01-15", "type": "party"},
             ],
         }
         
@@ -2634,7 +2637,7 @@ class TestREDPartyShortTitles:
             ],
             "events": [
                 {"title": "RED! Party", "start_time": "21:00", "end_time": "23:00",
-                 "date": "2025-01-15", "category": "party"},
+                 "date": "2025-01-15", "type": "party"},
             ],
         }
         
@@ -2666,7 +2669,7 @@ class TestREDPartyShortTitles:
             ],
             "events": [
                 {"title": "Battle of the Sexes", "start_time": "22:00", "end_time": "23:00",
-                 "date": "2025-01-15", "category": "game"},
+                 "date": "2025-01-15", "type": "game"},
             ],
         }
         
@@ -2721,7 +2724,7 @@ class TestEndIsLateFlag:
             ],
             "events": [
                 {"title": "RED: Nightclub Experience", "start_time": "23:30", "end_time": None,
-                 "date": "2025-01-15", "category": "party"},
+                 "date": "2025-01-15", "type": "party"},
             ],
         }
         
@@ -2751,7 +2754,7 @@ class TestEndIsLateFlag:
             ],
             "events": [
                 {"title": "Dance Party", "start_time": "22:00", "end_time": "01:00",
-                 "date": "2025-01-15", "category": "party"},
+                 "date": "2025-01-15", "type": "party"},
             ],
         }
         
@@ -2780,7 +2783,7 @@ class TestEndIsLateFlag:
             ],
             "events": [
                 {"title": "Ice Show: 365", "start_time": "19:30", "end_time": "20:30",
-                 "date": "2025-01-15", "category": "show"},
+                 "date": "2025-01-15", "type": "show"},
             ],
         }
         
@@ -2829,14 +2832,14 @@ class TestFloorTransitionLateNightExclusion:
             "title": "Crazy Quest",
             "start_dt": datetime(2025, 1, 15, 23, 0),
             "end_dt": datetime(2025, 1, 16, 0, 0),  # Ends at midnight
-            "category": "game",
+            "type": "game",
             "venue": "Studio B"
         }
         next_event = {
             "title": "Ice Skating",
             "start_dt": datetime(2025, 1, 16, 14, 0),
             "end_dt": datetime(2025, 1, 16, 17, 0),
-            "category": "activity",
+            "type": "activity",
             "venue": "Studio B"
         }
         transition_config = {
@@ -2866,14 +2869,14 @@ class TestFloorTransitionLateNightExclusion:
             "title": "RED Party",
             "start_dt": datetime(2025, 1, 15, 23, 30),
             "end_dt": datetime(2025, 1, 16, 0, 30),  # Ends at 00:30 - AFTER midnight
-            "category": "game",
+            "type": "game",
             "venue": "Studio B"
         }
         next_event = {
             "title": "Ice Skating",
             "start_dt": datetime(2025, 1, 16, 14, 0),
             "end_dt": datetime(2025, 1, 16, 17, 0),
-            "category": "activity",
+            "type": "activity",
             "venue": "Studio B"
         }
         transition_config = {
@@ -2905,14 +2908,14 @@ class TestFloorTransitionLateNightExclusion:
             "title": "Crazy Quest",
             "start_dt": datetime(2025, 1, 15, 21, 0),
             "end_dt": datetime(2025, 1, 15, 22, 30),  # Ends at 10:30 PM
-            "category": "game",
+            "type": "game",
             "venue": "Studio B"
         }
         next_event = {
             "title": "Ice Skating",
             "start_dt": datetime(2025, 1, 16, 14, 0),
             "end_dt": datetime(2025, 1, 16, 17, 0),
-            "category": "activity",
+            "type": "activity",
             "venue": "Studio B"
         }
         transition_config = {
@@ -3073,7 +3076,7 @@ class TestNoDuplicateDerivedEvents:
         """RED: A Nightclub Experience should create exactly ONE setup event."""
         events = [{
             "title": "RED: A Nightclub Experience",
-            "category": "party",
+            "type": "party",
             "start_dt": datetime(2025, 1, 15, 23, 0),
             "end_dt": datetime(2025, 1, 16, 1, 0),
             "venue": "Studio B"
@@ -3091,7 +3094,7 @@ class TestNoDuplicateDerivedEvents:
         """RED: A Nightclub Experience should create exactly ONE strike event."""
         events = [{
             "title": "RED: A Nightclub Experience",
-            "category": "party",
+            "type": "party",
             "start_dt": datetime(2025, 1, 15, 23, 0),
             "end_dt": datetime(2025, 1, 16, 1, 0),
             "venue": "Studio B"
@@ -3109,7 +3112,7 @@ class TestNoDuplicateDerivedEvents:
         """Crazy Quest should create exactly ONE setup event."""
         events = [{
             "title": "Crazy Quest",
-            "category": "game",
+            "type": "game",
             "start_dt": datetime(2025, 1, 15, 22, 0),
             "end_dt": datetime(2025, 1, 16, 0, 0),
             "venue": "Studio B"
@@ -3131,7 +3134,7 @@ class TestNoDuplicateDerivedEvents:
         """
         events = [{
             "title": "RED: A Nightclub Experience",
-            "category": "party",
+            "type": "party",
             "start_dt": datetime(2025, 1, 15, 23, 0),
             "end_dt": datetime(2025, 1, 16, 1, 0),
             "venue": "Studio B"
@@ -3157,26 +3160,26 @@ class TestVenueRulesStructure:
     
     Ensures that rule ordering is correct so that the 'first match wins' 
     mechanism works as expected:
-    - Specific match_titles rules must come BEFORE catch-all match_categories rules
+    - Specific match_titles rules must come BEFORE catch-all match_types rules
     """
     
     # Common categories that indicate a catch-all rule when used together
-    CATCH_ALL_CATEGORIES = ['game', 'party', 'music', 'show', 'activity']
+    CATCH_ALL_TYPES = ['game', 'party', 'music', 'show', 'activity']
     
     def _is_catch_all_rule(self, rule: dict) -> bool:
-        """Return True if rule is a catch-all (matches multiple common categories, no match_titles)."""
+        """Return True if rule is a catch-all (matches multiple common types, no match_titles)."""
         has_match_titles = rule.get('match_titles') is not None
-        match_categories = rule.get('match_categories', [])
+        match_types = rule.get('match_types', [])
         
         if has_match_titles:
             return False
         
-        # Catch-all = matches 2+ common categories
-        common_category_count = len([c for c in match_categories if c in self.CATCH_ALL_CATEGORIES])
-        return common_category_count >= 2
+        # Catch-all = matches 2+ common types
+        common_type_count = len([c for c in match_types if c in self.CATCH_ALL_TYPES])
+        return common_type_count >= 2
     
     def test_specific_rules_come_before_catch_all_in_setup(self):
-        """Specific match_titles rules must come before catch-all match_categories rules in setup."""
+        """Specific match_titles rules must come before catch-all match_types rules in setup."""
         from backend.app.config.venue_rules import get_venue_rules
         
         venue_rules = get_venue_rules("WN", "Studio B")
@@ -3196,7 +3199,7 @@ class TestVenueRulesStructure:
             f"Setup rule order error - specific rules must come before catch-all:\n" + "\n".join(errors)
     
     def test_specific_rules_come_before_catch_all_in_strike(self):
-        """Specific match_titles rules must come before catch-all match_categories rules in strike."""
+        """Specific match_titles rules must come before catch-all match_types rules in strike."""
         from backend.app.config.venue_rules import get_venue_rules
         
         venue_rules = get_venue_rules("WN", "Studio B")
@@ -3453,11 +3456,13 @@ class TestResetEvents:
             {
                 "title": "Event A",
                 "type": "show",
+                "type": "show",
                 "start_dt": datetime(2025, 1, 15, 19, 0),
                 "end_dt": datetime(2025, 1, 15, 20, 0),
             },
             {
                 "title": "Event B",
+                "type": "show",
                 "type": "show",
                 "start_dt": datetime(2025, 1, 15, 20, 10),  # Only 10 min gap
                 "end_dt": datetime(2025, 1, 15, 21, 10),
@@ -3465,11 +3470,13 @@ class TestResetEvents:
             {
                 "title": "Strike Event A",
                 "type": "strike",
+                "type": "strike",
                 "start_dt": datetime(2025, 1, 15, 20, 0),
                 "end_dt": datetime(2025, 1, 15, 21, 0),
             },
             {
                 "title": "Set Up Event B",
+                "type": "setup",
                 "type": "setup",
                 "start_dt": datetime(2025, 1, 15, 19, 10),
                 "end_dt": datetime(2025, 1, 15, 20, 10),
@@ -3487,11 +3494,13 @@ class TestResetEvents:
             {
                 "title": "Event A",
                 "type": "show",
+                "type": "show",
                 "start_dt": datetime(2025, 1, 15, 14, 0),
                 "end_dt": datetime(2025, 1, 15, 15, 0),
             },
             {
                 "title": "Event B",
+                "type": "show",
                 "type": "show",
                 "start_dt": datetime(2025, 1, 15, 17, 0),  # 2 hour gap
                 "end_dt": datetime(2025, 1, 15, 18, 0),
@@ -3499,11 +3508,13 @@ class TestResetEvents:
             {
                 "title": "Strike Event A",
                 "type": "strike",
+                "type": "strike",
                 "start_dt": datetime(2025, 1, 15, 15, 0),
                 "end_dt": datetime(2025, 1, 15, 16, 0),
             },
             {
                 "title": "Set Up Event B",
+                "type": "setup",
                 "type": "setup",
                 "start_dt": datetime(2025, 1, 15, 16, 0),
                 "end_dt": datetime(2025, 1, 15, 17, 0),
@@ -3525,17 +3536,20 @@ class TestResetEvents:
             {
                 "title": "Event A",
                 "type": "show",
+                "type": "show",
                 "start_dt": datetime(2025, 1, 15, 19, 0),
                 "end_dt": datetime(2025, 1, 15, 20, 0),
             },
             {
                 "title": "Event B",
                 "type": "show",
+                "type": "show",
                 "start_dt": datetime(2025, 1, 15, 21, 0),  # 1 hour gap - setup fits
                 "end_dt": datetime(2025, 1, 15, 22, 0),
             },
             {
                 "title": "Strike Event A",
+                "type": "strike",
                 "type": "strike",
                 "start_dt": datetime(2025, 1, 15, 20, 0),
                 "end_dt": datetime(2025, 1, 15, 21, 0),  # Overlaps B -> omitted
@@ -3614,7 +3628,7 @@ class TestResetIntegration:
             {
                 "title": "Battle of the Sexes",
                 "type": "game",
-                "category": "game",
+                "type": "game",
                 "start_dt": datetime(2025, 7, 31, 21, 45),
                 "end_dt": datetime(2025, 7, 31, 22, 45),
                 "venue": "Studio B",
@@ -3622,7 +3636,7 @@ class TestResetIntegration:
             {
                 "title": "Crazy Quest",
                 "type": "game",
-                "category": "game",
+                "type": "game",
                 "start_dt": datetime(2025, 7, 31, 23, 0),
                 "end_dt": datetime(2025, 8, 1, 0, 0),
                 "venue": "Studio B",

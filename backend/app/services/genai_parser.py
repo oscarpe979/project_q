@@ -353,7 +353,7 @@ HINTS:
         # Dynamically build "Other Venue" instructions based on policy
         highlight_instructions = ""
         main_import_instructions = ""
-        category_instructions = ""
+        type_instructions = ""
         
         # Split venues into "Highlights" vs "Main Event Imports"
         highlight_venues_list = []
@@ -383,7 +383,7 @@ HINTS:
                     # Generate Category Rule if forced_type is set
                     forced_type = policy.get("forced_type")
                     if forced_type:
-                        category_instructions += f"- **{venue} Events:** MUST be category = '{forced_type}'.\n"
+                        type_instructions += f"- **{venue} Events:** MUST be type = '{forced_type}'.\n"
 
                 elif venue in other_venue_policies:
                     # Logic for "Highlights" (Sidebar) - ONLY if in policy
@@ -587,8 +587,8 @@ EVENT NAMES RULES:
 - **Parenthetical Metadata**: Remove act type descriptions in parentheses like "(Juggler)", "(Comedian)", "(Magician)" from the title.
 - **Red Carpet Movie**: If an event starts with "Red Carpet Movie" followed by a dash and movie name (e.g., "Red Carpet Movie - Minecraft Movie"), extract it as just "Red Carpet Movie". The specific movie title changes weekly and should be stripped.
 
-CATEGORIZATION RULES:
-Assign a `category` to each event based on its type. Use ONLY these categories:
+TYPE RULES:
+Assign a `type` to each event based on its kind. Use ONLY these types:
 - **Production Shows** (category: "show"): e.g., "Cats", "Hairspray", "Mamma Mia!", "Saturday Night Fever", "We Will Rock You", "Grease", "The Wizard of Oz", "The Effectors", "The Effectors II: Crash 'n' Burn", "Flight", "Hiro", "inTENse", "1977", "Aqua80", "Aqua80Too", "Big Daddy's Hideaway Heist", "Blue Planet", "Live. Love. Legs.", "The Gift", "Sonic Odyssey", "Starwater", "Spectra's Cabaret", "Showgirl™", "Columbus The Musical", "Can't Stop the Rock", "Fast Forward", "Gallery of Dreams", "Jackpot", "Marquee", "Music in Pictures", "Now and Forever", "Once Upon A Time", "One Sky", "Piano Man", "Pure Country", "Sequins & Feathers", "Stage to Screen", "Tango Buenos Aires", "The Beautiful Dream", "The Fine Line", "The Silk Road™", "Vibeology", "Voices", "West End to Broadway", "Wild Cool & Swingin'", "iSkate 2.0", "Ice Games", "Ice Odyssey", "Invitation to Dance", "Ballroom Fever", "Broadway Rhythm & Rhyme", "City of Dreams", "Hot Ice!", "Oceanides".
 - **Headliners** (category: "headliner"): e.g., events starting with "Headliner:".
 - **Movies** (category: "movie").
@@ -599,8 +599,8 @@ Assign a `category` to each event based on its type. Use ONLY these categories:
 - **Party** (category: "party"): e.g., "RED: Nightclub Experience", "Nightclub".
 - **Parade** (category: "parade"): e.g., "Parade", "Anchors Aweigh Parade".
 - **Top Tier Event** (category: "toptier"): e.g., "Top Tier Event", "Top Tier".
-- **Other** (category: "other"): Rehearsals, Maintenance, or anything else.
-{category_instructions}
+- **Other** (type: "other"): Rehearsals, Maintenance, or anything else.
+{type_instructions}
 
 Return ONLY valid JSON matching the schema."""
 
@@ -680,9 +680,9 @@ Return ONLY valid JSON matching the schema."""
                             "start_time": {"type": "string"},
                             "end_time": {"type": "string"},
                             "date": {"type": "string"},
-                            "category": {"type": "string", "enum": enum_values}
+                            "type": {"type": "string", "enum": enum_values}
                         },
-                        "required": ["title", "start_time", "date", "category"]
+                        "required": ["title", "start_time", "date", "type"]
                     }
                 },
                 "other_venue_shows": {
@@ -694,9 +694,9 @@ Return ONLY valid JSON matching the schema."""
                             "date": {"type": "string"},
                             "title": {"type": "string"},
                             "time": {"type": "string"},
-                            "category": {"type": "string", "enum": enum_values}
+                            "type": {"type": "string", "enum": enum_values}
                         },
-                        "required": ["venue", "date", "title", "time", "category"]
+                        "required": ["venue", "date", "title", "time", "type"]
                     }
                 }
             },
@@ -857,22 +857,24 @@ Return ONLY valid JSON matching the schema."""
                 # Ideally, we update valid default_durations with our merged policy ones?
                 # We already updated master_duration_map in Step 5.
                 
-                # Set category for merged event (important for coloring)
-                # 1. Use policy's forced_type if specified
-                # 2. Infer from title if contains known category keywords
-                if not show.get("category"):
-                    forced_type = policy.get("forced_type")
+                # Set type for merged event (important for coloring)
+                # 1. Use type from forced rules if applicable
+                # 2. Infer from title if contains known type keywords
+                forced_type = policy.get("forced_type")
+                if not show.get("type"):
                     if forced_type:
-                        show["category"] = forced_type
+                        # If simple "show" or "headliner", use that
+                        show["type"] = forced_type
+                        show["category"] = forced_type # Alias
                     else:
-                        # Infer from title
+                        # Fallback inference
                         title_lower = show.get("title", "").lower()
                         if "parade" in title_lower:
-                            show["category"] = "parade"
+                            show["type"] = "parade"
                         elif "party" in title_lower:
-                            show["category"] = "party"
+                            show["type"] = "party"
                         elif "movie" in title_lower:
-                            show["category"] = "movie"
+                            show["type"] = "movie"
                         # else: will default to "other" in _parse_single_event
                 
                 parsed_main = self._parse_single_event(show)
@@ -1069,15 +1071,17 @@ Return ONLY valid JSON matching the schema."""
             end_time_raw = event.get("end_time")
             end_time_str = None if (end_time_raw is None or end_time_raw == "null" or end_time_raw == "") else end_time_raw
             
-            category = event.get("category", "other")
+            # LLM now returns "type"
+            event_type = event.get("type", event.get("category", "other"))
+            
             return {
                 "title": event["title"],
                 "start_dt": start_dt,
                 "end_time_str": end_time_str,
                 "venue": event.get("venue", ""),
                 "raw_date": date_str,
-                "category": category,
-                "type": category,  # Normalize: type = category for consistency
+                "type": event_type,
+                "category": event_type, # Keep as alias for backward compatibility
             }
         except (ValueError, KeyError) as e:
             print(f"Skipping malformed event: {event}, error: {e}")
@@ -1206,7 +1210,7 @@ Return ONLY valid JSON matching the schema."""
         
         Args:
             event: Event dict with 'title' and 'category' keys
-            rule: Rule dict with optional 'match_titles', 'match_categories', and 'match_threshold'
+            rule: Rule dict with optional 'match_titles', 'match_types', and 'match_threshold'
         
         Returns:
             True if event matches any rule criteria
@@ -1245,10 +1249,10 @@ Return ONLY valid JSON matching the schema."""
                     if matched_words == len(pattern_words):
                         return True
         
-        # Category match (broad) - exact match
-        if "match_categories" in rule:
-            event_category = event.get("category", "other")
-            if event_category in rule["match_categories"]:
+        # Type match (broad) - exact match
+        if "match_types" in rule:
+            event_type = event.get("type", "other")
+            if event_type in rule["match_types"]:
                 # Check exclude_titles - if event matches any excluded title, skip this rule
                 if "exclude_titles" in rule:
                     event_title = event.get("title", "").lower()
@@ -1374,7 +1378,7 @@ Return ONLY valid JSON matching the schema."""
                     skip_if_next = rule.get("skip_if_next_matches", False)
                     
                     # Only apply deduplication for category catch-all rules
-                    is_catch_all = rule.get("match_categories") is not None and rule.get("match_titles") is None
+                    is_catch_all = rule.get("match_types") is not None and rule.get("match_titles") is None
                     
                     # Collect all matching events
                     matching_events = []
@@ -1495,7 +1499,7 @@ Return ONLY valid JSON matching the schema."""
                     check_all = rule.get("check_all_events", False)
                     
                     # Only apply deduplication for category catch-all rules
-                    is_catch_all = rule.get("match_categories") is not None and rule.get("match_titles") is None
+                    is_catch_all = rule.get("match_types") is not None and rule.get("match_titles") is None
                     
                     # Build list of all events by date for global gap checking
                     all_events_by_date = {}
@@ -2086,8 +2090,7 @@ Return ONLY valid JSON matching the schema."""
         # Get actual events that would have operations (not skating, etc.)
         actual_events = [
             e for e in events 
-            # Check both type AND category (some events have type=None but valid category)
-            if (e.get('type') in actual_types or e.get('category') in actual_types)
+            if e.get('type') in actual_types 
             and not e.get('is_cross_venue')  # No reset around merged events like parade
         ]
         
@@ -2504,10 +2507,11 @@ Return ONLY valid JSON matching the schema."""
         for key, venue_shows in grouped.items():
             # Two-pass sorting:
             # 1. Prefer afternoon/evening events (after 1pm)
-            # 2. Within same time band, sort by category priority
+            # 2. Within same time band, sort by type priority
+            # Lower number = higher priority (e.g., Show=1, Activity=99)
             venue_shows.sort(key=lambda x: (
                 0 if is_afternoon_or_evening(x.get("time", "")) else 1,
-                PRIORITY_MAP.get(x.get("category", "other").lower(), 99)
+                PRIORITY_MAP.get(x.get("type", "other").lower(), 99)
             ))
             
             # Identify the Winner (Top Priority)
@@ -2519,14 +2523,14 @@ Return ONLY valid JSON matching the schema."""
             # BUT: Don't merge if times have ranges (dashes) or if it's an activity - creates messy strings.
             
             same_title_events = [s for s in venue_shows if s.get("title") == winner.get("title")]
-            winner_category = winner.get("category", "").lower()
+            winner_type = winner.get("type", "").lower()
             first_time = winner.get("time", "")
             
             # Only merge if: multiple same-title events AND times are simple (no dash ranges)
-            # AND category is not "activity" (activity sessions have complex time ranges)
+            # AND type is not "activity" (activity sessions have complex time ranges)
             should_merge = (
                 len(same_title_events) > 1 and
-                winner_category != "activity" and
+                winner_type != "activity" and
                 "-" not in first_time  # Don't merge if first time is already a range
             )
             
