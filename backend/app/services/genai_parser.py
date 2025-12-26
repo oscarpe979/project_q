@@ -715,6 +715,9 @@ Return ONLY valid JSON matching the schema."""
             raw_title = event.get("title", "")
             event["title"] = self._apply_renaming_robust(raw_title, renaming_map)
             
+            # 2. Normalize Title (Strip redundant text like "Game Show")
+            event["title"] = self._normalize_title(event["title"])
+            
             parsed = self._parse_single_event(event)
             if parsed:
                 parsed_events.append(parsed)
@@ -1157,6 +1160,34 @@ Return ONLY valid JSON matching the schema."""
                 break
         
         return (start_dt + timedelta(minutes=minutes), False)
+    
+    def _normalize_title(self, title: str) -> str:
+        """
+        Normalize event title by stripping redundant text patterns.
+        
+        Examples:
+            "Battle of the Sexes Game Show" -> "Battle of the Sexes"
+            "Perfect Couple - Game Show" -> "Perfect Couple"
+            "Game Show: Quiz Night" -> "Quiz Night" (if this pattern exists)
+        """
+        if not title:
+            return title
+        
+        import re
+        
+        # Patterns to strip (case-insensitive)
+        # Order matters - more specific patterns first
+        patterns = [
+            r'\s*-\s*Game Show$',   # " - Game Show" suffix
+            r'\s+Game Show$',       # " Game Show" suffix
+            r'^Game Show:\s*',      # "Game Show: " prefix
+        ]
+        
+        normalized = title
+        for pattern in patterns:
+            normalized = re.sub(pattern, '', normalized, flags=re.IGNORECASE)
+        
+        return normalized.strip()
     
     # ═══════════════════════════════════════════════════════════════════════════
     # DERIVED EVENT RULES ENGINE

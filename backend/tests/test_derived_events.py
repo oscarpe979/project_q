@@ -3237,3 +3237,52 @@ class TestVenueRulesStructure:
         assert not all_errors, \
             f"Rule order errors found:\n" + "\n".join(all_errors)
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TESTS: Title Normalization
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestTitleNormalization:
+    """Test that redundant text like 'Game Show' is stripped from event titles."""
+    
+    @pytest.fixture
+    def parser(self):
+        from backend.app.services.genai_parser import GenAIParser
+        return GenAIParser(api_key="dummy")
+    
+    def test_strip_game_show_suffix(self, parser):
+        """'Game Show' suffix should be stripped from titles."""
+        assert parser._normalize_title("Battle of the Sexes Game Show") == "Battle of the Sexes"
+        assert parser._normalize_title("Perfect Couple Game Show") == "Perfect Couple"
+    
+    def test_strip_game_show_with_dash(self, parser):
+        """' - Game Show' suffix with dash should be stripped."""
+        assert parser._normalize_title("Perfect Couple - Game Show") == "Perfect Couple"
+        assert parser._normalize_title("Quiz Time - Game Show") == "Quiz Time"
+    
+    def test_strip_game_show_prefix(self, parser):
+        """'Game Show: ' prefix should be stripped."""
+        assert parser._normalize_title("Game Show: Quiz Night") == "Quiz Night"
+        assert parser._normalize_title("game show: trivia time") == "trivia time"  # Case insensitive
+    
+    def test_no_change_for_normal_titles(self, parser):
+        """Regular titles without 'Game Show' should not change."""
+        assert parser._normalize_title("Crazy Quest") == "Crazy Quest"
+        assert parser._normalize_title("RED: A Nightclub Experience") == "RED: A Nightclub Experience"
+        assert parser._normalize_title("Ice Show: 365") == "Ice Show: 365"
+    
+    def test_only_strip_redundant_not_internal(self, parser):
+        """Only strip suffix/prefix 'Game Show', not if it appears internally."""
+        # "game show" appearing mid-title should only strip the suffix
+        assert parser._normalize_title("The big game show game show") == "The big game show"
+    
+    def test_case_insensitive(self, parser):
+        """Stripping should be case-insensitive."""
+        assert parser._normalize_title("Battle of the Sexes GAME SHOW") == "Battle of the Sexes"
+        assert parser._normalize_title("Quiz - game show") == "Quiz"
+    
+    def test_empty_and_none(self, parser):
+        """Handle empty and None titles gracefully."""
+        assert parser._normalize_title("") == ""
+        assert parser._normalize_title(None) is None
+
