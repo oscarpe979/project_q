@@ -580,7 +580,7 @@ class TestVenueRulesDB:
     def test_get_venue_rules_factory_returns_correct_object(self):
         """get_venue_rules() should return configured VenueRules object."""
         from backend.app.venues import get_venue_rules
-        from backend.app.venues.wn.studio_b import StudioBRules
+        from backend.app.venues.wn.wn_studio_b import StudioBRules
         
         rules = get_venue_rules("WN", "Studio B")
         

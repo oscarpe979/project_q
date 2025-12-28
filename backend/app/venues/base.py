@@ -191,6 +191,7 @@ class VenueRules:
             offset_minutes = config.get('offset_minutes', -30)
             duration_minutes = config.get('duration_minutes', 15)
             min_gap_minutes = config.get('min_gap_minutes')
+            event_type = config.get('type', 'doors')
             
             for event in sorted_events:
                 # Create unique key for event
@@ -224,7 +225,7 @@ class VenueRules:
                 door_event = self._create_derived_event(
                     parent=event,
                     title="Doors",
-                    event_type="doors",
+                    event_type=event_type,
                     offset_minutes=offset_minutes,
                     duration_minutes=duration_minutes
                 )
@@ -255,6 +256,7 @@ class VenueRules:
             title_template = config.get('title_template', 'Set Up {parent_title}')
             first_per_day = config.get('first_per_day', False)
             min_gap_minutes = config.get('min_gap_minutes')
+            event_type = config.get('type', 'setup')
             
             prev_matching_event = None
             
@@ -292,7 +294,7 @@ class VenueRules:
                 setup_event = self._create_derived_event(
                     parent=event,
                     title=title,
-                    event_type="setup",
+                    event_type=event_type,
                     offset_minutes=offset_minutes,
                     duration_minutes=duration_minutes
                 )
@@ -330,6 +332,7 @@ class VenueRules:
             title_template = config.get('title_template', 'Strike {parent_title}')
             last_per_day = config.get('last_per_day', False)
             skip_if_next_matches = config.get('skip_if_next_matches', False)
+            event_type = config.get('type', 'strike')
             
             for event in sorted_events:
                 # 1. Check if event matches this rule
@@ -359,6 +362,11 @@ class VenueRules:
 
                     for later_event in sorted_events[current_idx+1:]:
                          if self._matches_rule(later_event, match_types, match_titles):
+                            # STRICT CHECK: Only consider it a "later match" if it has the SAME TITLE.
+                            # This prevents "Crazy Quest" (Game) from suppressing "Effectors" (Show) strike.
+                            if later_event.get('title') != event.get('title'):
+                                continue
+                                
                             later_date = later_event.get('start_dt').date() if later_event.get('start_dt') else None
                             if later_date == event_date:
                                 has_later_same_day = True
@@ -398,7 +406,7 @@ class VenueRules:
                 strike_event = self._create_derived_event(
                     parent=event,
                     title=title,
-                    event_type="strike",
+                    event_type=event_type,
                     offset_minutes=0,  # After event
                     duration_minutes=duration_minutes,
                     anchor="end"
@@ -429,6 +437,7 @@ class VenueRules:
             duration_minutes = config.get('duration_minutes', 30)
             title_template = config.get('title_template', 'Warm Up')
             first_per_day = config.get('first_per_day', False)
+            event_type = config.get('type', 'warm_up')
             
             processed_dates = set()
             
@@ -444,7 +453,7 @@ class VenueRules:
                     warm_up_event = self._create_derived_event(
                         parent=event,
                         title=title,
-                        event_type="warm_up",
+                        event_type=event_type,
                         offset_minutes=offset_minutes,
                         duration_minutes=duration_minutes
                     )

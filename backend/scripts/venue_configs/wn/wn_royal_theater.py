@@ -25,7 +25,7 @@ CONFIG = {
     },
     "doors_config": [
         {
-            "match_types": ["show", "headliner"],
+            "match_types": ["show", "headliner", "comedy", "movie", "game", "party"],
             "offset_minutes": -45,
             "duration_minutes": 15,
             "min_gap_minutes": 30
@@ -55,6 +55,23 @@ CONFIG = {
             "title_template": "Show Presets",
             "type": "preset",
             "first_per_day": True
+        },
+        {
+            "match_titles": ["The Effectors II", "The Effectors: Crash and Burn", "Voices"],
+            "offset_minutes": 0,
+            "duration_minutes": 30,
+            "title_template": "Show Presets",
+            "type": "preset",
+            "anchor": "end",
+            "skip_last_per_day": True
+        },
+    ],
+    "strike_config": [
+        {
+            "match_types": ['show', "game", "party", 'comedy', 'headliner'],
+            "duration_minutes": 30,
+            "title_template": "Strike {parent_title}",
+            "last_per_day": True
         }
     ],
     "prompt_section": """
