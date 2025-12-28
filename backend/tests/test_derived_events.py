@@ -1794,7 +1794,6 @@ class TestFullPipelineIntegration:
             cross_venue_policies={},
             derived_event_rules=derived_rules,
             floor_config=floor_config,
-            venue_rules=full_venue_rules,
         )
         
         # Basic validation that it worked
@@ -1841,7 +1840,7 @@ class TestREDPartyShortTitles:
             cross_venue_policies={},
             derived_event_rules=derived_rules,
             floor_config={},
-            venue_rules={},
+            
             venue_rules_obj=venue_rules_obj,
         )
         
@@ -1874,7 +1873,7 @@ class TestREDPartyShortTitles:
             cross_venue_policies={},
             derived_event_rules=derived_rules,
             floor_config={},
-            venue_rules={},
+            
             venue_rules_obj=venue_rules_obj,
         )
         
@@ -1907,7 +1906,7 @@ class TestREDPartyShortTitles:
             cross_venue_policies={},
             derived_event_rules=derived_rules,
             floor_config={},
-            venue_rules={},
+            
             venue_rules_obj=venue_rules_obj,
         )
         
@@ -1955,7 +1954,7 @@ class TestEndIsLateFlag:
             cross_venue_policies={},
             derived_event_rules={},
             floor_config={},
-            venue_rules={},
+            
         )
         
         # Find the main RED event
@@ -1985,7 +1984,7 @@ class TestEndIsLateFlag:
             cross_venue_policies={},
             derived_event_rules={},
             floor_config={},
-            venue_rules={},
+            
         )
         
         # Find the dance party event
@@ -2014,7 +2013,7 @@ class TestEndIsLateFlag:
             cross_venue_policies={},
             derived_event_rules={},
             floor_config={},
-            venue_rules={},
+            
         )
         
         # Find the ice show event
@@ -2783,6 +2782,44 @@ class TestResetEvents:
         # Setup should be kept, no reset needed
         assert len(resets) == 0 or len(setups) >= 1, \
             "No reset when setup is kept"
+    
+    def test_reset_created_for_activity_type_like_laser_tag(self, parser):
+        """Reset created when gap exists between activity (Laser Tag) and show (Family Shush).
+        
+        Regression test: activity type must be included in operational_types.
+        Scenario: Laser Tag 1-7 PM, Family Shush 8-9:30 PM
+        Gap = 1 hour (7 PM - 8 PM), only Doors at 7:45 doesn't fill the gap.
+        Should create Reset for Family Shush.
+        """
+        events = [
+            {
+                "title": "Laser Tag",
+                "type": "activity",  # Activity type, not show/game
+                "start_dt": datetime(2025, 1, 15, 13, 0),  # 1 PM
+                "end_dt": datetime(2025, 1, 15, 19, 0),    # 7 PM
+            },
+            {
+                "title": "Family Shush!",
+                "type": "game",
+                "start_dt": datetime(2025, 1, 15, 20, 0),  # 8 PM
+                "end_dt": datetime(2025, 1, 15, 21, 30),   # 9:30 PM
+            },
+            {
+                "title": "Doors",
+                "type": "doors",
+                "start_dt": datetime(2025, 1, 15, 19, 45),  # 7:45 PM
+                "end_dt": datetime(2025, 1, 15, 20, 0),     # 8 PM
+                "is_derived": True,
+            },
+        ]
+        
+        result = parser._resolve_operation_overlaps(events)
+        resets = [e for e in result if e.get("type") == "reset"]
+        
+        # Gap between Laser Tag (7 PM) and Family Shush (8 PM) is 1 hour
+        # Doors only covers 7:45-8 PM, leaving 7-7:45 unfilled
+        assert len(resets) == 1, f"Expected 1 reset for activity->show gap, got {len(resets)}"
+        assert "Family Shush" in resets[0]["title"], f"Reset should be for Family Shush, got {resets[0]['title']}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

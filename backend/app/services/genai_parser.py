@@ -988,10 +988,9 @@ Return ONLY valid JSON matching the schema."""
         # - Setups bump earlier to not overlap with events
         final_events = self._resolve_operation_overlaps(final_events)
         
-        # CREATE RESET EVENTS: Fill unfilled gaps between actual events
-        # - Scans for gaps >= 15 min where no operation fills the gap
-        # - Creates "Reset for [Event]" to fill the gap (max 1 hour)
-        final_events = self._create_reset_events(final_events)
+        # NOTE: Reset events are ONLY created by _resolve_operation_overlaps when
+        # BOTH strike AND setup were displaced. We do NOT create Reset for every gap.
+        # The _create_reset_events method exists but should NOT be called here.
 
         # LATE NIGHT HANDLING: Handle derived events that start after midnight
         # - After voyage end: Remove completely  
@@ -1424,9 +1423,26 @@ Return ONLY valid JSON matching the schema."""
                 target_start = target.get('start_dt')
                 target_end = target.get('end_dt')
                 
-                # Combine titles (avoid duplicates)
-                if evt_title and evt_title not in target_title:
-                    merged[merge_target_idx]['title'] = f"{target_title} & {evt_title}"
+                # Combine titles with enforced ordering
+                # Order preference: Strike -> Reset -> Ice Make/Scrape -> Set Up
+                combined_title = f"{target_title} & {evt_title}"
+                parts = [p.strip() for p in combined_title.split('&')]
+                unique_parts = []
+                for p in parts:
+                    if p not in unique_parts:
+                        unique_parts.append(p)
+                
+                # Sort based on keywords
+                def title_sort_key(t):
+                    t_lower = t.lower()
+                    if t_lower.startswith('strike'): return 0
+                    if t_lower.startswith('reset'): return 1
+                    if 'ice' in t_lower or 'scrape' in t_lower: return 2
+                    if t_lower.startswith('set'): return 3
+                    return 4 # Catch all others at end
+                
+                unique_parts.sort(key=title_sort_key)
+                merged[merge_target_idx]['title'] = " & ".join(unique_parts)
                 
                 # Take earliest start, use max of (1 hour, longest event duration)
                 # Merged operations need at least 1 hour to complete
@@ -1467,13 +1483,23 @@ Return ONLY valid JSON matching the schema."""
         """
         if not events:
             return events
+        # Separate actual events from operational/derived events
+        # - operations: setup/strike/preset - need to be resolved for overlaps
+        # - other_derived: doors/warm_up/ice_make/reset - keep as-is
+        # - actual_events: shows/games/activities - for gap checking
+        operation_types = ['setup', 'strike', 'preset']
+        other_derived_types = ['doors', 'warm_up', 'ice_make', 'reset']
+        all_derived_types = operation_types + other_derived_types
         
-        # Separate actual events from operational events
-        actual_events = [e for e in events if e.get('type') not in ['setup', 'strike', 'preset']]
-        operations = [e for e in events if e.get('type') in ['setup', 'strike', 'preset']]
+        actual_events = [e for e in events if e.get('type') not in all_derived_types]
+        operations = [e for e in events if e.get('type') in operation_types]
+        other_derived = [e for e in events if e.get('type') in other_derived_types]
         
-        if not operations or not actual_events:
+        # If no actual events, nothing to do
+        if not actual_events:
             return events
+        
+        # Note: Even if no operations, we still need to check for unfilled gaps
         
         # Sort both lists by start time
         actual_events.sort(key=lambda x: x.get('start_dt'))
@@ -1494,18 +1520,17 @@ Return ONLY valid JSON matching the schema."""
                 resolved_ops.append(op)
                 continue
             
-            # Find all actual events this operation overlaps with
+            # Find overlapping events (check actuals AND other derived like Ice Make)
             overlapping_actuals = []
-            for actual in actual_events:
+            events_to_check = actual_events + other_derived
+            for actual in events_to_check:
                 actual_start = actual.get('start_dt')
                 actual_end = actual.get('end_dt')
                 
-                if not actual_start or not actual_end:
-                    continue
-                
-                # Check for overlap (not adjacent)
-                if not (op_end <= actual_start or op_start >= actual_end):
-                    overlapping_actuals.append(actual)
+                if actual_start and actual_end:
+                     # Check precise overlap
+                    if not (op_end <= actual_start or op_start >= actual_end):
+                        overlapping_actuals.append(actual)
             
             if not overlapping_actuals:
                 # No overlap with actual events - keep as is
@@ -1595,89 +1620,158 @@ Return ONLY valid JSON matching the schema."""
                 new_setup['start_dt'] = new_start
                 new_setup['end_dt'] = new_end
                 
-                # Check if this new setup ALSO overlaps with earlier events
-                overlaps_again = False
-                for actual in actual_events:
-                    actual_start = actual.get('start_dt')
-                    actual_end = actual.get('end_dt')
-                    if actual_start and actual_end:
-                        if not (new_setup['end_dt'] <= actual_start or new_setup['start_dt'] >= actual_end):
-                            overlaps_again = True
+                # Check if this new setup overlaps with BLOCKING events
+                # Blocking: Actual Events + Other Derived (Doors, Ice Make)
+                # Non-Blocking: Resolved Ops (Strikes/Setups) - we WANT to overlap/merge with these
+                overlaps_blocking = False
+                blocking_events = actual_events + other_derived
+                
+                for conflict in blocking_events:
+                    c_start = conflict.get('start_dt')
+                    c_end = conflict.get('end_dt')
+                    if c_start and c_end:
+                        if not (new_setup['end_dt'] <= c_start or new_setup['start_dt'] >= c_end):
+                            overlaps_blocking = True
                             break
+                            
+                # Also check if we bumped it TOO far back
+                # If setup is bumped more than 2 hours from its original time, it's probably invalid
+                time_shift = op_start - new_start
+                if time_shift > timedelta(hours=2):
+                    overlaps_blocking = True
                 
-                if not overlaps_again:
+                if not overlaps_blocking:
                     resolved_ops.append(new_setup)
-                
-                # Track setup displacement for potential Reset
-                # (whether bumped OR dropped, it's been displaced from its original position)
-                setup_title = op.get('title', '')
-                # Setup title format: "Set Up [Parent Title]" 
-                target_title = setup_title.replace('Set Up ', '').replace('Setup ', '').strip()
-                
-                # Find the target event (the one setup was for)
-                target_event = None
-                for target in actual_events:
-                    if target_title.lower() in target.get('title', '').lower():
-                        target_event = target
-                        break
-                
-                if target_event:
-                    target_start = target_event.get('start_dt')
+                else:
+                    # Setup was ACTUALLY DROPPED (couldn't find a valid time)
+                    # Track this for potential Reset
+                    setup_title = op.get('title', '')
+                    # Setup title format: "Set Up [Parent Title]" 
+                    target_title = setup_title.replace('Set Up ', '').replace('Setup ', '').strip()
                     
-                    # Find the event that ends just before target_event starts
-                    # This is the event whose strike would also be displaced
-                    prev_event = None
-                    for actual in actual_events:
-                        actual_end = actual.get('end_dt')
-                        if actual_end and actual_end < target_start:
-                            if prev_event is None or actual_end > prev_event.get('end_dt'):
-                                prev_event = actual
+                    # Find the target event (the one setup was for)
+                    target_event = None
+                    for target in actual_events:
+                        if target_title.lower() in target.get('title', '').lower():
+                            target_event = target
+                            break
                     
-                    if prev_event:
-                        prev_title = prev_event.get('title', '')
-                        prev_end = prev_event.get('end_dt')
+                    if target_event:
+                        target_start = target_event.get('start_dt')
                         
-                        key = f"{prev_title}_{target_event.get('title')}"
-                        if key not in omitted_ops:
-                            omitted_ops[key] = {
-                                'prev_event_end': prev_end,
-                                'next_event_title': target_event.get('title'),
-                                'next_event_start': target_start,
-                                'strike_displaced': False,
-                                'setup_displaced': False,
-                            }
-                        omitted_ops[key]['setup_displaced'] = True
-        
-        # Create Reset events where both strike and setup were displaced
+                        # Find the event that ends just before target_event starts
+                        # This is the event whose strike would also be displaced
+                        prev_event = None
+                        for actual in actual_events:
+                            actual_end = actual.get('end_dt')
+                            if actual_end and actual_end < target_start:
+                                if prev_event is None or actual_end > prev_event.get('end_dt'):
+                                    prev_event = actual
+                        
+                        if prev_event:
+                            prev_title = prev_event.get('title', '')
+                            prev_end = prev_event.get('end_dt')
+                            
+                            key = f"{prev_title}_{target_event.get('title')}"
+                            if key not in omitted_ops:
+                                omitted_ops[key] = {
+                                    'prev_event_end': prev_end,
+                                    'next_event_title': target_event.get('title'),
+                                    'next_event_start': target_start,
+                                    'strike_displaced': False,
+                                    'setup_displaced': False,
+                                }
+                            omitted_ops[key]['setup_displaced'] = True
+        # Create Reset events for unfilled gaps between actual events
+        # After resolving operations, check if any gap >= 15 min is left without an operation
         reset_events = []
         MIN_GAP_MINUTES = 15
         MAX_RESET_DURATION = timedelta(hours=1)
         
-        for key, info in omitted_ops.items():
-            if info.get('strike_displaced') and info.get('setup_displaced'):
-                prev_end = info.get('prev_event_end')
-                next_start = info.get('next_event_start')
-                next_title = info.get('next_event_title')
-                
-                if prev_end and next_start:
-                    gap = next_start - prev_end
-                    gap_minutes = gap.total_seconds() / 60
-                    
-                    if gap_minutes >= MIN_GAP_MINUTES:
-                        # Create Reset event
-                        reset_duration = min(gap, MAX_RESET_DURATION)
-                        reset_event = {
-                            'title': f"Reset for {next_title}",
-                            'type': 'reset',
-                            'category': 'operations',
-                            'start_dt': prev_end,
-                            'end_dt': prev_end + reset_duration,
-                            'is_derived': True,
-                        }
-                        reset_events.append(reset_event)
+        # Sort actual events by start time
+        actual_events_sorted = sorted(actual_events, key=lambda x: x.get('start_dt'))
         
-        # Combine resolved operations with actual events and reset events
-        result = actual_events + resolved_ops + reset_events
+        # Operational event types that would fill gaps
+        operational_types = ['game', 'show', 'party', 'headliner', 'activity']
+        
+        for i in range(len(actual_events_sorted) - 1):
+            prev_event = actual_events_sorted[i]
+            next_event = actual_events_sorted[i + 1]
+            
+            # Only consider gaps between operational event types
+            if prev_event.get('type') not in operational_types:
+                continue
+            if next_event.get('type') not in operational_types:
+                continue
+            
+            # Skip if either event is cross-venue (like parade)
+            if prev_event.get('is_cross_venue') or next_event.get('is_cross_venue'):
+                continue
+            
+            prev_end = prev_event.get('end_dt')
+            next_start = next_event.get('start_dt')
+            
+            if not prev_end or not next_start:
+                continue
+            
+            # Only consider same-day gaps
+            if prev_end.date() != next_start.date():
+                continue
+            
+            gap = next_start - prev_end
+            gap_minutes = gap.total_seconds() / 60
+            
+            if gap_minutes < MIN_GAP_MINUTES:
+                continue
+            
+            # Check if any event fills this gap (operations, doors, warm_up, etc.)
+            gap_filled = False
+            all_events_check = resolved_ops + [e for e in events if e.get('type') in ['doors', 'warm_up', 'ice_make', 'preset']]
+            for op in all_events_check:
+                op_start = op.get('start_dt')
+                op_end = op.get('end_dt')
+                if op_start and op_end:
+                    # Check if operation covers start of gap (within first 15 min)
+                    if op_start <= prev_end + timedelta(minutes=15) and op_end > prev_end:
+                        gap_filled = True
+                        break
+            
+            if not gap_filled:
+                # Create Reset event to fill the gap
+                # BUT check if there are events INSIDE the gap (like Doors at 19:45)
+                # If so, Reset should only go up to that event
+                reset_limit = next_start
+                for op in all_events_check:
+                    op_start = op.get('start_dt')
+                    if op_start and prev_end < op_start < next_start:
+                        # Found an event inside the gap - cap reset at this event
+                        if op_start < reset_limit:
+                            reset_limit = op_start
+                
+                reset_duration = min(reset_limit - prev_end, MAX_RESET_DURATION)
+                
+                # Only create reset if duration is meaningful (>= 15 min)
+                if reset_duration >= timedelta(minutes=15):
+                    # Naming convention:
+                    # > 30 mins: "Strike [Prev] & Set Up [Next]"
+                    # <= 30 mins: "Reset for [Next]"
+                    if reset_duration > timedelta(minutes=30):
+                        reset_title = f"Strike {prev_event.get('title', 'Event')} & Set Up {next_event.get('title', 'Event')}"
+                    else:
+                        reset_title = f"Reset for {next_event.get('title', 'Event')}"
+                    
+                    reset_event = {
+                        'title': reset_title,
+                        'type': 'reset',
+                        'category': 'operations',
+                        'start_dt': prev_end,
+                        'end_dt': prev_end + reset_duration,
+                        'is_derived': True,
+                    }
+                    reset_events.append(reset_event)
+        
+        # Combine: actual events + resolved operations + other derived (doors/warm_up/ice_make) + reset events
+        result = actual_events + resolved_ops + other_derived + reset_events
         result.sort(key=lambda x: x.get('start_dt'))
         
         # Final merge pass on operations to combine any that now overlap

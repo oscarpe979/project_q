@@ -56,7 +56,6 @@ class TestParserCrossVenue:
         }
         target_venue = "Studio B"
         other_venues = ["AquaTheater"]
-        venue_rules_dict = {} # Empty legacy dict
         usage_stats = {"input_tokens": 0, "output_tokens": 0}
         
         # Call internal method
@@ -65,7 +64,6 @@ class TestParserCrossVenue:
             structure,
             target_venue,
             other_venues,
-            venue_rules_dict,
             usage_stats,
             venue_rules_obj=mock_venue_rules
         )

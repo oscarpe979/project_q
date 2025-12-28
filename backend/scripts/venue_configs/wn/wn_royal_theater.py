@@ -1,0 +1,63 @@
+"""
+Royal Theater venue configuration for Wonder of the Seas.
+"""
+
+SHIP_CODE = "WN"
+VENUE_NAME = "Royal Theater"
+
+CONFIG = {
+    "known_shows": [
+        "Voices", "The Effectors II", "Headliner Showtime", "Red Carpet Movie", "Movie", "Bingo",
+        "Late Night Comedy", 'Price is Right', 'Adult Comedy', 'Captain Corner', 'Red Carpet Move',
+        'Port and Shopping', 'Love and Marriage', 
+    ],
+    "renaming_map": {
+        "The Effectors II: Crash & Burn": "The Effectors II",
+        "Signature Production: Voices": "Voices"
+    },
+    "default_durations": {
+        "Voices": 45,
+        "Effectors II": 60,
+        "Love and Marraige": 60,
+        "Red Carpet Movie": 120,
+        "Headliner": 60,
+        "Captain's Corner": 60
+    },
+    "doors_config": [
+        {
+            "match_types": ["show", "headliner"],
+            "offset_minutes": -45,
+            "duration_minutes": 15,
+            "min_gap_minutes": 30
+        }
+    ],
+    "prompt_section": """
+Royal Theater is the main theater venue.
+Look for: Voices, The Effectors II, Headliners
+""",
+    "cross_venue_sources": ["AquaTheater", "Studio B", "Royal Promenade"],
+    "cross_venue_import_policies": {
+        "AquaTheater": {
+            "highlight_inclusions": ["show", "headliner", "movie", "game", "backup"],
+            "custom_instructions": "For any movie related events, simplify the name to just Movie"
+        },
+        "Studio B": {
+            "highlight_inclusions": ["show", "headliner", "comedy", "game", "movie"],
+            "custom_instructions": ""
+        },
+        "Royal Promenade": {
+            "highlight_inclusions": ["party", "parade", "competition", "show", "class", "activity"],
+            "merge_inclusions": ["Anchors Aweigh Parade"],
+            "custom_instructions": "Extract ALL Parades, Street Parties, and Theme Activities like 'Thriller Dance Class'."
+        }
+    }
+}
+
+
+def get_config():
+    """Return the venue configuration for database seeding."""
+    return {
+        "ship_code": SHIP_CODE,
+        "venue_name": VENUE_NAME,
+        "config": CONFIG
+    }
