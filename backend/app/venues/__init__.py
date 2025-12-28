@@ -12,11 +12,13 @@ from .base import VenueRules
 
 
 # Registry of venue-specific classes (for venues with custom logic)
+# Registry of venue-specific classes (for venues with custom logic)
 VENUE_CLASS_REGISTRY = {
     # (ship_code, venue_name): VenueRulesSubclass
-    ("WN", "Studio B"): "wn.studio_b.StudioBRules",
-    # Add more as needed:
-    # ("WN", "AquaTheater"): "wn.aqua_theater.AquaTheaterRules",
+    ("WN", "Studio B"): "wn.wn_studio_b.StudioBRules",
+    ("WN", "Royal Theater"): "wn.wn_royal_theater.RoyalTheaterRules",
+    ("WN", "AquaTheater"): "wn.wn_aquatheater.AquaTheaterRules",
+    ("WN", "Royal Promenade"): "wn.wn_royal_promenade.RoyalPromenadeRules",
 }
 
 
