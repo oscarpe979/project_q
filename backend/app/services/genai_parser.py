@@ -16,8 +16,11 @@ import time
 from .content_extractor import ContentExtractor
 from .parser_validator import ParserValidator
 
-# Venue Rules Configuration
-from backend.app.config.venue_rules import get_source_venues, get_venue_rules
+# Venue Rules Configuration (legacy import removed)
+
+
+# New VenueRules system (DB-driven, class-based)
+from backend.app.venues import get_venue_rules as get_venue_rules_new
 
 # Database imports for dynamic schema generation
 from sqlmodel import Session, select
@@ -82,9 +85,44 @@ class GenAIParser:
         """
         print("DEBUG: Starting multi-pass parsing pipeline...")
         
-        # Derive source venues from config based on ship_code and target_venue
-        source_venues = get_source_venues(ship_code, target_venue) if ship_code else []
-        venue_rules = get_venue_rules(ship_code, target_venue, source_venues) if ship_code else {}
+        # Load VenueRules object (DB-driven, with venue-specific class)
+        # This replaces the legacy get_source_venues/get_venue_rules logic
+        venue_rules_obj = get_venue_rules_new(ship_code, target_venue) if ship_code else None
+        
+        if venue_rules_obj:
+            print(f"DEBUG: Loaded VenueRules: {type(venue_rules_obj).__name__} for {target_venue}")
+            source_venues = venue_rules_obj.cross_venue_sources
+            
+            # Enrich policies with source venue metadata (renaming maps, durations)
+            # This replicates the legacy behavior of get_venue_rules()
+            for source_venue in source_venues:
+                source_rules = get_venue_rules_new(ship_code, source_venue)
+                if source_rules and source_venue in venue_rules_obj.cross_venue_import_policies:
+                    policy = venue_rules_obj.cross_venue_import_policies[source_venue]
+                    
+                    # Merge renaming map if not present
+                    if "renaming_map" not in policy:
+                        policy["renaming_map"] = source_rules.renaming_map
+                    else:
+                        # If present, merge source map into it (policy takes precedence? usually source map is the policy map)
+                        # Actually legacy code overwrote it: policy["renaming_map"] = source_metadata.get(...)
+                        # Let's merge source into policy, letting policy override if conflicts (safer)
+                        merged_renaming = source_rules.renaming_map.copy()
+                        merged_renaming.update(policy.get("renaming_map", {}))
+                        policy["renaming_map"] = merged_renaming
+                    
+                    # Merge default durations
+                    if "default_durations" not in policy:
+                         policy["default_durations"] = source_rules.default_durations
+                    else:
+                         merged_durations = source_rules.default_durations.copy()
+                         merged_durations.update(policy.get("default_durations", {}))
+                         policy["default_durations"] = merged_durations
+        else:
+            print(f"DEBUG: No VenueRules loaded for {target_venue} (missing ship_code)")
+            venue_rules_obj = None
+            source_venues = []
+
         combined_other_venues = source_venues
         
         #Step 1: Extract raw structure
@@ -119,7 +157,7 @@ class GenAIParser:
         
         # Step 4: Interpret content (Pass 2)
         print("DEBUG: Step 4 - LLM content interpretation...")
-        result = await asyncio.to_thread(self._interpret_schedule, filtered_data, structure, target_venue, combined_other_venues, venue_rules, usage_stats)
+        result = await asyncio.to_thread(self._interpret_schedule, filtered_data, structure, target_venue, combined_other_venues, usage_stats, venue_rules_obj)
         
         # Log Token Usage (with thinking tokens breakdown)
         print(f"DEBUG: Token Usage Report:")
@@ -129,9 +167,6 @@ class GenAIParser:
         print(f"DEBUG:   Total Tokens:    {usage_stats['total_tokens']}")
         
         # Cost estimate (Gemini 2.5 Flash pricing - Dec 2024)
-        # Source: https://ai.google.dev/gemini-api/docs/pricing
-        # Input: $0.30 per 1M tokens (text/image/video)
-        # Output (including thinking tokens): $2.50 per 1M tokens
         input_cost = (usage_stats['input_tokens'] / 1_000_000) * 0.30
         output_cost = ((usage_stats['output_tokens'] + usage_stats['thinking_tokens']) / 1_000_000) * 2.50
         total_cost = input_cost + output_cost
@@ -163,19 +198,21 @@ class GenAIParser:
             raise ValueError(error_msg)
         
         # Construct Master Duration & Metadata Maps
-        # Merge self-policy and cross-venue policies
-        master_duration_map = venue_rules.get("self_extraction_policy", {}).get("default_durations", {}).copy()
-        metadata_rules = {} # Map of "Title" -> {type, color} or "SourceVenue" -> {type, color} (logic needed)
+        # Use venue_rules_obj for default_durations if available
+        if venue_rules_obj:
+            master_duration_map = venue_rules_obj.default_durations.copy()
+        else:
+            master_duration_map = {}
+            
+        metadata_rules = {}
         
         # Add durations & metadata from merged venues (e.g. Parades)
-        cross_policies = venue_rules.get("cross_venue_import_policies", {})
+        # Use new cross_venue_import_policies from DB
+        cross_policies = venue_rules_obj.cross_venue_import_policies if venue_rules_obj else {}
+            
         for venue_name, policy in cross_policies.items():
-            # Include durations from source venue if there are any merge_inclusions
             if policy.get("merge_inclusions"):
                 master_duration_map.update(policy.get("default_durations", {}))
-                
-                # If this merge source has force settings, add them to metadata rules
-                # We key them by the "venue_name" (Source) so we know which events to tag
                 if policy.get("forced_type") or policy.get("custom_color"):
                     metadata_rules[venue_name] = {
                         "type": policy.get("forced_type"),
@@ -183,18 +220,18 @@ class GenAIParser:
                     }
         
         # Step 6: Transform to API format
-        # New Step: Pass standard renaming map for robustness against LLM misses
-        renaming_map = venue_rules.get("self_extraction_policy", {}).get("renaming_map", {})
-        derived_event_rules = venue_rules.get("derived_event_rules", {})
+        # Use venue_rules_obj for renaming_map
+        renaming_map = venue_rules_obj.renaming_map if venue_rules_obj else {}
         
-        # Floor transition config (only for venues like Studio B)
-        floor_config = {
-            "floor_requirements": venue_rules.get("self_extraction_policy", {}).get("floor_requirements"),
-            "floor_transition": venue_rules.get("self_extraction_policy", {}).get("floor_transition"),
-        }
+        # Get derived_event_rules from new VenueRules object
+        derived_event_rules = venue_rules_obj.derived_event_rules if venue_rules_obj else {}
+        print(f"DEBUG: Using {type(venue_rules_obj).__name__}.derived_event_rules" if venue_rules_obj else "DEBUG: No venue_rules_obj")
+        
+        # Floor config no longer needed here - handled by generate_derived_events()
+        floor_config = {}
         
         print("DEBUG: Step 6 - Formatting response...")
-        return self._transform_to_api_format(result, master_duration_map, renaming_map, cross_policies, derived_event_rules, floor_config, venue_rules)
+        return self._transform_to_api_format(result, master_duration_map, renaming_map, cross_policies, derived_event_rules, floor_config, venue_rules_obj)
     
     def _discover_structure(
         self, 
@@ -323,8 +360,8 @@ HINTS:
         structure: Dict[str, Any],
         target_venue: str,
         other_venues: List[str],
-        venue_rules: Dict[str, Any],
-        usage_stats: Dict[str, int]
+        usage_stats: Dict[str, int],
+        venue_rules_obj: Optional['VenueRules'] = None
     ) -> Dict[str, Any]:
         """LLM Pass 2: Interpret schedule content with comprehensive parsing rules."""
         
@@ -333,11 +370,11 @@ HINTS:
         formatted = self.content_extractor.format_for_llm(filtered_data, max_cells=400)
         print(f"DEBUG: Grid Snapshot sent to LLM:\n{formatted[:10000]}...")
         
-        # Use venue_rules passed from parse_cd_grid
-        other_venue_policies = venue_rules.get("cross_venue_import_policies", {})
+        # Use venue_rules_obj for cross-venue policies
+        other_venue_policies = venue_rules_obj.cross_venue_import_policies if venue_rules_obj else {}
         
         # Dynamically generate "Global/Self" prompt instructions from the structured map
-        self_extraction = venue_rules.get("self_extraction_policy", {})
+        self_extraction = venue_rules_obj.self_extraction_policy if venue_rules_obj else {}
         self_renaming_map = self_extraction.get("renaming_map", {})
         known_shows = self_extraction.get("known_shows", [])
         
@@ -349,6 +386,12 @@ HINTS:
 
         for original, new_name in self_renaming_map.items():
             custom_instructions += f"- Rule: If you see '{original}', extract it as '{new_name}'.\n"
+        
+        # Inject venue-specific prompt section from new VenueRules object (if available)
+        if venue_rules_obj:
+            venue_prompt_section = venue_rules_obj.build_prompt_section()
+            if venue_prompt_section:
+                custom_instructions += f"\n**VENUE-SPECIFIC INSTRUCTIONS ({venue_rules_obj.venue_name}):**\n{venue_prompt_section}\n"
         
         other_venues_prompt = ""
         if other_venues and structure.get("other_venue_columns"):
@@ -395,7 +438,13 @@ HINTS:
                     highlight_venues_list.append(venue)
                     if inclusions:
                         types_str = ", ".join(inclusions).upper()
+                        types_str = ", ".join(inclusions).upper()
                         highlight_instructions += f"\n   - STRICT RULE for {venue}: Extract events that match these types: {types_str}. If no Main Show exists, look for these fallback types."
+                    
+                    # Inject custom instructions (CRITICAL custom rules like "Extract ALL Parades")
+                    custom_instr = policy.get("custom_instructions")
+                    if custom_instr:
+                        highlight_instructions += f"\n   - {venue} EXTRA RULE: {custom_instr}"
 
             # If no specific policy found for a highlight venue, use defaults
             if not highlight_instructions and highlight_venues_list:
@@ -714,7 +763,7 @@ Return ONLY valid JSON matching the schema."""
             "required": ["itinerary", "events"]
         }
     
-    def _transform_to_api_format(self, result: Dict[str, Any], default_durations: Dict[str, int] = {}, renaming_map: Dict[str, str] = {}, cross_venue_policies: Dict = {}, derived_event_rules: Dict = {}, floor_config: Dict = {}, venue_rules: Dict = {}) -> Dict[str, Any]:
+    def _transform_to_api_format(self, result: Dict[str, Any], default_durations: Dict[str, int] = {}, renaming_map: Dict[str, str] = {}, cross_venue_policies: Dict = {}, derived_event_rules: Dict = {}, floor_config: Dict = {}, venue_rules_obj = None) -> Dict[str, Any]:
         """Transform parsed result to API response format."""
         
         # Process events
@@ -910,6 +959,10 @@ Return ONLY valid JSON matching the schema."""
                      final_other_shows.append(show)
             else:
                 # Not merged - Clean and keep in Footer
+                # Apply renaming logic for highlights too!
+                renaming = policy.get('renaming_map', {})
+                show['title'] = self._apply_renaming_robust(show.get('title', ''), renaming)
+                
                 show['time'] = self._clean_time_string(show.get('time', ''))
                 final_other_shows.append(show)
 
@@ -919,13 +972,10 @@ Return ONLY valid JSON matching the schema."""
         # Resolve durations (Main Events + Merged Events)
         final_events = self._resolve_event_durations(parsed_events, default_durations)
         
-        # Apply derived event rules (doors, rehearsals, etc.)
-        if derived_event_rules:
-            final_events = self._apply_derived_event_rules(final_events, derived_event_rules)
-        
-        # Apply floor transition rules (Studio B only - ice/floor changes)
-        if floor_config.get("floor_requirements"):
-            final_events = self._apply_floor_transition_rules(final_events, floor_config)
+        # Apply derived event rules using new VenueRules object (no fallback)
+        if venue_rules_obj:
+            print(f"DEBUG: Using {type(venue_rules_obj).__name__}.generate_derived_events()")
+            final_events = venue_rules_obj.generate_derived_events(final_events)
         
 
         # FINAL MERGE: Combine any overlapping setup/strike/preset events
@@ -946,7 +996,7 @@ Return ONLY valid JSON matching the schema."""
         # LATE NIGHT HANDLING: Handle derived events that start after midnight
         # - After voyage end: Remove completely  
         # - On/before last day: Reschedule to 9 AM same day, merge or drop if overlapping
-        late_night_config = venue_rules.get("self_extraction_policy", {}).get("late_night_config")
+        late_night_config = venue_rules_obj.late_night_config if venue_rules_obj else {}
         if late_night_config:
             # Get voyage end date from itinerary
             itinerary = result.get("itinerary", [])
@@ -1319,446 +1369,6 @@ Return ONLY valid JSON matching the schema."""
             print(f"Error creating derived event: {e}")
             return None
     
-    def _apply_derived_event_rules(
-        self, 
-        events: List[Dict], 
-        derived_rules: Dict[str, List[Dict]]
-    ) -> List[Dict]:
-        """
-        Generate derived events (doors, rehearsals, setup, strike) based on rules.
-        
-        Args:
-            events: List of parsed events with 'start_dt', 'end_dt', 'title', 'category'
-            derived_rules: Dict keyed by rule type ('doors', 'rehearsal', etc.)
-        
-        Returns:
-            Original events + generated derived events, sorted by start time
-        
-        Note:
-            Uses "first match wins" strategy - once an event matches a rule of a 
-            particular type, it won't be matched by other rules of the same type.
-            
-            If a rule has "first_per_day": True, it only matches the earliest 
-            occurrence of matching events per day.
-        """
-        if not derived_rules:
-            return events
-        
-        derived_events = []
-        
-        for rule_type, rules in derived_rules.items():
-            # Track which parent events have already been matched for this rule type
-            matched_parent_keys = set()
-            
-            for rule in rules:
-                # Check special per-day processing modes
-                first_per_day = rule.get("first_per_day", False)
-                skip_last_per_day = rule.get("skip_last_per_day", False)
-                
-                if first_per_day:
-                    # Group matching events by date and only process the first of each day
-                    # Note: first_per_day rules are INDEPENDENT - multiple rules CAN
-                    # match the same parent event (e.g., Specialty Ice + Cast warm ups)
-                    matching_by_date = {}
-                    count_by_date = {}
-                    
-                    for parent_event in events:
-                        if self._event_matches_rule(parent_event, rule):
-                            event_date = parent_event.get('start_dt').date()
-                            count_by_date[event_date] = count_by_date.get(event_date, 0) + 1
-                            
-                            if event_date not in matching_by_date:
-                                matching_by_date[event_date] = parent_event
-                            elif parent_event.get('start_dt') < matching_by_date[event_date].get('start_dt'):
-                                matching_by_date[event_date] = parent_event
-                    
-                    # Check min_per_day requirement (e.g., only fire if 2+ shows)
-                    min_per_day = rule.get("min_per_day", 1)
-                    
-                    # Process only the first matching event of each day (if min requirement met)
-                    for event_date, parent_event in matching_by_date.items():
-                        if count_by_date.get(event_date, 0) >= min_per_day:
-                            parent_key = (parent_event.get('title'), parent_event.get('start_dt'))
-                            derived = self._create_derived_event(parent_event, rule)
-                            if derived:
-                                derived_events.append(derived)
-                
-                elif rule.get("last_per_day", False):
-                    # Fire after the LAST matching event of each CALENDAR DAY
-                    # Optional: skip_if_next_matches - skip if the next venue event also matches this rule
-                    skip_if_next = rule.get("skip_if_next_matches", False)
-                    
-                    # Only apply deduplication for category catch-all rules
-                    is_catch_all = rule.get("match_types") is not None and rule.get("match_titles") is None
-                    
-                    # Collect all matching events
-                    matching_events = []
-                    for parent_event in events:
-                        if self._event_matches_rule(parent_event, rule):
-                            parent_key = (parent_event.get('title'), parent_event.get('start_dt'))
-                            if is_catch_all and parent_key in matched_parent_keys:
-                                continue
-                            matching_events.append(parent_event)
-                    
-                    if not matching_events:
-                        continue
-                    
-                    # Sort by start time
-                    matching_events.sort(key=lambda x: x.get('start_dt'))
-                    
-                    if skip_if_next:
-                        # Skip if next venue event also matches this rule
-                        # Get all venue events sorted by time (exclude derived and merged)
-                        target_venue = matching_events[0].get('venue', '')
-                        all_venue_events = [
-                            e for e in events 
-                            if e.get('venue') == target_venue
-                            and not e.get('is_derived', False)
-                            and not e.get('is_cross_venue', False)
-                        ]
-                        all_venue_events.sort(key=lambda x: x.get('start_dt'))
-                        
-                        # For each matching event, check if the NEXT venue event also matches
-                        for i, parent_event in enumerate(matching_events):
-                            # Find this event's position in venue timeline
-                            try:
-                                venue_idx = next(
-                                    idx for idx, e in enumerate(all_venue_events)
-                                    if e.get('start_dt') == parent_event.get('start_dt')
-                                    and e.get('title') == parent_event.get('title')
-                                )
-                            except StopIteration:
-                                continue
-                            
-                            # Check if there's a next venue event
-                            if venue_idx + 1 < len(all_venue_events):
-                                next_venue_event = all_venue_events[venue_idx + 1]
-                                # If next venue event matches this rule, skip
-                                if self._event_matches_rule(next_venue_event, rule):
-                                    continue  # Skip - next event is also a matching event
-                            
-                            # Fire derived event (no matching next event OR last in venue)
-                            parent_key = (parent_event.get('title'), parent_event.get('start_dt'))
-                            derived = self._create_derived_event(parent_event, rule)
-                            if derived:
-                                derived_events.append(derived)
-                                matched_parent_keys.add(parent_key)
-                    else:
-                        # SIMPLE: Calendar-day based (default)
-                        # Group by date, fire for last event of each date
-                        events_by_date = {}
-                        for evt in matching_events:
-                            evt_date = evt.get('start_dt').date()
-                            if evt_date not in events_by_date:
-                                events_by_date[evt_date] = []
-                            events_by_date[evt_date].append(evt)
-                        
-                        for date, day_events in events_by_date.items():
-                            day_events.sort(key=lambda x: x.get('start_dt'))
-                            last_event = day_events[-1]
-                            parent_key = (last_event.get('title'), last_event.get('start_dt'))
-                            derived = self._create_derived_event(last_event, rule)
-                            if derived:
-                                derived_events.append(derived)
-                                matched_parent_keys.add(parent_key)
-                
-                elif skip_last_per_day:
-                    # Fire for all matching events EXCEPT the LAST of each CALENDAR DAY
-                    # Useful for presets between shows (no preset after final show)
-                    
-                    # Collect all matching events
-                    matching_events = []
-                    for parent_event in events:
-                        if self._event_matches_rule(parent_event, rule):
-                            matching_events.append(parent_event)
-                    
-                    if not matching_events:
-                        continue
-                    
-                    # Check min_per_day requirement
-                    min_per_day = rule.get("min_per_day", 1)
-                    if len(matching_events) < min_per_day:
-                        continue
-                    
-                    # Sort by start time
-                    matching_events.sort(key=lambda x: x.get('start_dt'))
-                    
-                    # Group by date, fire for all except last of each date
-                    events_by_date = {}
-                    for evt in matching_events:
-                        evt_date = evt.get('start_dt').date()
-                        if evt_date not in events_by_date:
-                            events_by_date[evt_date] = []
-                        events_by_date[evt_date].append(evt)
-                    
-                    for date, day_events in events_by_date.items():
-                        day_events.sort(key=lambda x: x.get('start_dt'))
-                        # Fire for all except last of the day
-                        for parent_event in day_events[:-1]:
-                            derived = self._create_derived_event(parent_event, rule)
-                            if derived:
-                                derived_events.append(derived)
-                
-                elif rule.get("min_gap_minutes") is not None:
-                    # Only fire if there's enough gap from previous event's end
-                    # - If sessions are stacked (no gap), only fire before the first
-                    # - If there's a gap >= min_gap_minutes, fire before each block
-                    #
-                    # check_all_events: If True, check gap from ANY preceding event (not just same-type)
-                    # This is useful for doors - don't add doors if they'd overlap with any event
-                    min_gap = rule.get("min_gap_minutes")
-                    check_all = rule.get("check_all_events", False)
-                    
-                    # Only apply deduplication for category catch-all rules
-                    is_catch_all = rule.get("match_types") is not None and rule.get("match_titles") is None
-                    
-                    # Build list of all events by date for global gap checking
-                    all_events_by_date = {}
-                    if check_all:
-                        for evt in events:
-                            evt_date = evt.get('start_dt').date()
-                            if evt_date not in all_events_by_date:
-                                all_events_by_date[evt_date] = []
-                            all_events_by_date[evt_date].append(evt)
-                        # Sort each day's events
-                        for d in all_events_by_date:
-                            all_events_by_date[d] = sorted(all_events_by_date[d], key=lambda x: x.get('start_dt'))
-                    
-                    matching_by_date = {}
-                    for parent_event in events:
-                        if self._event_matches_rule(parent_event, rule):
-                            event_date = parent_event.get('start_dt').date()
-                            if event_date not in matching_by_date:
-                                matching_by_date[event_date] = []
-                            matching_by_date[event_date].append(parent_event)
-                    
-                    # Process each day's events
-                    for event_date, day_events in matching_by_date.items():
-                        # Sort by start time
-                        sorted_events = sorted(day_events, key=lambda x: x.get('start_dt'))
-                        
-                        for parent_event in sorted_events:
-                            # Skip if this is a category catch-all AND event was already matched by title rule
-                            parent_key = (parent_event.get('title'), parent_event.get('start_dt'))
-                            if is_catch_all and parent_key in matched_parent_keys:
-                                continue
-                            
-                            current_start = parent_event.get('start_dt')
-                            
-                            # Find the closest preceding event end time
-                            prev_end = None
-                            if check_all and event_date in all_events_by_date:
-                                # Check gap from ANY preceding event
-                                for evt in all_events_by_date[event_date]:
-                                    evt_end = evt.get('end_dt')
-                                    if evt_end and evt_end <= current_start:
-                                        if prev_end is None or evt_end > prev_end:
-                                            prev_end = evt_end
-                            else:
-                                # Original logic: check gap from previous same-type event only
-                                # (This is kept for backward compatibility with non-doors rules)
-                                for evt in sorted_events:
-                                    if evt.get('start_dt') < current_start:
-                                        evt_end = evt.get('end_dt')
-                                        if evt_end and (prev_end is None or evt_end > prev_end):
-                                            prev_end = evt_end
-                            
-                            # Fire if: first of day OR gap from previous end >= min_gap_minutes
-                            should_fire = False
-                            if prev_end is None:
-                                should_fire = True  # First event of day (no preceding events)
-                            else:
-                                gap_minutes = (current_start - prev_end).total_seconds() / 60
-                                if gap_minutes >= min_gap:
-                                    should_fire = True  # Sufficient gap, start new block
-                            
-                            if should_fire and check_all:
-                                # ADDITIONAL CHECK: Verify derived event won't overlap with any running event
-                                # Calculate where the derived event would be placed
-                                offset_mins = rule.get("offset_minutes", 0)
-                                derived_start = current_start + timedelta(minutes=offset_mins)
-                                derived_date = derived_start.date()  # Use derived event's date (may differ for midnight crossover)
-                                
-                                # Check if this time falls INSIDE any event's range
-                                # Need to check events from derived_date (not event_date) for midnight crossover
-                                events_to_check = all_events_by_date.get(derived_date, [])
-                                for evt in events_to_check:
-                                    evt_start = evt.get('start_dt')
-                                    evt_end = evt.get('end_dt')
-                                    # If derived_start is inside an event's range (start < derived < end), don't fire
-                                    if evt_start and evt_end and evt_start < derived_start < evt_end:
-                                        should_fire = False
-                                        print(f"DEBUG: Doors blocked - would overlap with '{evt.get('title')}' ({evt_start.strftime('%I:%M %p')} - {evt_end.strftime('%I:%M %p')})")
-                                        break
-                            
-                            if should_fire:
-                                derived = self._create_derived_event(parent_event, rule)
-                                if derived:
-                                    derived_events.append(derived)
-                                    matched_parent_keys.add(parent_key)
-                
-                else:
-                    # Standard processing - match all events
-                    for parent_event in events:
-                        parent_key = (parent_event.get('title'), parent_event.get('start_dt'))
-                        
-                        if parent_key in matched_parent_keys:
-                            continue
-                        
-                        if self._event_matches_rule(parent_event, rule):
-                            derived = self._create_derived_event(parent_event, rule)
-                            if derived:
-                                derived_events.append(derived)
-                                matched_parent_keys.add(parent_key)
-        
-        # Combine and sort by start time
-        all_events = events + derived_events
-        all_events.sort(key=lambda x: x['start_dt'])
-        
-        return all_events
-    
-    def _apply_floor_transition_rules(
-        self,
-        events: List[Dict],
-        floor_config: Dict
-    ) -> List[Dict]:
-        """
-        Generate strike/set events when floor requirement changes.
-        
-        Only runs for venues with floor_requirements config (e.g., Studio B).
-        
-        Args:
-            events: List of events with start_dt, end_dt, title
-            floor_config: Dict containing floor_requirements and floor_transition config
-        
-        Returns:
-            Original events + generated transition events, sorted by start time
-        """
-        # Skip if no floor config
-        floor_requirements = floor_config.get("floor_requirements")
-        transition_config = floor_config.get("floor_transition")
-        
-        if not floor_requirements or not transition_config:
-            return events
-        
-        # Sort events chronologically
-        sorted_events = sorted(events, key=lambda x: x.get('start_dt'))
-        
-        # Track floor state and transitions
-        transition_events = []
-        current_floor_state = None  # True = floor, False = ice, None = unknown
-        prev_event_with_floor_need = None
-        
-        for event in sorted_events:
-            # Skip derived events (setup, strike, doors, etc.) - only original events trigger floor transitions
-            if event.get('is_derived'):
-                continue
-            
-            floor_need = self._get_floor_need(event, floor_requirements)
-            
-            # Skip events that don't care about floor state
-            if floor_need is None:
-                continue
-            
-            # First event that cares - establish state, no transition
-            if current_floor_state is None:
-                current_floor_state = floor_need
-                prev_event_with_floor_need = event
-                continue
-            
-            # Check for transition
-            if floor_need != current_floor_state:
-                # TRANSITION DETECTED!
-                transition = self._create_floor_transition(
-                    prev_event_with_floor_need,
-                    event,
-                    current_floor_state,
-                    floor_need,
-                    transition_config
-                )
-                if transition:
-                    transition_events.append(transition)
-            
-            # Update state
-            current_floor_state = floor_need
-            prev_event_with_floor_need = event
-        
-        # Check for overlaps and combine titles with existing events
-        all_events = self._merge_floor_transitions_with_existing(events, transition_events)
-        all_events.sort(key=lambda x: x['start_dt'])
-        
-        return all_events
-    
-    def _merge_floor_transitions_with_existing(
-        self,
-        events: List[Dict],
-        transition_events: List[Dict]
-    ) -> List[Dict]:
-        """
-        Merge floor transition events with existing events that overlap.
-        
-        If a floor transition overlaps with an existing strike event (like "Strike & Ice Scrape"),
-        combine them into one event with a combined title.
-        """
-        if not transition_events:
-            return events
-        
-        final_events = list(events)  # Copy to avoid modifying original
-        
-        for transition in transition_events:
-            trans_start = transition.get('start_dt')
-            trans_end = transition.get('end_dt')
-            trans_title = transition.get('title', '')
-            
-            # Find overlapping events
-            overlapping = None
-            overlapping_idx = None
-            
-            for i, evt in enumerate(final_events):
-                evt_start = evt.get('start_dt')
-                evt_end = evt.get('end_dt')
-                
-                if not evt_start or not evt_end:
-                    continue
-                
-                # Check for overlap OR adjacent (touching at same time point)
-                # Events are combinable if they overlap OR one ends exactly when other starts
-                # Original: not (trans_end <= evt_start or trans_start >= evt_end)
-                # New: not (trans_end < evt_start or trans_start > evt_end)
-                # This allows combining when trans_end == evt_start (adjacent)
-                if not (trans_end < evt_start or trans_start > evt_end):
-                    # Check if it's a strike/setup type event we can merge with
-                    if evt.get('type') in ['strike', 'preset', 'setup']:
-                        overlapping = evt
-                        overlapping_idx = i
-                        break
-            
-            if overlapping:
-                # Combine titles
-                existing_title = overlapping.get('title', '')
-                if trans_title and trans_title not in existing_title:
-                    combined_title = f"{existing_title} & {trans_title}"
-                    final_events[overlapping_idx]['title'] = combined_title
-                
-                # Take earliest start time
-                existing_start = overlapping.get('start_dt')
-                existing_end = overlapping.get('end_dt')
-                
-                new_start = min(trans_start, existing_start)
-                
-                # Keep the LONGEST duration (not add durations)
-                existing_duration = existing_end - existing_start
-                trans_duration = trans_end - trans_start
-                longest_duration = max(existing_duration, trans_duration)
-                
-                final_events[overlapping_idx]['start_dt'] = new_start
-                final_events[overlapping_idx]['end_dt'] = new_start + longest_duration
-            else:
-                # No overlap - add as new event
-                final_events.append(transition)
-        
-        return final_events
-    
     def _merge_overlapping_operations(self, events: List[Dict]) -> List[Dict]:
         """
         Merge all overlapping operational events (setup, strike, preset).
@@ -2094,8 +1704,8 @@ Return ONLY valid JSON matching the schema."""
         MAX_RESET_DURATION = timedelta(hours=1)
         
         # Separate actual events from operations
-        # Note: 'activity' (skating) excluded - skating has its own ops (ice_make, strike_skates)
-        actual_types = ['game', 'show', 'party', 'headliner']
+        # Include 'activity' (like Laser Tag) so gaps between activities and shows get Reset events
+        actual_types = ['game', 'show', 'party', 'headliner', 'activity']
         operation_types = ['setup', 'strike', 'preset', 'reset', 'doors', 'ice_make', 'warm_up']
         
         # Get actual events that would have operations (not skating, etc.)

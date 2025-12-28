@@ -1,6 +1,7 @@
 from typing import Optional, List
 from datetime import date, datetime, time
 from sqlmodel import Field, Relationship, SQLModel
+from sqlalchemy import Column, JSON
 
 # --- Join Tables ---
 class VenueCapability(SQLModel, table=True):
@@ -130,3 +131,29 @@ class VenueSchedule(SQLModel, table=True):
     
     venue: Venue = Relationship(back_populates="schedules")
     voyage: Voyage = Relationship(back_populates="venue_schedules")
+
+
+# --- Venue Rules Configuration ---
+
+class VenueRulesConfig(SQLModel, table=True):
+    """
+    Stores venue-specific parsing and derived event rules.
+    
+    Uses JSON for flexible schema - add new fields without migrations.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ship_code: str = Field(index=True)
+    venue_name: str = Field(index=True)
+    
+    # All rules stored as flexible JSON
+    config: dict = Field(default={}, sa_column=Column(JSON))
+    
+    # Versioning
+    version: int = Field(default=1)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+    
+    class Config:
+        # Allow arbitrary types for JSON
+        arbitrary_types_allowed = True
+
