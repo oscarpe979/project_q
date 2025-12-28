@@ -159,6 +159,14 @@ class VenueRules:
         strike_result = self._generate_strike(original_events)
         all_derived.extend([e for e in strike_result if e.get('is_derived')])
         
+        # Generate warm up from original events
+        warm_up_result = self._generate_warm_up(original_events)
+        all_derived.extend([e for e in warm_up_result if e.get('is_derived')])
+        
+        # Generate preset from original events
+        preset_result = self._generate_preset(original_events)
+        all_derived.extend([e for e in preset_result if e.get('is_derived')])
+        
         return events + all_derived
     
     # =========================================================================

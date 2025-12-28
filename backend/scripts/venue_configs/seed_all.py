@@ -41,9 +41,22 @@ def get_all_configs():
     return configs
 
 
-def seed_venue_rules():
+import argparse
+
+def seed_venue_rules(target_ship=None, target_venue=None):
     """Seed all venue rules configurations to the database."""
     configs = get_all_configs()
+    
+    # Filter if arguments provided
+    if target_ship:
+        configs = [c for c in configs if c['ship_code'].upper() == target_ship.upper()]
+    if target_venue:
+        # Fuzzy match or substring? Let's do substring (case insensitive) for ease
+        configs = [c for c in configs if target_venue.lower() in c['venue_name'].lower()]
+        
+    if not configs:
+        print(f"No configs found matching Ship={target_ship}, Venue={target_venue}")
+        return
     
     print(f"Seeding {len(configs)} venue rules configs...")
     
@@ -79,4 +92,9 @@ def seed_venue_rules():
 
 
 if __name__ == "__main__":
-    seed_venue_rules()
+    parser = argparse.ArgumentParser(description="Seed Venue Rules")
+    parser.add_argument("--ship", help="Filter by Ship Code (e.g. WN)", default=None)
+    parser.add_argument("--venue", help="Filter by Venue Name (partial match)", default=None)
+    args = parser.parse_args()
+    
+    seed_venue_rules(args.ship, args.venue)

@@ -1,0 +1,6 @@
+#!/bin/bash
+# Helper shortcut for seeding venue rules
+# Usage: ./seed_rules --ship WN --venue "Royal Theater"
+
+export PYTHONPATH=.
+python3 backend/scripts/venue_configs/seed_all.py "$@"

@@ -1385,8 +1385,9 @@ Return ONLY valid JSON matching the schema."""
         for event in sorted_events:
             event_type = event.get('type', '')
             
-            # Only merge operational events
-            if event_type not in ['setup', 'strike', 'preset']:
+            # Only merge operational events (setup, strike)
+            # Presets are distinct technical tasks and should NOT be merged with each other
+            if event_type not in ['setup', 'strike']:
                 merged.append(event)
                 continue
             

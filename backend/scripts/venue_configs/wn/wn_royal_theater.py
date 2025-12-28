@@ -31,6 +31,32 @@ CONFIG = {
             "min_gap_minutes": 30
         }
     ],
+    "preset_config": [
+        {
+            "match_titles": ["The Effectors II", "The Effectors: Crash and Burn"],
+            "offset_minutes": -120,
+            "duration_minutes": 15,
+            "title_template": "Points Check & Bounce",
+            "type": "preset",
+            "first_per_day": True
+        },
+        {
+            "match_titles": ["The Effectors II", "The Effectors: Crash and Burn"],
+            "offset_minutes": -105,
+            "duration_minutes": 30,
+            "title_template": "Sound Check",
+            "type": "preset",
+            "first_per_day": True
+        },
+        {
+            "match_titles": ["The Effectors II", "The Effectors: Crash and Burn"],
+            "offset_minutes": -75,
+            "duration_minutes": 30,
+            "title_template": "Show Presets",
+            "type": "preset",
+            "first_per_day": True
+        }
+    ],
     "prompt_section": """
 Royal Theater is the main theater venue.
 Look for: Voices, The Effectors II, Headliners
