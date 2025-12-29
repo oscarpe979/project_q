@@ -65,6 +65,38 @@ CONFIG = {
             "anchor": "end",
             "skip_last_per_day": True
         },
+        {
+            "match_titles": ["Voices"],
+            "offset_minutes": -150,
+            "duration_minutes": 60,
+            "title_template": "Sweep/Mop Stage and Props Presets @ Video Wall",
+            "type": "preset",
+            "first_per_day": True
+        },
+        {
+            "match_titles": ["Voices"],
+            "offset_minutes": -90,
+            "duration_minutes": 15,
+            "title_template": "Cast Warm Up",
+            "type": "preset",
+            "first_per_day": True
+        },
+        {
+            "match_titles": ["Voices"],
+            "offset_minutes": -75,
+            "duration_minutes": 15,
+            "title_template": "Soundcheck",
+            "type": "preset",
+            "first_per_day": True
+        },
+        {
+            "match_titles": ["Voices"],
+            "offset_minutes": -60,
+            "duration_minutes": 15,
+            "title_template": "STAT Presets",
+            "type": "preset",
+            "first_per_day": True
+        },
     ],
     "strike_config": [
         {
