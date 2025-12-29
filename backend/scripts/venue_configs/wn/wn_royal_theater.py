@@ -100,7 +100,19 @@ CONFIG = {
     ],
     "strike_config": [
         {
-            "match_types": ['show', "game", "party", 'comedy', 'headliner'],
+            "match_types": ['headliner'],
+            "duration_minutes": 30,
+            "title_template": "Strike Headliner",
+            "last_per_day": True
+        },
+        {
+            "match_types": ['comedy'],
+            "duration_minutes": 30,
+            "title_template": "Strike Comedy",
+            "last_per_day": True
+        },
+        {
+            "match_types": ['show', "game", "party"],
             "duration_minutes": 30,
             "title_template": "Strike {parent_title}",
             "last_per_day": True

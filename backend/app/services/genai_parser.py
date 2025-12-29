@@ -1251,12 +1251,20 @@ Return ONLY valid JSON matching the schema."""
             r'\s*-\s*Game Show$',   # " - Game Show" suffix
             r'\s+Game Show$',       # " Game Show" suffix
             r'^Game Show:\s*',      # "Game Show: " prefix
+            
+            # Showtime: Remove anywhere, handling punctuation
+            r'\s*-\s*Showtime\b',   # " - Showtime" (consumes preceding hyphen)
+            r'\bShowtime\s*-\s*',   # "Showtime - " (consumes succeeding hyphen)
+            r'\bShowtime\s*:\s*',   # "Showtime: " (consumes colon)
+            r'\bShowtime\b',        # "Showtime" (isolated word)
         ]
         
         normalized = title
         for pattern in patterns:
             normalized = re.sub(pattern, '', normalized, flags=re.IGNORECASE)
         
+        # Collapse multiple spaces and strip
+        normalized = re.sub(r'\s+', ' ', normalized)
         return normalized.strip()
     
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1693,7 +1701,7 @@ Return ONLY valid JSON matching the schema."""
         actual_events_sorted = sorted(actual_events, key=lambda x: x.get('start_dt'))
         
         # Operational event types that would fill gaps
-        operational_types = ['game', 'show', 'party', 'headliner', 'activity']
+        operational_types = ['game', 'show', 'party', 'activity']
         
         for i in range(len(actual_events_sorted) - 1):
             prev_event = actual_events_sorted[i]
