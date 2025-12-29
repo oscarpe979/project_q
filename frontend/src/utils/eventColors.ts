@@ -21,6 +21,7 @@ export const COLORS = {
     SETUP: '#e3ded3',              // Warm Taupe (for setup events)
     ICE_MAKE: '#e3ded3',          // Ice Blue
     CAST_INSTALL: '#fde5d1ff',      // Warm Grey (same as operations)
+    TECH_RUN: '#fde5d1ff',        // Warm Grey (same as operations)
     OTHER: '#e3ded3',             // Warm Grey
 };
 
@@ -61,6 +62,8 @@ export const getColorForType = (type: string): string => {
             return COLORS.TOPTIER;
         case 'cast_install':
             return COLORS.CAST_INSTALL;
+        case 'tech_run':
+            return COLORS.TECH_RUN;
         case 'setup':
             return COLORS.SETUP;
         case 'rehearsal':
