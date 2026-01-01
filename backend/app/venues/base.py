@@ -499,6 +499,7 @@ class VenueRules:
         
         for config in self.preset_config:
             match_titles = config.get('match_titles', [])
+            match_types = config.get('match_types', [])  # Inclusion filter (only match these types)
             exclude_types = config.get('exclude_types', [])
             offset_minutes = config.get('offset_minutes', -90)
             duration_minutes = config.get('duration_minutes', 30)
@@ -514,7 +515,22 @@ class VenueRules:
             prev_matching_event = None
             
             for event in sorted_events:
+                # Check title match and exclusion (via _matches_rule)
                 if self._matches_rule(event, [], match_titles, exclude_types):
+                    parent_event_type = event.get('type', '')
+                    
+                    # Apply match_types logic:
+                    # - If match_types is specified: event type MUST be in list (inclusion filter)
+                    # - If match_types is NOT specified: auto-exclude 'tech_run' events
+                    #   (prevents show rules from matching "Tech Run [Show Name]" via substring)
+                    if match_types:
+                        if parent_event_type not in match_types:
+                            continue
+                    else:
+                        # Auto-exclude tech_run if no explicit match_types
+                        if parent_event_type == 'tech_run':
+                            continue
+                        
                     event_date = event.get('start_dt').date() if event.get('start_dt') else None
                     
                     # Skip if first_per_day and already processed this date

@@ -36,7 +36,7 @@ CONFIG = {
             "match_titles": ["The Effectors II", "The Effectors: Crash and Burn"],
             "offset_minutes": -120,
             "duration_minutes": 15,
-            "title_template": "Points Check & Bounce",
+            "title_template": "Points Check/Bounce",
             "type": "preset",
             "first_per_day": True
         },
@@ -52,13 +52,12 @@ CONFIG = {
             "match_titles": ["The Effectors II", "The Effectors: Crash and Burn"],
             "offset_minutes": -75,
             "duration_minutes": 30,
-            "title_template": "Show Presets",
+            "title_template": "Stage Presets",
             "type": "preset",
             "first_per_day": True
         },
         {
             "match_titles": ["The Effectors II", "The Effectors: Crash and Burn", "Voices"],
-            "exclude_types": ["tech_run"],
             "offset_minutes": 0,
             "duration_minutes": 30,
             "title_template": "Show Presets",
@@ -94,7 +93,65 @@ CONFIG = {
             "match_titles": ["Voices"],
             "offset_minutes": -60,
             "duration_minutes": 15,
-            "title_template": "STAT Presets",
+            "title_template": "Stage Presets",
+            "type": "preset",
+            "first_per_day": True
+        },
+        # ========== TECH RUN PRESETS ==========
+        # Duplicate rules for Tech Runs with adjusted offsets (+45 min to remove doors gap)
+        # Effectors Tech Run Presets
+        {
+            "match_titles": ["The Effectors II", "The Effectors: Crash and Burn"],
+            "match_types": ["tech_run"],
+            "offset_minutes": -45,  # -120 + 45
+            "duration_minutes": 15,
+            "title_template": "Points Check/Bounce",
+            "type": "preset",
+            "first_per_day": True
+        },
+        {
+            "match_titles": ["The Effectors II", "The Effectors: Crash and Burn"],
+            "match_types": ["tech_run"],
+            "offset_minutes": -30,  # -105 + 45
+            "duration_minutes": 15,
+            "title_template": "Sound Check",
+            "type": "preset",
+            "first_per_day": True
+        },
+        {
+            "match_titles": ["The Effectors II", "The Effectors: Crash and Burn"],
+            "match_types": ["tech_run"],
+            "offset_minutes": -15,  # -75 + 45
+            "duration_minutes": 15,
+            "title_template": "Stage Presets",
+            "type": "preset",
+            "first_per_day": True
+        },
+        # Voices Tech Run Presets
+        {
+            "match_titles": ["Voices"],
+            "match_types": ["tech_run"],
+            "offset_minutes": -45,  # -90 + 45
+            "duration_minutes": 15,
+            "title_template": "Cast Warm Up",
+            "type": "preset",
+            "first_per_day": True
+        },
+        {
+            "match_titles": ["Voices"],
+            "match_types": ["tech_run"],
+            "offset_minutes": -30,  # -75 + 45
+            "duration_minutes": 15,
+            "title_template": "Soundcheck",
+            "type": "preset",
+            "first_per_day": True
+        },
+        {
+            "match_titles": ["Voices"],
+            "match_types": ["tech_run"],
+            "offset_minutes": -15,  # -60 + 45
+            "duration_minutes": 15,
+            "title_template": "Stage Presets",
             "type": "preset",
             "first_per_day": True
         },

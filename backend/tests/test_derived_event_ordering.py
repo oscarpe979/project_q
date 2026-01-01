@@ -5,33 +5,47 @@ from backend.app.venues.base import VenueRules
 class TestDerivedEventOrdering:
     """
     Regression tests for event ordering issues affecting derived event generation.
-    Covers scenarios where processing order caused failures in 'first_per_day' and 'skip_last_per_day' rules.
+    Tests the clean separation of Show rules and Tech Run rules.
+    
+    Architecture:
+    - Rules WITHOUT match_types: auto-exclude tech_run events (apply to shows only)
+    - Rules WITH match_types: ["tech_run"]: apply only to tech_run events
     """
     
     @pytest.fixture
     def rules(self):
         rules = VenueRules()
-        # Config 1: Skip Last Per Day (e.g. "Show Presets")
-        # Matches "Show A", skips the last one.
-        rules.preset_config = [{
-            "match_titles": ["Show A"],
-            "title_template": "Preset {parent_title}",
-            "type": "preset",
-            "anchor": "end",
-            "skip_last_per_day": True,
-            "duration_minutes": 30,
-            "offset_minutes": 0,
-            "exclude_types": ["tech_run"], # EXCLUDES tech_run
-        },
-        # Config 2: First Per Day (e.g. "Sound Check")
-        {
-            "match_titles": ["Show A"],
-            "title_template": "Start {parent_title}",
-            "type": "preset",
-            "first_per_day": True,
-            "duration_minutes": 15,
-            "offset_minutes": -30
-        }]
+        rules.preset_config = [
+            # Show rule: skip_last_per_day (auto-excludes tech_run)
+            {
+                "match_titles": ["Show A"],
+                "title_template": "Preset {parent_title}",
+                "type": "preset",
+                "anchor": "end",
+                "skip_last_per_day": True,
+                "duration_minutes": 30,
+                "offset_minutes": 0,
+            },
+            # Show rule: first_per_day (auto-excludes tech_run)
+            {
+                "match_titles": ["Show A"],
+                "title_template": "Start {parent_title}",
+                "type": "preset",
+                "first_per_day": True,
+                "duration_minutes": 15,
+                "offset_minutes": -30
+            },
+            # Tech Run rule: first_per_day (explicit match_types)
+            {
+                "match_titles": ["Show A"],
+                "match_types": ["tech_run"],
+                "title_template": "Start {parent_title}",
+                "type": "preset",
+                "first_per_day": True,
+                "duration_minutes": 15,
+                "offset_minutes": -15  # Adjusted offset for Tech Run (no doors gap)
+            }
+        ]
         
         # Tech Run Config
         rules.tech_run_config = [{
@@ -61,89 +75,72 @@ class TestDerivedEventOrdering:
             "venue": "Royal Theater"
         }
 
-    def test_tech_run_interfering_with_skip_last(self, rules, show_a_early, show_a_late):
+    def test_skip_last_per_day_works_for_shows(self, rules, show_a_early, show_a_late):
         """
-        Verify that `skip_last_per_day` correctly identifies the CHRONOLOGICAL last event,
-        even when Tech Runs (generated separately) are appended to the list later.
-        
-        Scenario:
-        1. Tech Run (10 AM).
-        2. Show Early (7 PM).
-        3. Show Late (9 PM). -> Should be SKIPPED.
-        
-        If unsorted, Tech Run appears last, causing Show Late to generate erroneously.
+        Verify that skip_last_per_day correctly identifies the last SHOW of the day.
+        Tech Runs are excluded from this rule (by auto-exclusion).
         """
         events = [show_a_early, show_a_late]
         result = rules.generate_derived_events(events)
         
-        presets = [e for e in result if e.get('title') == 'Preset Show A' or e.get('title') == 'Preset Tech Run Show A']
+        # Filter for end-anchored presets ("Preset Show A")
+        presets = [e for e in result if e.get('title') == 'Preset Show A']
         
         # Expected:
-        # 1. Tech Run -> EXCLUDED by match_types (no preset).
-        # 2. Show Early -> Preset.
-        # 3. Show Late -> SKIPPED (Last).
-        
-        assert len(presets) == 1, f"Expected 1 preset, got {len(presets)}"
-        
-        # Verify no preset at 22:00 (Show Late end)
-        timestamps_2200 = [p for p in presets if p['start_dt'].hour == 22]
-        assert len(timestamps_2200) == 0, "Show Late generated a preset! skip_last failed."
+        # - Show Early (7 PM) -> Preset at 8:00 PM
+        # - Show Late (9 PM) -> SKIPPED (last)
+        assert len(presets) == 1, f"Expected 1 preset (Show Early only), got {len(presets)}"
+        assert presets[0]['start_dt'].hour == 20, "Preset should be from Show Early (8 PM)"
 
-    def test_tech_run_interfering_with_first_per_day(self, rules, show_a_early, show_a_late):
+    def test_separate_quotas_for_tech_run_and_shows(self, rules, show_a_early, show_a_late):
         """
-        Verify that `first_per_day` logic consumes the quota for the FIRST event (Tech Run),
-        blocking subsequent events (Show Early, Show Late).
-        
-        Scenario:
-        1. Tech Run (10 AM).
-        2. Show Early (7 PM).
-        
-        Expected:
-        1. Tech Run -> Generates "Start Tech Run Show A".
-        2. Show Early -> Sees quota consumed. Skips.
+        Verify that Tech Runs and Shows have SEPARATE first_per_day quotas.
+        Tech Run gets its own preset, Shows get their own preset.
         """
         events = [show_a_early, show_a_late]
         result = rules.generate_derived_events(events)
         
-        # Filter for "Start ..." presets
-        presets = [e for e in result if "Start" in e.get('title', '')]
+        # Filter for start presets
+        start_presets = [e for e in result if "Start" in e.get('title', '')]
         
-        # Expected: 2 Presets (One for Tech Run, One for Show Early).
-        # Currently failing (Regression) -> Returns 1.
-        assert len(presets) == 2, f"Expected 2 presets (Tech Run + Show), got {len(presets)}"
+        # Expected: 2 presets
+        # 1. Tech Run Start (9:45 AM) - from Tech Run rule
+        # 2. Show Early Start (6:30 PM) - from Show rule
+        assert len(start_presets) == 2, f"Expected 2 presets (Tech Run + Show), got {len(start_presets)}"
         
-        titles = [p.get('parent_title') for p in presets]
-        # Verify it belongs to Tech Run
-        assert "Tech Run Show A" in presets[0]['parent_title']
+        # Verify one is morning (tech run), one is evening (show)
+        morning_presets = [p for p in start_presets if p['start_dt'].hour < 12]
+        evening_presets = [p for p in start_presets if p['start_dt'].hour >= 12]
+        assert len(morning_presets) == 1, "Should have 1 morning preset (Tech Run)"
+        assert len(evening_presets) == 1, "Should have 1 evening preset (Show)"
 
-    def test_tech_run_excludes_end_presets(self, rules, show_a_early):
+    def test_tech_run_auto_excluded_from_show_rules(self, rules, show_a_early):
         """
-        Verify that Tech Runs do NOT trigger "end-anchored" presets like "Show Presets",
-        which are intended only for actual shows.
-        But they SHOULD triggers start-anchored presets (like "Start ...").
+        Verify that Tech Runs are automatically excluded from rules
+        that don't have explicit match_types.
         """
-        # Tech Run Config
-        rules.tech_run_config = [{
-            "match_titles": ["Show A"],
-            "title_template": "Tech Run {parent_title}",
-            "type": "tech_run"
-        }]
+        # Remove Tech Run-specific rule to test auto-exclusion
+        rules.preset_config = [
+            {
+                "match_titles": ["Show A"],
+                "title_template": "Preset {parent_title}",
+                "type": "preset",
+                "anchor": "end",
+                "duration_minutes": 30,
+                "offset_minutes": 0,
+            },
+        ]
         
         events = [show_a_early]
         result = rules.generate_derived_events(events)
         
-        # 1. Tech Run (10 AM - 11 AM explicitly for this test calculation usually)
-        # 2. Start Preset (from Tech Run). MATCHES.
-        # 3. End Preset (from Tech Run). SHOULD NOT MATCH.
+        # Find presets from Tech Run
+        tech_run_presets = [e for e in result if 'Tech Run' in e.get('parent_title', '')]
         
-        # Check for End Preset ("Preset Tech Run Show A")
-        end_presets = [e for e in result if e.get('title') == "Preset Tech Run Show A"]
+        # Tech Run should NOT get this preset (auto-excluded)
+        assert len(tech_run_presets) == 0, f"Tech Run should be auto-excluded! Got: {tech_run_presets}"
         
-        # This currently FAILS (returns 1) because the rule lacks strict type matching.
-        # We expect 0.
-        assert len(end_presets) == 0, f"Tech Run triggered unwanted end preset! {end_presets}"
-        
-        # Check start preset exists (sanity check that we didn't break everything)
-        start_presets = [e for e in result if e.get('title') == "Start Tech Run Show A"]
-        assert len(start_presets) == 1, "Tech Run missing wanted start preset"
-        assert "Tech Run Show A" in start_presets[0]['parent_title']
+        # Show should still get the preset
+        show_presets = [e for e in result if e.get('parent_title') == 'Show A' and e.get('type') == 'preset']
+        assert len(show_presets) == 1, "Show should get the preset"
+
