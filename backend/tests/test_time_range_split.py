@@ -32,7 +32,8 @@ class TestAutoSplitTimeRanges:
         events = [{
             "title": "The Effectors II",
             "start_dt": datetime(2024, 1, 1, 19, 0),  # 7pm
-            "end_dt": datetime(2024, 1, 1, 21, 0),    # 9pm (120 min)
+            "end_time_str": "21:00",  # 9pm (120 min)
+            "raw_date": "2024-01-01",
             "type": "show",
         }]
         
@@ -41,8 +42,8 @@ class TestAutoSplitTimeRanges:
         assert len(result) == 2, f"Expected 2 events, got {len(result)}"
         assert result[0]['start_dt'] == datetime(2024, 1, 1, 19, 0)  # 7pm
         assert result[1]['start_dt'] == datetime(2024, 1, 1, 21, 0)  # 9pm (original end time)
-        assert result[0]['end_dt'] is None  # Cleared for duration resolution
-        assert result[1]['end_dt'] is None
+        assert result[0]['end_time_str'] is None  # Cleared for duration resolution
+        assert result[1]['end_time_str'] is None
 
     def test_triple_time_range_becomes_two_shows(self, parser, default_durations):
         """
@@ -52,7 +53,8 @@ class TestAutoSplitTimeRanges:
         events = [{
             "title": "Headliner Comedy Show",
             "start_dt": datetime(2024, 1, 1, 19, 0),  # 7pm
-            "end_dt": datetime(2024, 1, 1, 22, 0),    # 10pm (180 min)
+            "end_time_str": "22:00",  # 10pm (180 min)
+            "raw_date": "2024-01-01",
             "type": "headliner",
         }]
         
@@ -70,14 +72,15 @@ class TestAutoSplitTimeRanges:
         events = [{
             "title": "Unknown Show",  # Not in default_durations
             "start_dt": datetime(2024, 1, 1, 19, 0),
-            "end_dt": datetime(2024, 1, 1, 21, 0),
+            "end_time_str": "21:00",
+            "raw_date": "2024-01-01",
             "type": "show",
         }]
         
         result = parser._auto_split_time_ranges(events, default_durations)
         
         assert len(result) == 1, "Event without configured duration should not split"
-        assert result[0]['end_dt'] == datetime(2024, 1, 1, 21, 0)  # Original end preserved
+        assert result[0]['end_time_str'] == "21:00"  # Original end preserved
 
     def test_no_split_when_duration_matches(self, parser, default_durations):
         """
@@ -86,7 +89,8 @@ class TestAutoSplitTimeRanges:
         events = [{
             "title": "Voices",
             "start_dt": datetime(2024, 1, 1, 19, 0),
-            "end_dt": datetime(2024, 1, 1, 19, 45),  # 45 min = configured
+            "end_time_str": "19:45",  # 45 min = configured
+            "raw_date": "2024-01-01",
             "type": "show",
         }]
         
@@ -101,7 +105,8 @@ class TestAutoSplitTimeRanges:
         events = [{
             "title": "Voices",
             "start_dt": datetime(2024, 1, 1, 19, 0),
-            "end_dt": datetime(2024, 1, 1, 20, 20),  # 80 min (< 90 = 2*45)
+            "end_time_str": "20:20",  # 80 min (< 90 = 2*45)
+            "raw_date": "2024-01-01",
             "type": "show",
         }]
         
@@ -116,7 +121,8 @@ class TestAutoSplitTimeRanges:
         events = [{
             "title": "Voices",
             "start_dt": datetime(2024, 1, 1, 19, 0),
-            "end_dt": None,
+            "end_time_str": None,  # No end time
+            "raw_date": "2024-01-01",
             "type": "show",
         }]
         

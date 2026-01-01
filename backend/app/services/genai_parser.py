@@ -1168,11 +1168,22 @@ Return ONLY valid JSON matching the schema."""
         
         for event in events:
             start_dt = event.get('start_dt')
-            end_dt = event.get('end_dt')
+            end_time_str = event.get('end_time_str')
+            raw_date = event.get('raw_date')
             title = event.get('title', '')
             
-            # Skip if no time range (only start time)
-            if not start_dt or not end_dt:
+            # Skip if no end time string (only start time provided)
+            if not start_dt or not end_time_str or not raw_date:
+                result.append(event)
+                continue
+            
+            # Parse end_time_str into end_dt for comparison
+            try:
+                end_dt = datetime.fromisoformat(f"{raw_date}T{end_time_str}:00")
+                # Handle crossing midnight
+                if end_dt < start_dt:
+                    end_dt += timedelta(days=1)
+            except ValueError:
                 result.append(event)
                 continue
             
