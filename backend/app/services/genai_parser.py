@@ -969,6 +969,9 @@ Return ONLY valid JSON matching the schema."""
         # Sort by start time (Main Events + Merged Events)
         parsed_events.sort(key=lambda x: x['start_dt'])
         
+        # Auto-split time ranges that exceed configured duration (CD Grid typo fix)
+        parsed_events = self._auto_split_time_ranges(parsed_events, default_durations)
+        
         # Resolve durations (Main Events + Merged Events)
         final_events = self._resolve_event_durations(parsed_events, default_durations)
         
@@ -1146,6 +1149,70 @@ Return ONLY valid JSON matching the schema."""
         except (ValueError, KeyError) as e:
             print(f"Skipping malformed event: {event}, error: {e}")
             return None
+    
+    def _auto_split_time_ranges(self, events: List[Dict], default_durations: Dict[str, int]) -> List[Dict]:
+        """
+        Auto-split events where parsed duration >= 2x configured duration.
+        
+        This handles CD Grid typos where "7pm - 9pm" for a 60-minute show means
+        two shows at 7pm and 9pm, not one continuous 2-hour performance.
+        
+        Args:
+            events: List of parsed events with start_dt and end_dt
+            default_durations: Map of title keywords to duration in minutes
+            
+        Returns:
+            List of events with splits applied
+        """
+        result = []
+        
+        for event in events:
+            start_dt = event.get('start_dt')
+            end_dt = event.get('end_dt')
+            title = event.get('title', '')
+            
+            # Skip if no time range (only start time)
+            if not start_dt or not end_dt:
+                result.append(event)
+                continue
+            
+            # Find configured duration for this event (substring match)
+            configured_duration = None
+            for key, minutes in default_durations.items():
+                if key.lower() in title.lower():
+                    configured_duration = minutes
+                    break
+            
+            # Skip if no configured duration
+            if not configured_duration:
+                result.append(event)
+                continue
+            
+            parsed_duration = (end_dt - start_dt).total_seconds() / 60
+            
+            # Check if parsed duration >= 2x configured (indicates probable 2-show split)
+            # The time range "7pm - 10pm" means shows at 7pm AND 10pm, not evenly distributed
+            if parsed_duration >= 2 * configured_duration:
+                print(f"AUTO-SPLIT: '{title}' ({start_dt.strftime('%I:%M %p')} - {end_dt.strftime('%I:%M %p')}) "
+                      f"split into 2 events (start/end times as show times)")
+                
+                # Create 2 events: one at start time, one at end time
+                # Show 1: starts at the original start_dt
+                show1 = event.copy()
+                show1['end_dt'] = None  # Will be resolved by _resolve_event_durations
+                show1['end_time_str'] = None
+                result.append(show1)
+                
+                # Show 2: starts at the original end_dt
+                show2 = event.copy()
+                show2['start_dt'] = end_dt
+                show2['end_dt'] = None  # Will be resolved by _resolve_event_durations
+                show2['end_time_str'] = None
+                result.append(show2)
+            else:
+                result.append(event)
+        
+        return result
     
     def _resolve_event_durations(self, events: List[Dict], default_durations: Dict[str, int]) -> List[Dict]:
         """Resolve end times for events."""
