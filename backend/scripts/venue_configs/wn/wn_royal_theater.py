@@ -97,6 +97,33 @@ CONFIG = {
             "type": "preset",
             "first_per_day": True
         },
+        # ========== COMEDY PRESETS ==========
+        {
+            "match_types": ["comedy"],
+            "offset_minutes": -120,
+            "duration_minutes": 60,
+            "title_template": "Comedian Rehearsal",
+            "type": "rehearsal",
+            "first_per_day": True
+        },
+        # ========== HEADLINER PRESETS ==========
+        {
+            "match_types": ["headliner"],
+            "offset_minutes": -180,
+            "duration_minutes": 120,
+            "title_template": "Headliner Rehearsal",
+            "type": "rehearsal",
+            "first_per_day": True
+        },
+        # ========== MOVIE PRESETS ==========
+        {
+            "match_types": ["movie"],
+            "offset_minutes": -75,  # 30 min before doors (doors at -45)
+            "duration_minutes": 30,
+            "title_template": "Set Up Movie",
+            "type": "setup",
+            "first_per_day": True
+        },
         # ========== TECH RUN PRESETS ==========
         # Duplicate rules for Tech Runs with adjusted offsets (+45 min to remove doors gap)
         # Effectors Tech Run Presets
@@ -177,7 +204,7 @@ CONFIG = {
             "last_per_day": True
         },
         {
-            "match_types": ['show', "game", "party"],
+            "match_types": ['show', "game", "party", "movie"],
             "duration_minutes": 30,
             "title_template": "Strike {parent_title}",
             "last_per_day": True

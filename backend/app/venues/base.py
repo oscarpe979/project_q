@@ -515,8 +515,8 @@ class VenueRules:
             prev_matching_event = None
             
             for event in sorted_events:
-                # Check title match and exclusion (via _matches_rule)
-                if self._matches_rule(event, [], match_titles, exclude_types):
+                # Check type/title match and exclusion (via _matches_rule)
+                if self._matches_rule(event, match_types, match_titles, exclude_types):
                     parent_event_type = event.get('type', '')
                     
                     # Apply match_types logic:
@@ -662,7 +662,13 @@ class VenueRules:
         match_titles: List[str],
         exclude_types: List[str] = None
     ) -> bool:
-        """Check if an event matches a rule's criteria."""
+        """Check if an event matches a rule's criteria.
+        
+        Logic:
+        - If BOTH match_types AND match_titles specified: require BOTH to match
+        - If only match_types specified: require type to match
+        - If only match_titles specified: require title to match
+        """
         event_type = event.get('type', '')
         event_title = event.get('title', '')
         
@@ -671,16 +677,28 @@ class VenueRules:
             return False
         
         # Check type match
-        if match_types and event_type in match_types:
-            return True
+        type_matches = not match_types or event_type in match_types
         
         # Check title match
-        if match_titles:
+        title_matches = False
+        if not match_titles:
+            title_matches = True  # No title constraint
+        else:
             for match_title in match_titles:
                 if match_title.lower() in event_title.lower():
-                    return True
+                    title_matches = True
+                    break
         
-        return False
+        # If both are specified, require BOTH to match (AND logic)
+        # If only one is specified, that one must match
+        if match_types and match_titles:
+            return type_matches and title_matches
+        elif match_types:
+            return type_matches
+        elif match_titles:
+            return title_matches
+        else:
+            return True  # No constraints = match all
     
     def _create_derived_event(
         self,
