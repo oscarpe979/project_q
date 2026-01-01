@@ -5,7 +5,7 @@ Defines the interface for venue-specific parsing rules.
 """
 
 from typing import Dict, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 
 
 class VenueRules:
@@ -31,6 +31,7 @@ class VenueRules:
     warm_up_config: List[Dict] = []
     preset_config: List[Dict] = []
     ice_make_config: List[Dict] = []
+    tech_run_config: List[Dict] = []
     
     # Cross-venue config
     cross_venue_sources: List[str] = []
@@ -75,6 +76,8 @@ class VenueRules:
             rules['preset'] = self.preset_config
         if self.ice_make_config:
             rules['ice_make'] = self.ice_make_config
+        if self.tech_run_config:
+            rules['tech_run'] = self.tech_run_config
         return rules
     
     @classmethod
@@ -96,6 +99,7 @@ class VenueRules:
         instance.warm_up_config = config.get('warm_up_config', [])
         instance.preset_config = config.get('preset_config', [])
         instance.ice_make_config = config.get('ice_make_config', [])
+        instance.tech_run_config = config.get('tech_run_config', [])
         instance.cross_venue_sources = config.get('cross_venue_sources', [])
         instance.cross_venue_import_policies = config.get('cross_venue_import_policies', {})
         instance.late_night_config = config.get('late_night_config', {})
@@ -163,9 +167,18 @@ class VenueRules:
         warm_up_result = self._generate_warm_up(original_events)
         all_derived.extend([e for e in warm_up_result if e.get('is_derived')])
         
-        # Generate preset from original events
-        preset_result = self._generate_preset(original_events)
-        all_derived.extend([e for e in preset_result if e.get('is_derived')])
+        # Generate tech runs from original events
+        # Tech runs happen on show turnover
+        tech_run_result = self._generate_tech_run(original_events)
+        all_derived.extend(tech_run_result)
+        
+        # Generate preset from original events (AND tech runs)
+        preset_candidates = original_events + tech_run_result
+        preset_result = self._generate_preset(preset_candidates)
+        
+        # Filter out the input events (original + tech runs) to get only NEW presets
+        new_presets = preset_result[len(preset_candidates):]
+        all_derived.extend(new_presets)
         
         return events + all_derived
     
@@ -470,20 +483,23 @@ class VenueRules:
             return events
         
         derived = []
+        
+        # Sort events chronologically to ensure processing order and correct identification of 'last' event
+        sorted_events = sorted(events, key=lambda x: x.get('start_dt') or datetime.min)
+        
         # Group events by date for first_per_day and skip_last_per_day logic
+        # MUST use sorted_events so that the list for each date is also sorted!
         events_by_date = {}
-        for event in events:
+        for event in sorted_events:
             date_key = event.get('start_dt').date() if event.get('start_dt') else None
             if date_key:
                 if date_key not in events_by_date:
                     events_by_date[date_key] = []
                 events_by_date[date_key].append(event)
         
-        # Sort events chronologically for min_gap_minutes logic
-        sorted_events = sorted(events, key=lambda x: x.get('start_dt') or datetime.min)
-        
         for config in self.preset_config:
             match_titles = config.get('match_titles', [])
+            exclude_types = config.get('exclude_types', [])
             offset_minutes = config.get('offset_minutes', -90)
             duration_minutes = config.get('duration_minutes', 30)
             title_template = config.get('title_template', 'Ice Make & Presets')
@@ -493,21 +509,30 @@ class VenueRules:
             min_gap_minutes = config.get('min_gap_minutes')
             anchor = config.get('anchor', 'start')
             
-            processed_dates = set()
+            processed_dates_regular = set()
+            processed_dates_tech_run = set()
             prev_matching_event = None
             
             for event in sorted_events:
-                if self._matches_rule(event, [], match_titles):
+                if self._matches_rule(event, [], match_titles, exclude_types):
                     event_date = event.get('start_dt').date() if event.get('start_dt') else None
                     
                     # Skip if first_per_day and already processed this date
-                    if first_per_day and event_date in processed_dates:
+                    
+                    # Skip if first_per_day and already processed this date
+                    
+                    # FIX: Separate quota for Tech Runs vs Regular Events
+                    # We treat Tech Runs (morning) and Shows (evening) as separate "buckets" for presets
+                    is_tech_run = event.get('type') == 'tech_run'
+                    current_bucket_set = processed_dates_tech_run if is_tech_run else processed_dates_regular
+                    
+                    if first_per_day and event_date in current_bucket_set:
                         continue
                     
                     # Skip if skip_last_per_day and this is the last matching event of the day
                     if skip_last_per_day:
                         day_events = events_by_date.get(event_date, [])
-                        matching_events = [e for e in day_events if self._matches_rule(e, [], match_titles)]
+                        matching_events = [e for e in day_events if self._matches_rule(e, [], match_titles, exclude_types)]
                         if matching_events and event == matching_events[-1]:
                             continue
                     
@@ -534,9 +559,81 @@ class VenueRules:
                     prev_matching_event = event
                     
                     if first_per_day and event_date:
-                        processed_dates.add(event_date)
+                        current_bucket_set.add(event_date)
         
         return events + derived
+
+    def _generate_tech_run(self, events: List[Dict]) -> List[Dict]:
+        """Generate tech run events based on tech_run_config."""
+        if not self.tech_run_config:
+            return []
+        
+        derived = []
+        
+        # Sort events chronologically to detect turnover
+        sorted_events = sorted(events, key=lambda x: x.get('start_dt') or datetime.min)
+        
+        last_event_title = None
+        
+        for event in sorted_events:
+            # We track turnover based on ALL real events in the venue
+            # (excluding previously generated derived events if any slipped in, though original_events excludes them)
+            # If the stage usage changes, we might need a tech run.
+            
+            event_title = event.get('title', '')
+            event_type = event.get('type', '')
+            
+            # ISSUE 1 FIX: Ignore minor events for turnover detection
+            # Only switch "last_event_title" if this is a MAJOR event (Show or Headliner)
+            # This prevents "Bingo" or "Movie" from triggering a new Tech Run for the main show.
+            is_major_event = event_type in ['show', 'headliner']
+            
+            # Check if this event requires a Tech Run
+            matched_config = None
+            for config in self.tech_run_config:
+                 match_titles = config.get('match_titles', [])
+                 if self._matches_rule(event, [], match_titles):
+                     matched_config = config
+                     break
+            
+            if matched_config:
+                # Check for turnover: If the previous event was NOT the same show
+                # "Tech run before a show is ready to be performed"
+                if last_event_title != event_title:
+                    # Create Tech Run
+                    event_start = event.get('start_dt')
+                    if event_start:
+                        event_date = event_start.date()
+                        # "Morning of the first show night @ 10am"
+                        tech_run_start = datetime.combine(event_date, time(10, 0))
+                        
+                        # Duration: Inherit from parent
+                        parent_duration_mins = 0
+                        event_end = event.get('end_dt')
+                        if event_end:
+                            parent_duration_mins = (event_end - event_start).total_seconds() / 60
+                        
+                        title_template = matched_config.get('title_template', 'Tech Run {parent_title}')
+                        title = title_template.replace('{parent_title}', event_title)
+                        
+                        tech_run = {
+                            'title': title,
+                            'type': 'tech_run',
+                            'start_dt': tech_run_start,
+                            'end_dt': tech_run_start + timedelta(minutes=parent_duration_mins),
+                            'is_derived': True,
+                            'parent_title': event_title,
+                            # Inherit properties for frontend color matching
+                            'color': event.get('color'),
+                            'default_color': event.get('default_color')
+                        }
+                        derived.append(tech_run)
+            
+            # Update last event title to track state ONLY if it's a major event
+            if is_major_event:
+                last_event_title = event_title
+            
+        return derived
     
     # =========================================================================
     # Helper methods
@@ -546,11 +643,16 @@ class VenueRules:
         self, 
         event: Dict, 
         match_types: List[str], 
-        match_titles: List[str]
+        match_titles: List[str],
+        exclude_types: List[str] = None
     ) -> bool:
         """Check if an event matches a rule's criteria."""
         event_type = event.get('type', '')
         event_title = event.get('title', '')
+        
+        # Check exclusion first
+        if exclude_types and event_type in exclude_types:
+            return False
         
         # Check type match
         if match_types and event_type in match_types:

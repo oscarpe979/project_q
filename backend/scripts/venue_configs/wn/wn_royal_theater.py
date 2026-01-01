@@ -58,6 +58,7 @@ CONFIG = {
         },
         {
             "match_titles": ["The Effectors II", "The Effectors: Crash and Burn", "Voices"],
+            "exclude_types": ["tech_run"],
             "offset_minutes": 0,
             "duration_minutes": 30,
             "title_template": "Show Presets",
@@ -97,6 +98,13 @@ CONFIG = {
             "type": "preset",
             "first_per_day": True
         },
+    ],
+    "tech_run_config": [
+        {
+            "match_titles": ["Voices", "The Effectors II", "The Effectors: Crash and Burn"],
+            "title_template": "Tech Run {parent_title}",
+            "type": "tech_run"
+        }
     ],
     "strike_config": [
         {
